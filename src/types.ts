@@ -1,0 +1,297 @@
+export type ListingType = 'offer' | 'search';
+export type UserRole = 'user' | 'professional';
+
+export const PRO_PLANS = [
+  {
+    id: 'basic',
+    name: 'Plan Basic',
+    price: 0,
+    priceQuarterly: 0,
+    features: ['Perfil básico', '1 Reserva cada 48h'],
+    limits: {
+      maxBookingsPerDay: 1,
+      maxListingsPerAccount: 1,
+      maxConcurrentBookings: 1
+    }
+  },
+  {
+    id: 'medium',
+    name: 'Plan Medium',
+    price: 5,
+    priceQuarterly: 12,
+    isRecommended: true,
+    features: ['Perfil Medium', '1 Reserva cada 24h'],
+    limits: {
+      maxBookingsPerDay: 1,
+      maxListingsPerAccount: 1,
+      maxConcurrentBookings: 1
+    }
+  },
+  {
+    id: 'premium',
+    name: 'Plan Premium',
+    price: 10,
+    priceQuarterly: 24,
+    features: [
+      'Perfil Premium',
+      'Publicación solo 1 categoría',
+      'Permite reserva sin limite'
+    ],
+    limits: {
+      maxBookingsPerDay: 999,
+      maxListingsPerAccount: 1,
+      maxConcurrentBookings: 1
+    }
+  },
+  {
+    id: 'premium-pro',
+    name: 'Plan Premium Pro',
+    price: 15,
+    priceQuarterly: 36,
+    features: [
+      'Perfil Premium Pro',
+      'Publicación hasta 2 categoría',
+      'Reserva sin limite',
+      'Hasta 2 reservas misma franja horaria'
+    ],
+    limits: {
+      maxBookingsPerDay: 999,
+      maxListingsPerAccount: 2,
+      maxConcurrentBookings: 2
+    }
+  }
+];
+
+export interface Address {
+  streetType: string;
+  streetName: string;
+  number: string;
+  block?: string;
+  floor?: string;
+  door?: string;
+  postalCode: string;
+  locality: string;
+  province: string;
+}
+
+export interface DayShift {
+  day: string;
+  slots: { start: string; end: string }[];
+}
+
+export interface BillingInfo {
+  name: string;
+  documentId: string;
+  phone: string;
+  address: Address;
+}
+
+export interface UserProfile {
+  id: string;
+  customId?: string;
+  username: string;
+  email: string;
+  password?: string;
+  role: UserRole;
+  firstName: string;
+  lastName1: string;
+  lastName2: string;
+  documentId: string;
+  phoneNumber: string;
+  address: Address;
+  photoUrl?: string;
+  acceptPromotions?: boolean;
+  acceptTerms?: boolean;
+  blockedUsers?: string[];
+  certifications?: {
+    serviceGuarantee: boolean;
+    professionalInsurance: boolean;
+  };
+  gallery?: { url: string; category: string }[];
+  professionalInfo?: {
+    availability: DayShift[];
+    workLocation: string;
+    workRadius: number;
+    workCoords?: [number, number];
+    billing: BillingInfo;
+    plan?: string;
+    planBillingCycle?: 'monthly' | 'quarterly';
+    planAutoRenew?: boolean;
+    planStatus?: 'active' | 'cancelled';
+    planStartDate?: string;
+    planEndDate?: string;
+    planLastPaymentDate?: string;
+    planPaymentMethod?: string;
+    planPaymentStatus?: string;
+    planHistory?: {
+      planId: string;
+      planName: string;
+      startDate: string;
+      endDate?: string;
+      status: 'expired' | 'cancelled';
+      paymentMethod?: string;
+    }[];
+  };
+  settings?: {
+    smartSuggestions?: boolean;
+    locationRadius?: number;
+    notifications?: {
+      email: boolean;
+      push: boolean;
+      sms: boolean;
+    };
+  };
+  accountStatus?: 'active' | 'suspended' | 'banned';
+  suspendedUntil?: any;
+  banReason?: string;
+  isVerified?: boolean;
+  documents?: {
+    name: string;
+    status: string;
+    url: string;
+  }[];
+}
+
+export interface Booking {
+  id: string;
+  listingId: string;
+  listingTitle: string;
+  clientId: string;
+  professionalId: string;
+  date: string;
+  time: string;
+  duration?: string;
+  location: string;
+  description: string;
+  totalCost: number;
+  status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
+  createdAt: any;
+}
+
+export interface JobListing {
+  id: string;
+  title: string;
+  description: string;
+  price?: number;
+  unit?: 'hour' | 'project' | 'month';
+  type: ListingType;
+  category: string;
+  location: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  travelDistance?: number;
+  availability?: DayShift[];
+  additionalInfo?: string;
+  views?: number;
+  author: {
+    id: string;
+    name: string;
+    email: string;
+    photoUrl?: string;
+    rating?: number;
+    isVerified?: boolean;
+    certifications?: {
+      serviceGuarantee: boolean;
+      professionalInsurance: boolean;
+    };
+    gallery?: { url: string, category: string }[];
+  };
+  imageUrl?: string;
+  createdAt: string;
+  expiresAt?: string;
+  status?: 'active' | 'inactive' | 'disabled' | 'deleted';
+  tags: string[];
+}
+
+export interface FooterLink {
+  label: string;
+  url: string;
+}
+
+export interface FooterColumn {
+  title: string;
+  links: FooterLink[];
+}
+
+export interface SocialLink {
+  platform: string;
+  url: string;
+}
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  summary?: string;
+  content: string;
+  imageUrl: string;
+  authorId: string;
+  authorName: string;
+  createdAt: number;
+  published: boolean;
+  category?: string;
+}
+
+export interface FooterConfig {
+  columns: FooterColumn[];
+  copyrightText: string;
+  pages?: Record<string, string>;
+  socialLinks?: SocialLink[];
+}
+
+export const CATEGORIES = [
+  'Limpieza',
+  'Montaje de muebles',
+  'Fontanería',
+  'Electricidad',
+  'Clases particulares',
+  'Cuidado de personas',
+  'Jardinería',
+  'Informática',
+  'Otros'
+];
+
+export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
+  columns: [
+    {
+      title: 'JobPop',
+      links: [
+        { label: 'Quiénes somos', url: '#page-quienes-somos' },
+        { label: 'Cómo funciona', url: '#page-como-funciona' },
+        { label: 'Brand Book', url: '#page-brand-book' },
+        { label: 'Prensa', url: '#page-prensa' },
+        { label: 'Empleo', url: '#page-empleo' },
+        { label: 'Sostenibilidad', url: '#page-sostenibilidad' },
+        { label: 'JobPop envíos', url: '#page-envios' },
+        { label: 'Blog', url: '/blog' }
+      ]
+    },
+    {
+      title: 'Soporte',
+      links: [
+        { label: 'Centro de ayuda', url: '#page-ayuda' },
+        { label: 'Normas de la comunidad', url: '#page-normas' },
+        { label: 'Consejos de seguridad', url: '#page-seguridad' }
+      ]
+    },
+    {
+      title: 'Legal',
+      links: [
+        { label: 'Aviso legal', url: '#page-aviso-legal' },
+        { label: 'Condiciones de uso', url: '#page-condiciones' },
+        { label: 'Política de privacidad', url: '#page-privacidad' },
+        { label: 'Política de Cookies', url: '#page-cookies' }
+      ]
+    },
+    {
+      title: 'JobPop PRO',
+      links: [
+        { label: 'Multicategoría', url: '#page-pro-multicategoria' },
+        { label: 'Coches', url: '#page-pro-coches' }
+      ]
+    }
+  ],
+  copyrightText: '© 2013-2026 JobPop. Todos los derechos reservados',
+  pages: {}
+};

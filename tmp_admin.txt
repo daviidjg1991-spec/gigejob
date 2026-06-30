@@ -1,0 +1,51 @@
+// --- Admin Page Components ---
+const AdminSidebar = ({ activeTab, setActiveTab, user, reportsCount = 0 }: { activeTab: string, setActiveTab: (tab: string) => void, user: UserProfile | null, reportsCount?: number }) => {
+    { id: 'admins', label: 'Administradores', icon: ShieldCheck },
+          <p className="text-xs text-on-surface-variant mt-1">Administrador</p>
+const AdminUserEditModal = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: () => void, user: any }) => {
+            window.dispatchEvent(new CustomEvent('admin-updated-user', { detail: editedUser }));
+const AdminServiceDetailModal = ({ isOpen, onClose, service, serviceBookings }: { isOpen: boolean, onClose: () => void, service: any, serviceBookings?: any[] }) => {
+const AdminReportDetailModal = ({ isOpen, onClose, report, users, onViewUser }: { isOpen: boolean, onClose: () => void, report: any, users: any[], onViewUser: (user: any) => void }) => {
+const AdminPendingVerificationsModal = ({ isOpen, onClose, pendingUsers, onViewUser }: { isOpen: boolean, onClose: () => void, pendingUsers: any[], onViewUser: (user: any) => void }) => {
+  console.log("StaticPageView content length:", content?.length, "isAdmin:", user?.email === 'daviidjg1991@gmail.com');
+  const isAdmin = user?.email === 'daviidjg1991@gmail.com';
+        {isAdmin && !isEditing && (
+        {(!content && !isAdmin) ? (
+        ) : (!content && isAdmin && !isEditing) ? (
+const AdminPage = ({ user, listings, setListings, favorites, toggleFavorite, unreadMessagesCount }: { user: UserProfile | null, listings: any[], setListings?: React.Dispatch<React.SetStateAction<any[]>>, favorites: string[], toggleFavorite: (id: string) => void, unreadMessagesCount: number }) => {
+  const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [adminSubTab, setAdminSubTab] = useState('settings');
+      console.warn("Error fetching popupLeads (might not be admin):", error);
+            <AdminServiceDetailModal 
+              <AdminReportDetailModal 
+      case 'admins':
+                       onClick={() => setAdminSubTab(tab)}
+                       className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${adminSubTab === tab ? 'bg-primary text-white' : 'bg-surface-container text-on-surface hover:bg-surface-container-high'}`}
+              {adminSubTab === 'settings' && (
+                      <h2 className="text-2xl font-black font-display tracking-tight text-primary">Administradores</h2>
+                    <button onClick={() => setShowAddAdmin(true)} className="px-5 py-2.5 bg-primary text-white rounded-xl font-bold flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-lg">
+                      Añadir Administrador
+                <h3 className="text-lg font-bold mb-4">Lista de Administradores</h3>
+                {/* Simulated list of admins */}
+                      <h4 className="font-bold text-on-surface">{user?.email || 'admin@example.com'}</h4>
+              {adminSubTab === 'footer' && (
+              {adminSubTab === 'info' && (
+                           authorId: user?.id || 'admin',
+                           authorName: user?.username || 'Admin JobPop',
+      <AdminSidebar activeTab={activeTab} setActiveTab={setActiveTab} user={user} reportsCount={reports.filter(r => !r.isRead && r.status !== 'resolved').length} />
+        <AdminUserEditModal 
+        <AdminPendingVerificationsModal
+        {showAddAdmin && (
+            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowAddAdmin(false)}>
+                    <h2 className="text-2xl font-black font-display text-on-surface mb-6">Nuevo Administrador</h2>
+                            <input className="w-full px-5 py-4 bg-surface-container rounded-xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all border border-outline-variant/10" placeholder="admin@ejemplo.com" />
+                            <button className="w-full py-4 primary-gradient text-white rounded-xl font-black uppercase tracking-widest shadow-lg hover:scale-[1.02] transition-transform" onClick={() => { alert('Invitación enviada'); setShowAddAdmin(false); }}>
+                                Invitar Administrador
+                    to="/admin"
+                    <span className="text-[9px] font-black uppercase tracking-widest">Admin</span>
+  // Protect inactive listings from non-owners and non-admins
+  const canEditProfile = isOwnProfile || user?.role === 'admin' || (user as any)?.isAdmin;
+    const handleAdminUserUpdate = (e: any) => {
+    window.addEventListener('admin-updated-user', handleAdminUserUpdate);
+    return () => window.removeEventListener('admin-updated-user', handleAdminUserUpdate);
+              <Route path="/admin" element={user?.email === 'daviidjg1991@gmail.com' ? <AdminPage user={user} listings={listings} setListings={setListings} favorites={favorites} toggleFavorite={toggleFavorite} unreadMessagesCount={unreadMessagesCount} /> : <Navigate to="/" replace />} />

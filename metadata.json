@@ -1,0 +1,7 @@
+{
+  "name": "Remix: JobPop",
+  "description": "Una plataforma estilo marketplace para ofrecer servicios profesionales y encontrar trabajadores, desde limpieza hasta montaje de muebles.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

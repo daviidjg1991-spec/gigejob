@@ -1,0 +1,107 @@
+// Updated Firestore Rules based on the "Eight Pillars" approach
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net - Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return request.auth != null && 'email' in request.auth.token && request.auth.token.email == 'daviidjg1991@gmail.com';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Collections ---
+
+    match /{path=**}/transactions/{transactionId} {
+      allow read: if isAdmin();
+    }
+
+    // User profiles: Publicly readable for authenticated users, writable only by owner or admin
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isOwner(userId) || isAdmin();
+      
+      match /private/{document=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Conversations: Relational security
+    match /conversations/{conversationId} {
+      allow get: if isSignedIn() && (resource == null || request.auth.uid in resource.data.participants || isAdmin());
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participants || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participants;
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants || isAdmin());
+
+      match /messages/{messageId} {
+        allow read, create: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants || isAdmin());
+      }
+    }
+
+    // Blacklist
+    match /blacklist/{email} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Listings: Publicly readable, writable by owner
+    match /listings/{listingId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Bookings: Readable and writable by participants
+    match /bookings/{bookingId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Reports: Writable by reporters, readable/updatable by admin
+    match /reports/{reportId} {
+      allow create: if isSignedIn() && request.resource.data.reporterUserId == request.auth.uid;
+      allow read, update: if isAdmin();
+    }
+
+    // Reviews: Publicly readable for authenticated users? or public?
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+    // Popup Leads: Anyone can create, only admin can read
+    match /popupLeads/{leadId} {
+      allow create: if true;
+      allow read, delete: if isAdmin();
+    }
+
+    // Settings: Publicly readable, updatable by admin
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Blog Posts: Publicly readable, updatable by admin
+    match /blog_posts/{postId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

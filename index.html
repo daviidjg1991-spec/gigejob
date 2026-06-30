@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="google_translate_element"></div>
+    <script type="text/javascript">
+      (function() {
+        if (document.cookie.indexOf('googtrans=') === -1) {
+          var browserLang = (navigator.language || navigator.userLanguage).split('-')[0];
+          var supportedLangs = ['es', 'en', 'fr', 'de', 'it'];
+          var targetLang = supportedLangs.indexOf(browserLang) !== -1 ? browserLang : 'en'; // default to en if not supported or es
+          if (targetLang !== 'es') {
+            var expires = new Date();
+            expires.setTime(expires.getTime() + (30 * 24 * 60 * 60 * 1000));
+            document.cookie = 'googtrans=/es/' + targetLang + '; expires=' + expires.toUTCString() + '; path=/';
+            document.cookie = 'googtrans=/es/' + targetLang + '; expires=' + expires.toUTCString() + '; domain=' + window.location.hostname + '; path=/';
+          }
+        }
+      })();
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement({pageLanguage: 'es', includedLanguages: 'es,en,fr,de,it', autoDisplay: false}, 'google_translate_element');
+      }
+    </script>
+    <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,200 @@
+237:          <div className="bg-surface-container-lowest p-12 rounded-[3rem] ambient-shadow max-w-md border border-outline-variant/10">
+632:                className="w-full group p-4 bg-surface-container-low hover:bg-white rounded-2xl border border-outline-variant/10 hover:border-primary/20 transition-all text-left flex items-center justify-between h-auto relative overflow-hidden shadow-sm"
+696:              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner">
+716:                    <div key={tx.id} className="p-3 lg:p-6 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/5 flex items-center justify-between group hover:border-primary/20 transition-all shadow-sm">
+742:                          className="p-3 lg:p-8 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/10 hover:border-primary/40 transition-all text-left space-y-2 group shadow-sm"
+761:                    <div className="bg-surface-container-low rounded-[2rem] lg:rounded-[3rem] p-5 lg:p-10 h-full border border-outline-variant/10 animate-in zoom-in-95 duration-300 flex flex-col overflow-hidden">
+784:                            <div className="sm:text-right w-full sm:w-auto p-4 sm:p-0 bg-surface-container-low sm:bg-transparent rounded-2xl">
+828:                          <div className="w-full sm:w-72 space-y-3 p-6 bg-surface-container-low rounded-[2rem]">
+865:                <button key={i} className="w-full group p-4 bg-surface-container-low hover:bg-white rounded-2xl border border-outline-variant/10 hover:border-primary/20 transition-all text-left flex items-center justify-between h-auto shadow-sm">
+889:            <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/10 space-y-4 shadow-sm">
+934:                 <button className="w-full flex items-center justify-between p-4 bg-surface-container-low hover:bg-white text-on-surface font-black uppercase tracking-widest text-[10px] rounded-2xl border border-outline-variant/10 shadow-sm group transition-all">
+941:                 <button className="w-full flex items-center justify-between p-4 bg-surface-container-low hover:bg-white text-on-surface font-black uppercase tracking-widest text-[10px] rounded-2xl border border-outline-variant/10 shadow-sm group transition-all">
+964:                  <div key={type} className="flex items-center justify-between p-4 bg-surface-container-low rounded-2xl border border-outline-variant/10 shadow-sm">
+1034:                      className="w-full group p-4 bg-transparent hover:bg-surface-container-low rounded-2xl border border-outline-variant/10 hover:border-primary/20 transition-all text-left flex items-center justify-between h-auto relative overflow-hidden shadow-none"
+1055:                  className="absolute -top-2 -left-2 lg:-left-16 lg:top-0 p-3 hover:bg-surface-container-low rounded-2xl text-on-surface-variant/40 hover:text-on-surface transition-all"
+1104:                      <div className="p-6 lg:p-8 bg-surface-container-low rounded-3xl lg:rounded-[2rem] space-y-4 border border-outline-variant/5">
+1157:                        <div className="p-8 lg:p-12 bg-surface-container-low rounded-[2rem] lg:rounded-[3rem] text-center space-y-6 border border-outline-variant/10">
+1177:                              className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+1192:                                className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+1205:                                className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+1217:                          <div className="p-6 lg:p-10 bg-surface-container-low rounded-3xl lg:rounded-[3rem] space-y-6 border border-outline-variant/5">
+1325:                      <div className="p-4 lg:p-12 bg-surface-container-low rounded-2xl lg:rounded-[3.5rem] border border-outline-variant/10 text-center space-y-4 shadow-sm">
+1499:                          <div className="p-6 lg:p-10 bg-surface-container-low rounded-3xl lg:rounded-[3rem] border border-outline-variant/10 space-y-6">
+1565:                                  isActive ? "bg-primary text-white shadow-sm scale-105" : "bg-surface-container-low text-on-surface-variant/40 border border-outline-variant/10"
+1576:                            <div key={avail.day} className="p-3 bg-surface-container-low rounded-xl space-y-2 border border-outline-variant/5 shadow-sm">
+1600:                                        className="w-full bg-surface-container-low px-1.5 py-1 rounded text-[9px] font-bold outline-none text-primary"
+1612:                                        className="w-full bg-surface-container-low px-1.5 py-1 rounded text-[9px] font-bold outline-none text-primary"
+1676:        className="w-full max-w-4xl bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] lg:h-[700px] h-full lg:ambient-shadow relative overflow-hidden flex flex-col lg:flex-row shadow-2xl"
+1679:        <div className="lg:w-72 w-full bg-white lg:bg-surface-container-low border-b lg:border-b-0 lg:border-r border-outline-variant/10 lg:p-10 p-5 flex flex-col shrink-0 relative transition-all duration-300">
+1713:              className="lg:p-2 p-2.5 bg-surface-container-low lg:bg-transparent rounded-full text-on-surface-variant/20 hover:text-primary transition-all active:scale-95"
+1782:          <button onClick={onClose} className="hidden lg:block absolute top-10 right-10 p-3 hover:bg-surface-container-low rounded-full transition-colors text-on-surface-variant/20 hover:text-on-surface">
+1824:          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all group whitespace-nowrap"
+1907:            <div className="flex-1 flex items-center bg-surface-container-low rounded-full px-4 py-2 border border-outline-variant/10 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+1985:                        className="absolute top-full right-0 mt-4 w-64 bg-surface-container-lowest rounded-[2rem] ambient-shadow border border-outline-variant p-3 overflow-hidden z-[60]"
+1992:                          <button onClick={() => { navigate('/perfil'); setActiveDropdown(null); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all">
+1996:                          <button onClick={() => { navigate('/monederos'); setActiveDropdown(null); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all">
+2000:                          <button onClick={() => { navigate('/mensajes'); setActiveDropdown(null); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all">
+2004:                          <button onClick={() => { navigate('/mis-anuncios'); setActiveDropdown(null); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all">
+2008:                          <button onClick={() => { navigate('/publicar'); setActiveDropdown(null); }} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all">
+2019:                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all"
+2058:                  className="bg-surface-container-low text-on-surface px-6 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-surface-container-high transition-all"
+2089:      className="group bg-surface-container-lowest rounded-2xl sm:rounded-3xl overflow-hidden ambient-shadow hover:-translate-y-1 transition-all duration-300 flex flex-col h-full"
+2171:              isFavorite ? "bg-primary/10 text-primary" : "bg-surface-container-low text-on-surface-variant/40 hover:bg-primary/5 hover:text-primary"
+2187:                <span key={avail.day} className="px-1.5 py-0.5 bg-surface-container-low text-[8px] font-black uppercase tracking-widest text-on-surface-variant/40 rounded-md">
+2231:    <div className="hidden lg:block bg-surface-container-lowest border-b border-outline-variant py-1.5 relative z-40">
+2257:                className="absolute top-full left-0 mt-2 w-64 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant p-3 z-50"
+2264:                      className="w-full text-left px-4 py-3 hover:bg-surface-container-low rounded-xl text-xs font-bold text-on-surface-variant hover:text-primary transition-all flex items-center justify-between group"
+2341:      <div className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-20">
+2355:            <div className="relative flex items-center bg-surface-container-lowest rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
+2383:          <div className="flex p-1 bg-surface-container-low rounded-xl">
+2394:                  activeTab === t.id ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant/40 hover:text-on-surface-variant"
+2418:          <div className="text-center py-32 bg-surface-container-low/30 rounded-[3rem] border-2 border-dashed border-outline-variant/20">
+2546:              <div className="flex p-1 bg-surface-container-low rounded-xl w-fit">
+2562:                      type === t.id ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant/40 hover:text-on-surface-variant"
+2574:                  showAdvanced ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high"
+2582:              <div className="hidden sm:flex bg-surface-container-low p-1.5 rounded-xl sm:rounded-2xl shrink-0 w-fit">
+2591:                    viewMode === 'grid' ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant/40 hover:text-on-surface-variant"
+2604:                    viewMode === 'map' ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant/40 hover:text-on-surface-variant"
+2626:                  className="w-full pl-10 pr-4 py-3.5 sm:py-3 bg-surface-container-low border-none rounded-xl font-bold text-[10px] uppercase tracking-widest text-on-surface-variant outline-none focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-on-surface-variant/20"
+2657:                        className="w-full pl-5 pr-10 py-3.5 bg-surface-container-low border-none rounded-xl font-bold text-[10px] uppercase tracking-widest text-on-surface-variant outline-none focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
+2680:                        className="w-full px-4 py-2.5 bg-surface-container-low border-none rounded-lg font-bold text-[10px] uppercase tracking-widest text-on-surface-variant outline-none focus:ring-2 focus:ring-primary/10"
+2693:                        className="w-full px-4 py-2.5 bg-surface-container-low border-none rounded-lg font-bold text-[10px] uppercase tracking-widest text-on-surface-variant outline-none focus:ring-2 focus:ring-primary/10"
+2713:                            Number(minRating) >= star ? "bg-amber-500 text-white shadow-sm" : "bg-surface-container-low text-on-surface-variant/20 hover:text-on-surface-variant/40"
+2734:                        verifiedOnly ? "bg-primary/10 text-primary border border-primary/20" : "bg-surface-container-low text-on-surface-variant/40 hover:bg-surface-container-high"
+2761:                          className="w-full pl-9 pr-4 py-2.5 bg-surface-container-low border-none rounded-lg font-bold text-[10px] uppercase tracking-widest text-on-surface-variant outline-none focus:ring-2 focus:ring-primary/10"
+2832:          <div className="text-center py-32 bg-surface-container-low/30 rounded-[3rem] border-2 border-dashed border-outline-variant/20">
+3054:          className="w-full flex justify-between items-center p-4 bg-surface-container-low rounded-2xl hover:bg-surface-container-high transition-all"
+3074:              className="absolute top-full left-0 right-0 mt-2 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant/10 p-6 z-50 min-w-[320px]"
+3082:                      className="p-2 hover:bg-surface-container-low rounded-xl disabled:opacity-20"
+3089:                      className="p-2 hover:bg-surface-container-low rounded-xl"
+3112:                                : "hover:bg-primary/10 hover:text-primary bg-surface-container-low"
+3142:                            ? "bg-surface-container-low/50 text-on-surface-variant/10 cursor-not-allowed"
+3143:                            : "bg-surface-container-low hover:bg-primary/10 hover:text-primary"
+3358:          <button onClick={onClose} className="absolute top-4 right-4 sm:top-6 sm:right-6 p-2 hover:bg-surface-container-low rounded-full transition-colors z-10 bg-white border border-outline-variant/10 shadow-sm shrink-0">
+3377:                <div className="flex items-center gap-3 bg-surface-container-low/50 px-3 py-1.5 rounded-xl border border-outline-variant/5">
+3411:                        available ? "bg-surface-container-low/40 text-on-surface hover:bg-[#005a54]/5 hover:text-[#005a54]" : 
+3438:                            ? "bg-surface-container-low/30 border-transparent text-on-surface-variant/60 hover:border-[#005a54]/20 hover:text-[#005a54]"
+3457:                  className="w-full px-5 py-4 bg-surface-container-low/40 rounded-2xl font-medium border-none outline-none focus:ring-1 focus:ring-[#005a54]/20 text-sm placeholder:text-on-surface-variant/30 h-28 resize-none no-scrollbar leading-relaxed"
+3465:                    <button onClick={() => setDuration(Math.max(1, duration - 1))} className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface hover:text-[#005a54] transition-all"><Minus className="w-4 h-4" /></button>
+3466:                    <div className="flex-1 h-10 bg-surface-container-low/40 rounded-xl flex items-center justify-center gap-1">
+3470:                    <button onClick={() => setDuration(duration + 1)} className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface hover:text-[#005a54] transition-all"><Plus className="w-4 h-4" /></button>
+3491:                    className="w-full pl-12 pr-6 py-4 bg-surface-container-low/40 rounded-2xl font-bold border-none outline-none focus:ring-1 focus:ring-[#005a54]/20 text-sm placeholder:text-on-surface-variant/30"
+3549:      <div className="bg-surface-container-lowest border-b border-outline-variant">
+3635:                    isFavorite ? "bg-primary text-white shadow-lg" : "bg-surface-container-low text-on-surface-variant hover:text-primary"
+3660:            <div className="relative group rounded-[2.5rem] overflow-hidden ambient-shadow aspect-[16/9] bg-surface-container-low">
+3680:                <div key={i} className="bg-surface-container-low/50 p-6 rounded-3xl flex items-center gap-4">
+3695:                <div className="bg-surface-container-low/30 p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+3725:                <div className="bg-surface-container-low/30 p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] space-y-4">
+3735:            <div className="bg-surface-container-lowest rounded-[2.5rem] p-10 ambient-shadow">
+3744:                  <span key={tag} className="px-5 py-2.5 bg-surface-container-low text-on-surface-variant/60 rounded-xl font-bold text-[10px] uppercase tracking-widest">
+3758:                      "group relative rounded-3xl overflow-hidden bg-surface-container-low aspect-square",
+3787:                  <div key={i} className="bg-surface-container-lowest p-8 rounded-[2rem] ambient-shadow space-y-4">
+3812:              <div className="bg-surface-container-lowest rounded-[2.5rem] p-8 sm:p-10 ambient-shadow border border-outline-variant/10">
+3859:              <div className="bg-surface-container-low/50 rounded-[2.5rem] p-8 space-y-6">
+3995:            <div className="bg-surface-container-lowest rounded-[2.5rem] sm:rounded-[3.5rem] p-6 sm:p-10 md:p-12 ambient-shadow border border-outline-variant/10 text-center">
+4020:                <div className="bg-surface-container-low/50 p-4 sm:p-5 rounded-2xl sm:rounded-3xl">
+4024:                <div className="bg-surface-container-low/50 p-4 sm:p-5 rounded-2xl sm:rounded-3xl">
+4129:                    <div className="bg-surface-container-low/30 rounded-[2rem] sm:rounded-[3rem] py-16 sm:py-24 text-center border-2 border-dashed border-outline-variant/10">
+4139:                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/20 p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-outline-variant/5">
+4155:                          className="bg-surface-container-low pl-3 pr-8 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all hover:bg-surface-container-high min-w-[120px] sm:min-w-[140px]"
+4228:                          <div key={i} className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-container-low border border-outline-variant/5 ambient-shadow transition-all duration-500 hover:shadow-lg">
+4256:                      <div className="bg-surface-container-low/10 py-16 sm:py-20 rounded-2xl sm:rounded-[2.5rem] text-center border border-dashed border-outline-variant/10">
+4277:                      <div key={i} className="bg-surface-container-lowest rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 ambient-shadow border border-outline-variant/10 space-y-4 sm:space-y-6">
+4302:                  <div className="bg-surface-container-lowest rounded-2xl sm:rounded-[3rem] p-6 sm:p-10 ambient-shadow border border-outline-variant/10 space-y-6 sm:space-y-8">
+4307:                          <div key={type} className="flex items-center justify-between p-4 sm:p-6 bg-surface-container-low rounded-xl sm:rounded-[2rem]">
+4371:    <div className="hidden lg:flex w-80 bg-surface-container-lowest border-r border-outline-variant/10 flex-col h-[calc(100vh-64px)] overflow-y-auto no-scrollbar shrink-0 fixed top-16 left-0">
+4389:                  : "text-on-surface-variant/60 hover:bg-surface-container-low hover:text-primary"
+4407:                isSettingsPath ? "text-primary bg-primary/5" : "text-on-surface-variant/60 hover:bg-surface-container-low hover:text-primary"
+4424:                        : "text-on-surface-variant/40 hover:text-primary hover:bg-surface-container-low"
+4444:      <main className="flex-1 h-full lg:pl-80 overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar">
+4479:          <div className="bg-surface-container-lowest p-10 sm:p-20 rounded-[2.5rem] sm:rounded-[3rem] ambient-shadow border border-outline-variant/10 text-center">
+4509:          <div key={i} className="bg-surface-container-lowest p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] ambient-shadow border border-outline-variant/10 group hover:border-primary/20 transition-all">
+4511:              <div className={cn("p-3 rounded-2xl bg-surface-container-low transition-colors group-hover:bg-primary/5", stat.color)}>
+4523:        <div className="bg-surface-container-lowest p-6 sm:p-10 rounded-[2.5rem] sm:rounded-[3rem] ambient-shadow border border-outline-variant/10">
+4545:        <div className="bg-surface-container-lowest p-6 sm:p-10 rounded-[2.5rem] sm:rounded-[3rem] ambient-shadow border border-outline-variant/10">
+4558:                <div className="h-2 bg-surface-container-low rounded-full overflow-hidden">
+4699:            <div className="bg-surface-container-lowest p-8 sm:p-10 rounded-[2.5rem] sm:rounded-[3rem] ambient-shadow border border-outline-variant/10 flex flex-col justify-between">
+4742:          <div className="bg-surface-container-lowest rounded-[2.5rem] sm:rounded-[3rem] ambient-shadow border border-outline-variant/10 overflow-hidden">
+4749:                <div key={i} className="p-6 sm:p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors">
+4777:            <div className="bg-surface-container-low p-8 rounded-[2.5rem] border border-outline-variant/10 ambient-shadow group">
+4823:            <div className="bg-surface-container-low p-8 rounded-[2.5rem] border border-outline-variant/10 ambient-shadow group">
+4901:          <div className="bg-surface-container-lowest rounded-[3rem] ambient-shadow border border-outline-variant/10 overflow-hidden">
+4904:                <div key={i} className="p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors">
+4983:                          <input type="text" placeholder="0000 0000 0000 0000" className="w-full pl-12 pr-4 py-4 bg-surface-container-low rounded-2xl font-mono text-sm outline-none focus:ring-2 focus:ring-primary/20" required />
+4989:                          <input type="text" placeholder="MM/YY" className="w-full px-4 py-4 bg-surface-container-low rounded-2xl font-mono text-sm outline-none focus:ring-2 focus:ring-primary/20" required />
+4995:                            <input type="password" placeholder="***" className="w-full px-4 py-4 bg-surface-container-low rounded-2xl font-mono text-sm outline-none focus:ring-2 focus:ring-primary/20" required />
+5006:                          <input type="text" placeholder="ES00 0000 0000 0000 0000 0000" className="w-full pl-12 pr-4 py-4 bg-surface-container-low rounded-2xl font-mono text-sm outline-none focus:ring-2 focus:ring-primary/20" required />
+5011:                        <input type="text" placeholder="Ej. Santander, BBVA..." className="w-full px-4 py-4 bg-surface-container-low rounded-2xl font-bold text-sm outline-none focus:ring-2 focus:ring-primary/20" required />
+5053:    <div className="bg-surface-container-lowest rounded-[2.5rem] p-10 ambient-shadow border border-outline-variant/10">
+5345:        "w-full md:w-72 border-r border-outline-variant/10 flex flex-col h-full bg-surface-container-lowest",
+5355:              className="w-full bg-surface-container-low border-none rounded-xl py-3 pl-10 pr-4 text-xs font-bold focus:ring-2 focus:ring-primary/20 transition-all"
+5393:                  selectedChatId === chat.id ? "bg-primary/5" : "hover:bg-surface-container-low"
+5432:                <button onClick={() => { setSelectedChatId(null); navigate('/mensajes'); }} className="md:hidden p-2 hover:bg-surface-container-low rounded-full">
+5454:                  className="p-3 hover:bg-surface-container-low rounded-2xl transition-all text-on-surface-variant/40"
+5466:                    className="p-3 hover:bg-surface-container-low rounded-2xl transition-all text-on-surface-variant/40"
+5533:                   className="bg-surface-container-low/40 rounded-2xl p-2 flex items-center gap-1.5 border border-outline-variant/5 shadow-sm overflow-x-auto no-scrollbar"
+5632:              <div className="flex items-center gap-2 bg-surface-container-low rounded-[2rem] p-1 px-3">
+5689:                  className="p-2 hover:bg-surface-container-low rounded-full transition-colors"
+5697:                  <div className="text-center py-20 bg-surface-container-low/30 rounded-[2rem] border border-dashed border-outline-variant/20">
+5727:                      <div className="bg-surface-container-lowest/50 rounded-2xl p-4 space-y-2">
+5872:          className="w-full pl-14 pr-32 py-5 bg-surface-container-low border-none rounded-[2rem] focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface placeholder:text-on-surface-variant/20 shadow-sm"
+5915:        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 w-[85%] bg-surface-container-lowest/95 backdrop-blur-md px-6 py-4 rounded-full ambient-shadow border border-outline-variant/10">
+5929:                className="w-full h-1 bg-surface-container-low rounded-full appearance-none cursor-pointer accent-primary"
+6075:          className="bg-surface-container-lowest rounded-[3rem] p-12 text-center max-w-md ambient-shadow"
+6099:          className="bg-surface-container-lowest rounded-[3rem] p-12 text-center max-w-md ambient-shadow"
+6152:              className="bg-surface-container-lowest rounded-[3rem] p-10 max-w-md w-full ambient-shadow relative overflow-hidden"
+6177:                    className="w-full py-4 bg-surface-container-low text-on-surface-variant/40 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:text-on-surface transition-all"
+6189:        <div className="bg-surface-container-lowest rounded-[3rem] ambient-shadow p-10 md:p-16">
+6203:            <div className="grid grid-cols-2 gap-3 p-1.5 bg-surface-container-low rounded-2xl">
+6209:                  formData.type === 'offer' ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant/40"
+6219:                  formData.type === 'search' ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant/40"
+6233:                  className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface placeholder:text-on-surface-variant/20"
+6242:                    <div className="relative aspect-[21/9] rounded-[2rem] bg-surface-container-low overflow-hidden ambient-shadow group">
+6257:                    className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl hover:bg-surface-container-high transition-all font-bold text-on-surface flex items-center gap-3 group whitespace-nowrap overflow-hidden"
+6300:                    className="relative w-full max-w-sm bg-surface-container-lowest rounded-[2.5rem] p-8 ambient-shadow"
+6312:                        className="flex items-center gap-4 p-6 bg-surface-container-low hover:bg-primary/5 hover:text-primary rounded-3xl transition-all group"
+6329:                        className="flex items-center gap-4 p-6 bg-surface-container-low hover:bg-primary/5 hover:text-primary rounded-3xl transition-all group"
+6374:                    className="relative w-full max-w-2xl bg-surface-container-lowest rounded-[2.5rem] overflow-hidden ambient-shadow flex flex-col max-h-[80vh]"
+6383:                        className="p-3 hover:bg-surface-container-low rounded-full transition-all"
+6400:                              className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-container-low hover:ring-4 hover:ring-primary/30 transition-all"
+6465:                      className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface appearance-none"
+6483:                        className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface placeholder:text-on-surface-variant/20"
+6492:                          className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface appearance-none"
+6541:                  className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface placeholder:text-on-surface-variant/20"
+6555:                  className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface placeholder:text-on-surface-variant/20 resize-none"
+6566:                  className="w-full px-8 py-5 bg-surface-container-low border-none rounded-2xl focus:bg-surface-container-lowest focus:ring-4 focus:ring-primary/10 outline-none transition-all font-bold text-on-surface placeholder:text-on-surface-variant/20"
+6577:                className="flex-1 py-5 bg-surface-container-low rounded-full font-black text-on-surface-variant/60 hover:text-on-surface transition-all uppercase tracking-widest text-xs"
+6954:    <div className="min-h-screen bg-surface-container-lowest flex items-center justify-center p-4 py-20">
+6990:                  className="w-full px-8 py-4 bg-surface-container-low rounded-2xl outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
+7001:                  className="w-full px-8 py-4 bg-surface-container-low rounded-2xl outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
+7027:                  className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
+7059:                        className={cn("w-full px-8 py-4 bg-surface-container-low rounded-2xl outline-none transition-all font-bold", errors.username && "ring-2 ring-red-500")}
+7069:                        className={cn("w-full px-8 py-4 bg-surface-container-low rounded-2xl outline-none transition-all font-bold", errors.email && "ring-2 ring-red-500")}
+7082:                        className={cn("w-full px-8 py-4 bg-surface-container-low rounded-2xl outline-none transition-all font-bold", errors.password && "ring-2 ring-red-500")}
+7099:                        className={cn("w-full px-8 py-4 bg-surface-container-low rounded-2xl outline-none transition-all font-bold", errors.verifyPassword && "ring-2 ring-red-500")}
+7138:                      className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
+7162:                        className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+7170:                        className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+7178:                        className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+7189:                        className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+7198:                        className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+7207:                  <div className="p-8 bg-surface-container-low rounded-[2rem] space-y-4">
+7267:                      className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
+7303:                              isActive ? "bg-primary text-white" : "bg-surface-container-low text-on-surface-variant/60"
+7314:                        <div key={avail.day} className="p-6 bg-surface-container-low rounded-[2rem] space-y-4">
+7360:                        className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+7365:                      <div className="flex items-center gap-4 bg-surface-container-low px-6 rounded-2xl font-bold">
+7401:                        <input className={cn("w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none", errors.billingName && "ring-2 ring-red-500")} placeholder="Nombre Fiscal" value={professionalData.billing.name} onChange={e => setProfessionalData({...professionalData, billing: {...professionalData.billing, name: e.target.value}})} />
+7405:                        <input className={cn("w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none", errors.billingDoc && "ring-2 ring-red-500")} placeholder="DNI / NIE / CIF" value={professionalData.billing.documentId} onChange={e => setProfessionalData({...professionalData, billing: {...professionalData.billing, documentId: e.target.value}})} />
+7409:                    <div className="p-8 bg-surface-container-low rounded-[2rem] space-y-4">
+7436:                      className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
+7454:        <div className="p-10 text-center bg-surface-container-low/30 border-t border-outline-variant/10">
+7875:                className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant"
+7883:                <div className="bg-surface-container-low rounded-[2rem] p-6 flex items-center gap-4 border border-outline-variant/10">
+7907:                      <Link to="/favoritos" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group">
+7919:                      <Link to="/mensajes" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group relative">
+7933:                      <Link to="/mis-anuncios" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group">
+7944:                      <Link to="/monederos" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group">
+7976:                    <Link to="/registro" onClick={() => setIsMenuOpen(false)} className="flex items-center justify-center gap-4 px-6 py-5 bg-surface-container-low rounded-3xl text-on-surface font-black text-xs uppercase tracking-widest border border-outline-variant/10 transition-all">
+8078:        <footer className="bg-surface-container-lowest py-20 mt-32 border-t border-outline-variant">

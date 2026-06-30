@@ -1,0 +1,150 @@
+4988-        >
+4989-          <item.icon className={cn("w-4 h-4 shrink-0", item.color)} />
+4990-          <span className="flex-1 text-left">{item.label}</span>
+4991-          <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+4992-        </button>
+4993-      ))}
+4994-    </div>
+4995-  );
+4996-};
+4997-
+4998:const Navbar = ({ favoritesCount, notifications, setNotifications, user, setUser, onOpenSettings, unreadMessagesCount, isMenuOpen, setIsMenuOpen, search, setSearch }: { 
+4999-  favoritesCount: number, 
+5000-  notifications: any[], 
+5001-  setNotifications: any,
+5002-  user: UserProfile | null,
+5003-  setUser: (u: UserProfile | null) => void,
+5004-  onOpenSettings?: (type: string) => void,
+5005-  unreadMessagesCount?: number,
+5006:  isMenuOpen: boolean,
+5007-  setIsMenuOpen: (o: boolean) => void,
+5008-  search: string,
+5009-  setSearch: (s: string) => void
+5010-}) => {
+5011-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+5012-  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
+5013-  const dropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+5014-  const navigate = useNavigate();
+5015-  const location = useLocation();
+5016-
+--
+5044-    }
+5045-  };
+5046-
+5047-  useEffect(() => {
+5048-    setActiveDropdown(null);
+5049-    clearDropdownTimeout();
+5050-    setIsMenuOpen(false);
+5051-  }, [location.pathname]);
+5052-
+5053-  useEffect(() => {
+5054:    if (isMenuOpen) {
+5055-      document.body.style.overflow = 'hidden';
+5056-    } else {
+5057-      document.body.style.overflow = 'unset';
+5058-    }
+5059:  }, [isMenuOpen]);
+5060-
+5061-  return (
+5062-    <>
+5063-    <nav className="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-outline-variant h-14 sm:h-16">
+5064-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
+5065-        <div className="flex justify-between h-full items-center gap-4">
+5066-          {/* Desktop/Tablet Logo */}
+5067-          <div className="hidden lg:flex items-center gap-8">
+5068-            <Link to="/" className="flex items-center gap-3">
+5069-              <div className="primary-gradient p-2 rounded-xl shadow-sm">
+--
+5089-                  }
+5090-                }}
+5091-              />
+5092-            </div>
+5093-            
+5094-            <Link 
+5095-              to="/explorar"
+5096-              className="hidden p-2 text-on-surface-variant hover:text-primary transition-colors relative items-center justify-center"
+5097-              aria-label="Explorar anuncios"
+5098-            >
+5099:              {unreadMessagesCount !== undefined && unreadMessagesCount > 0 && !isMenuOpen && (
+5100-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-surface shadow-sm animate-pulse z-10"></span>
+5101-              )}
+5102-              <Menu className="w-5 h-5" />
+5103-            </Link>
+5104-          </div>
+5105-
+5106-          <div className="hidden lg:flex items-center gap-2 sm:gap-6">
+5107-            {user ? (
+5108-              <>
+5109-                <div className="flex items-center gap-4">
+--
+11682-  const { pathname } = useLocation();
+11683-  useEffect(() => {
+11684-    window.scrollTo(0, 0);
+11685-  }, [pathname]);
+11686-  return null;
+11687-};
+11688-
+11689-function App() {
+11690-  const location = useLocation();
+11691-  const [searchParams] = useSearchParams();
+11692:  const [isMenuOpen, setIsMenuOpen] = useState(false);
+11693-  const [search, setSearch] = useState('');
+11694-  
+11695-  const [reportTarget, setReportTarget] = useState<{userId: string; listingId?: string, conversationId?: string} | null>(null);
+11696-
+11697-  const handleReportUserAction = async (reason: string, details: string) => {
+11698-    if (!reportTarget || (!auth.currentUser?.uid)) return;
+11699-
+11700-    try {
+11701-      await addDoc(collection(db, 'reports'), {
+11702-        reportedUserId: reportTarget.userId,
+--
+12153-        onSubmit={handleReportUserAction}
+12154-      />
+12155-      <Navbar 
+12156-        user={user} 
+12157-        setUser={setUser}
+12158-        favoritesCount={favorites.length} 
+12159-        notifications={notifications} 
+12160-        setNotifications={setNotifications} 
+12161-        onOpenSettings={(type) => setSettingsModal({ isOpen: true, type })}
+12162-        unreadMessagesCount={unreadMessagesCount}
+12163:        isMenuOpen={isMenuOpen}
+12164-        setIsMenuOpen={setIsMenuOpen}
+12165-        search={search}
+12166-        setSearch={setSearch}
+12167-      />
+12168-      <AnimatePresence>
+12169:        {isMenuOpen && (
+12170-          <motion.div 
+12171-            key="mobile-menu-dropdown"
+12172-            initial={{ opacity: 0, y: -10 }}
+12173-            animate={{ opacity: 1, y: 0 }}
+12174-            exit={{ opacity: 0, y: -10 }}
+12175-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+12176-            className="fixed top-0 left-0 right-0 bottom-16 z-[50] bg-white flex flex-col shadow-2xl overflow-hidden"
+12177-          >
+12178-            <div className="flex items-center justify-between px-6 h-16 border-b border-outline-variant shrink-0">
+12179-              <span className="font-display font-black text-on-surface uppercase tracking-widest text-xs">Área personal</span>
+--
+12374-      </AnimatePresence>
+12375-
+12376-      {/* Mobile Bottom Navigation - Hidden in chats */}
+12377-      {(location.pathname.includes('/mensajes') && searchParams.has('chatId')) ? null : (
+12378-        <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+12379-        {[
+12380-          { label: 'Inicio', icon: Home, path: '/' },
+12381-          { label: 'Favoritos', icon: Heart, path: '/favoritos' },
+12382-          { label: 'Publicar', icon: PlusCircle, path: '/publicar', isCenter: true },
+12383-          { label: 'Buzón', icon: MessageSquare, path: '/mensajes', badge: unreadMessagesCount },
+12384:          { label: 'Tú', icon: User, onClick: () => setIsMenuOpen(!isMenuOpen), isActive: isMenuOpen },
+12385-        ].map((item) => {
+12386-          const content = (
+12387-            <div className={cn(
+12388-              "flex flex-col items-center gap-1 transition-all",
+12389-              (item.path && location.pathname === item.path) || item.isActive ? "text-primary" : "text-on-surface-variant/40"
+12390-            )}>
+12391-              <div className={cn(
+12392-                "relative",
+12393-                item.isCenter && "bg-primary text-white p-2.5 rounded-full -mt-8 shadow-xl border-4 border-white"
+12394-              )}>
