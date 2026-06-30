@@ -19454,10 +19454,7 @@ const AuthPage = ({
         };
       }
 
-      if (
-        result.user.metadata.creationTime ===
-        result.user.metadata.lastSignInTime
-      ) {
+      if (!userDoc.exists()) {
         sessionStorage.setItem("is_first_login_session", "true");
         // Always ensure the user doc exists for new users (google/facebook sign in)
         await setDoc(doc(db, "users", user.uid), finalUserData, { merge: true });
