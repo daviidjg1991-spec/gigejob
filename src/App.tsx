@@ -21232,6 +21232,26 @@ function App() {
     }
   });
 
+  useEffect(() => {
+    const unsubListings = onSnapshot(collection(db, "listings"), (snapshot) => {
+      const fbListings = snapshot.docs.map(
+        (doc) => ({ id: doc.id, ...doc.data() } as JobListing)
+      );
+      setListings((prev) => {
+        const baseMap = new Map<string, JobListing>(
+          INITIAL_LISTINGS.map((l) => [l.id, l])
+        );
+        for (const l of fbListings) {
+          baseMap.set(l.id, l);
+        }
+        return Array.from(baseMap.values());
+      });
+    }, (err) => {
+      console.error("Error syncing listings:", err);
+    });
+    return () => unsubListings();
+  }, []);
+
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem("jobpop_favorites");
@@ -21644,7 +21664,7 @@ function App() {
     );
   };
 
-  const addListing = (newListing: JobListing) => {
+  const addListing = async (newListing: JobListing) => {
     try {
       if (!newListing || !newListing.id || !newListing.author) {
         throw new Error("Anuncio malformado: faltan campos obligatorios.");
@@ -21662,6 +21682,8 @@ function App() {
       }
 
       console.log("Adding new listing to state:", newListing);
+      await setDoc(doc(db, "listings", newListing.id), newListing);
+
       setListings((prev) => {
         if (!Array.isArray(prev)) return [newListing];
         return [newListing, ...prev];
@@ -21673,14 +21695,24 @@ function App() {
     }
   };
 
-  const reactivateListing = (id: string) => {
+  const reactivateListing = async (id: string) => {
+    const creationDate = new Date();
+    const expirationDate = new Date(
+      creationDate.getTime() + 30 * 24 * 60 * 60 * 1000,
+    ); // 30 days
+
+    try {
+      await updateDoc(doc(db, "listings", id), {
+        status: "active",
+        expiresAt: expirationDate.toISOString(),
+      });
+    } catch (e) {
+      console.error("Error reactivating listing in Firebase", e);
+    }
+
     setListings((prev) =>
       prev.map((l) => {
         if (l.id === id) {
-          const creationDate = new Date();
-          const expirationDate = new Date(
-            creationDate.getTime() + 30 * 24 * 60 * 60 * 1000,
-          ); // 30 days
           return {
             ...l,
             status: "active",
