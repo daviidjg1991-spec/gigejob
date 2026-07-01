@@ -8285,6 +8285,7 @@ const SettingsModal = ({
       ? null
       : initialType || "general",
   );
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(globalUser);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
@@ -8469,6 +8470,36 @@ const SettingsModal = ({
 
   const handleSave = async () => {
     if (!user) return;
+    setHasAttemptedSave(true);
+    
+    // Validate required fields
+    const missingFields = [];
+    if (!user.firstName?.trim()) missingFields.push('Nombre');
+    if (!user.lastName1?.trim()) missingFields.push('1º Apellido');
+    if (!user.documentId?.trim()) missingFields.push('DNI/NIE');
+    if (!user.phoneNumber?.trim()) missingFields.push('Teléfono');
+    if (!user.address?.streetName?.trim()) missingFields.push('Nombre de la vía');
+    if (!user.address?.number?.trim()) missingFields.push('Número');
+    if (!user.address?.postalCode?.trim()) missingFields.push('CP');
+    if (!user.address?.locality?.trim()) missingFields.push('Localidad');
+    if (!user.address?.province?.trim()) missingFields.push('Provincia');
+
+    if (user.role === 'professional') {
+      if (!user.professionalInfo?.billing?.name?.trim()) missingFields.push('Nombre Fiscal');
+      if (!user.professionalInfo?.billing?.documentId?.trim()) missingFields.push('CIF/NIF Fiscal');
+      if (!user.professionalInfo?.billing?.phone?.trim()) missingFields.push('Teléfono Facturación');
+      if (!user.professionalInfo?.billing?.address?.streetName?.trim()) missingFields.push('Vía Fiscal');
+      if (!user.professionalInfo?.billing?.address?.number?.trim()) missingFields.push('Nº Fiscal');
+      if (!user.professionalInfo?.billing?.address?.postalCode?.trim()) missingFields.push('CP Fiscal');
+      if (!user.professionalInfo?.billing?.address?.locality?.trim()) missingFields.push('Localidad Fiscal');
+      if (!user.professionalInfo?.billing?.address?.province?.trim()) missingFields.push('Provincia Fiscal');
+    }
+
+    if (missingFields.length > 0) {
+      alert("Faltan datos obligatorios marcados con *. Por favor, completa la información resaltada en rojo para poder guardar.");
+      return;
+    }
+
     setIsSaving(true);
     
     setGlobalUser(user);
@@ -9348,10 +9379,15 @@ const SettingsModal = ({
                       </div>
                       <div className="space-y-1">
                         <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
-                          Nombre
+                          Nombre *
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.firstName?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
                           value={user.firstName || ""}
                           onChange={(e) =>
                             setUser({ ...user, firstName: e.target.value })
@@ -9360,10 +9396,15 @@ const SettingsModal = ({
                       </div>
                       <div className="space-y-1">
                         <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
-                          1º Apellido
+                          1º Apellido *
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.lastName1?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
                           value={user.lastName1 || ""}
                           onChange={(e) =>
                             setUser({ ...user, lastName1: e.target.value })
@@ -9384,13 +9425,37 @@ const SettingsModal = ({
                       </div>
                       <div className="space-y-1">
                         <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
-                          DNI / NIE
+                          DNI / NIE *
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.documentId?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
                           value={user.documentId || ""}
                           onChange={(e) =>
                             setUser({ ...user, documentId: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
+                          Teléfono *
+                        </label>
+                        <input
+                          type="tel"
+                          placeholder="+34 600 000 000"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.phoneNumber?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
+                          value={user.phoneNumber || ""}
+                          onChange={(e) =>
+                            setUser({ ...user, phoneNumber: e.target.value })
                           }
                         />
                       </div>
@@ -9398,7 +9463,7 @@ const SettingsModal = ({
 
                     <div className="p-6 lg:p-8 bg-surface-container-low rounded-3xl lg:rounded-[2rem] space-y-4 border border-outline-variant/5">
                       <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em] px-2 mb-2">
-                        Dirección de contacto
+                        Dirección de contacto *
                       </p>
                       <div className="flex flex-col gap-4">
                         <select
@@ -9421,8 +9486,13 @@ const SettingsModal = ({
                           <option>Camino</option>
                         </select>
                         <input
-                          className="w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm transition-all"
-                          placeholder="Nombre de la vía"
+                          className={cn(
+                            "w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm transition-all",
+                            hasAttemptedSave && !user.address?.streetName?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/10"
+                          )}
+                          placeholder="Nombre de la vía *"
                           value={user.address?.streetName || ""}
                           onChange={(e) =>
                             setUser({
@@ -9438,8 +9508,13 @@ const SettingsModal = ({
                       <div className="flex flex-col gap-4">
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                           <input
-                            placeholder="Nº"
-                            className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                            placeholder="Nº *"
+                            className={cn(
+                              "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                              hasAttemptedSave && !user.address?.number?.trim()
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : "border border-outline-variant/10"
+                            )}
                             value={user.address?.number || ""}
                             onChange={(e) =>
                               setUser({
@@ -9494,8 +9569,13 @@ const SettingsModal = ({
                             }
                           />
                           <input
-                            placeholder="CP"
-                            className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                            placeholder="CP *"
+                            className={cn(
+                              "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                              hasAttemptedSave && !user.address?.postalCode?.trim()
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : "border border-outline-variant/10"
+                            )}
                             value={user.address?.postalCode || ""}
                             onChange={(e) =>
                               setUser({
@@ -9509,8 +9589,13 @@ const SettingsModal = ({
                           />
                         </div>
                         <input
-                          placeholder="Localidad"
-                          className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                          placeholder="Localidad *"
+                          className={cn(
+                            "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                            hasAttemptedSave && !user.address?.locality?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/10"
+                          )}
                           value={user.address?.locality || ""}
                           onChange={(e) =>
                             setUser({
@@ -9523,8 +9608,13 @@ const SettingsModal = ({
                           }
                         />
                         <input
-                          placeholder="Provincia"
-                          className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                          placeholder="Provincia *"
+                          className={cn(
+                            "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                            hasAttemptedSave && !user.address?.province?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/10"
+                          )}
                           value={user.address?.province || ""}
                           onChange={(e) =>
                             setUser({
@@ -9587,12 +9677,17 @@ const SettingsModal = ({
                       <div className="space-y-6">
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                            Nombre Fiscal / Empresa
+                            Nombre Fiscal / Empresa *
                           </label>
                           <input
-                            className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+                            className={cn(
+                              "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
+                              hasAttemptedSave && !user.professionalInfo?.billing.name?.trim()
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : "border border-outline-variant/10"
+                            )}
                             value={user.professionalInfo?.billing.name || ""}
-                            placeholder="Razón Social Completa"
+                            placeholder="Razón Social Completa *"
                             onChange={(e) => {
                               if (!user) return;
                               const currentInfo = user.professionalInfo || {
@@ -9618,14 +9713,19 @@ const SettingsModal = ({
                         <div className="flex flex-col gap-4">
                           <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                              CIF / NIF Fiscal
+                              CIF / NIF Fiscal *
                             </label>
                             <input
-                              className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+                              className={cn(
+                                "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
+                                hasAttemptedSave && !user.professionalInfo?.billing.documentId?.trim()
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : "border border-outline-variant/10"
+                              )}
                               value={
                                 user.professionalInfo?.billing.documentId || ""
                               }
-                              placeholder="B-12345678"
+                              placeholder="B-12345678 *"
                               onChange={(e) => {
                                 if (!user) return;
                                 const currentInfo = user.professionalInfo || {
@@ -9649,12 +9749,17 @@ const SettingsModal = ({
                           </div>
                           <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                              Teléfono de Facturación
+                              Teléfono de Facturación *
                             </label>
                             <input
-                              className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+                              className={cn(
+                                "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
+                                hasAttemptedSave && !user.professionalInfo?.billing.phone?.trim()
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : "border border-outline-variant/10"
+                              )}
                               value={user.professionalInfo?.billing.phone || ""}
-                              placeholder="+34 600 000 000"
+                              placeholder="+34 600 000 000 *"
                               onChange={(e) => {
                                 if (!user) return;
                                 const currentInfo = user.professionalInfo || {
@@ -9746,8 +9851,13 @@ const SettingsModal = ({
                                 <option value="Pasaje">Pasaje</option>
                               </select>
                               <input
-                                className="w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
-                                placeholder="Nombre de la vía"
+                                className={cn(
+                                  "w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.streetName?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
+                                placeholder="Nombre de la vía *"
                                 value={
                                   user.professionalInfo?.billing.address
                                     ?.streetName || ""
@@ -9777,8 +9887,13 @@ const SettingsModal = ({
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                               <input
-                                placeholder="Nº"
-                                className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                                placeholder="Nº *"
+                                className={cn(
+                                  "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.number?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
                                 value={
                                   user.professionalInfo?.billing.address
                                     ?.number || ""
@@ -9895,8 +10010,13 @@ const SettingsModal = ({
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                               <input
-                                placeholder="CP"
-                                className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                                placeholder="CP *"
+                                className={cn(
+                                  "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.postalCode?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
                                 value={
                                   user.professionalInfo?.billing.address
                                     ?.postalCode || ""
@@ -9924,8 +10044,13 @@ const SettingsModal = ({
                                 }}
                               />
                               <input
-                                placeholder="Localidad"
-                                className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                                placeholder="Localidad *"
+                                className={cn(
+                                  "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.locality?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
                                 value={
                                   user.professionalInfo?.billing.address
                                     ?.locality || ""
@@ -9954,8 +10079,13 @@ const SettingsModal = ({
                               />
                             </div>
                             <input
-                              placeholder="Provincia"
-                              className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                              placeholder="Provincia *"
+                              className={cn(
+                                "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                hasAttemptedSave && !user.professionalInfo?.billing.address?.province?.trim()
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : "border border-outline-variant/10"
+                              )}
                               value={
                                 user.professionalInfo?.billing.address
                                   ?.province || ""
