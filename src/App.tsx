@@ -12044,6 +12044,10 @@ const HomePage = ({
       const matchesCategory =
         !selectedCategory || l.category === selectedCategory;
       return matchesSearch && matchesTab && matchesCategory;
+    }).sort((a, b) => {
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
     });
   }, [listings, search, activeTab, selectedCategory]);
 
@@ -18227,19 +18231,32 @@ const CreateListing = ({
     useState(false);
 
   const isPersonalDataComplete = !!(
-    user?.firstName &&
-    user?.lastName1 &&
-    user?.documentId &&
-    user?.phoneNumber &&
-    user?.address?.streetName &&
-    user?.address?.number &&
-    user?.address?.postalCode &&
-    user?.address?.locality &&
-    user?.address?.province &&
+    user?.firstName?.trim() &&
+    user?.lastName1?.trim() &&
+    user?.documentId?.trim() &&
+    user?.phoneNumber?.trim() &&
+    user?.address?.streetName?.trim() &&
+    user?.address?.number?.trim() &&
+    user?.address?.postalCode?.trim() &&
+    user?.address?.locality?.trim() &&
+    user?.address?.province?.trim()
+  );
+
+  const isProfessionalDataComplete = !!(
+    user?.professionalInfo?.billing?.name?.trim() &&
+    user?.professionalInfo?.billing?.documentId?.trim() &&
+    user?.professionalInfo?.billing?.phone?.trim() &&
+    user?.professionalInfo?.billing?.address?.streetName?.trim() &&
+    user?.professionalInfo?.billing?.address?.number?.trim() &&
+    user?.professionalInfo?.billing?.address?.postalCode?.trim() &&
+    user?.professionalInfo?.billing?.address?.locality?.trim() &&
+    user?.professionalInfo?.billing?.address?.province?.trim() &&
     user?.professionalInfo?.workLocation &&
     user?.professionalInfo?.availability &&
     user.professionalInfo.availability.length > 0
   );
+
+  const isProfileReady = isPersonalDataComplete && (formData.type === "offer" ? isProfessionalDataComplete : true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18250,15 +18267,8 @@ const CreateListing = ({
       return;
     }
 
-    if (formData.type === "offer" && !isPersonalDataComplete) {
+    if (!isProfileReady) {
       setShowIncompleteProfileModal(true);
-      return;
-    }
-
-    if (!isProfileComplete && formData.type === "offer") {
-      setError(
-        "Por favor, completa tu disponibilidad y zona de trabajo en Configuración antes de publicar un servicio.",
-      );
       return;
     }
 
@@ -18818,9 +18828,7 @@ const CreateListing = ({
                 </div>
               )}
 
-              {!isProfileComplete &&
-                formData.type === "offer" &&
-                isPersonalDataComplete && (
+              {!isProfileReady && (
                   <div className="p-8 bg-amber-500/10 border border-amber-500/20 rounded-[2rem] flex flex-col items-center text-center space-y-4">
                     <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500">
                       <AlertTriangle className="w-6 h-6" />
@@ -18830,13 +18838,12 @@ const CreateListing = ({
                         Perfil Incompleto
                       </h4>
                       <p className="text-xs font-medium text-amber-800/60 max-w-xs">
-                        Necesitas configurar tu disponibilidad y zona de trabajo
-                        en los ajustes de perfil antes de publicar un servicio.
+                        Necesitas rellenar tu información personal y profesional en los ajustes de perfil antes de poder publicar un anuncio.
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate("/configuracion/disponibilidad")}
+                      onClick={() => onOpenSettings?.("profile")}
                       className="px-6 py-3 bg-amber-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md"
                     >
                       Ir a Configuración
@@ -19006,11 +19013,12 @@ const CreateListing = ({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isProfileReady}
                 className={cn(
                   "flex-[2] py-5 primary-gradient text-white rounded-full font-black hover:opacity-90 transition-all shadow-xl uppercase tracking-widest text-xs flex items-center justify-center gap-3",
-                  isSubmitting && "opacity-70 cursor-not-allowed",
+                  (isSubmitting || !isProfileReady) && "opacity-70 cursor-not-allowed",
                 )}
+                title={!isProfileReady ? "Debes completar tu perfil en Configuración antes de publicar" : ""}
               >
                 {isSubmitting ? (
                   <>
