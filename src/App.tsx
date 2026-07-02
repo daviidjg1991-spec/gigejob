@@ -206,6 +206,8 @@ import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
 import {
   AreaChart,
   Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -5486,7 +5488,7 @@ const AdminPage = ({
                 </div>
                 <div className="h-[280px] pt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
+                    <LineChart data={chartData}>
                       <XAxis
                         dataKey="date"
                         axisLine={false}
@@ -5494,7 +5496,12 @@ const AdminPage = ({
                         tick={{ fontSize: 10, fill: "#888" }}
                         minTickGap={30}
                       />
-                      <YAxis hide />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 10, fill: "#888" }}
+                        width={30}
+                      />
                       <Tooltip
                         contentStyle={{
                           borderRadius: "12px",
@@ -5502,15 +5509,16 @@ const AdminPage = ({
                           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                         }}
                       />
-                      <Area
+                      <Line
                         type="monotone"
                         dataKey="count"
                         name="Usuarios"
                         stroke="#00675b"
-                        fill="#00675b"
-                        fillOpacity={0.2}
+                        strokeWidth={2}
+                        dot={{ r: 4, fill: "#00675b", strokeWidth: 2, stroke: "#fff" }}
+                        activeDot={{ r: 6 }}
                       />
-                    </AreaChart>
+                    </LineChart>
                   </ResponsiveContainer>
                 </div>
               </div>
@@ -11346,7 +11354,7 @@ const Navbar = ({
                 <Search className="text-on-surface-variant/30 w-4 h-4 mr-2" />
                 <input
                   type="text"
-                  placeholder="¿Qué servicio buscas?"
+                  placeholder="Busca un profesional cerca de ti"
                   className="flex-1 bg-transparent border-none outline-none text-xs font-medium placeholder:text-on-surface-variant/20"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -12023,6 +12031,35 @@ const HomePage = ({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (err) => {
+          console.warn("Could not get location", err);
+        }
+      );
+    }
+  }, []);
+
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   useEffect(() => {
     const cat = searchParams.get("category");
@@ -12052,11 +12089,19 @@ const HomePage = ({
         !selectedCategory || l.category === selectedCategory;
       return matchesSearch && matchesTab && matchesCategory;
     }).sort((a, b) => {
+      if (userLocation) {
+        const distA = a.coordinates ? getDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng) : Infinity;
+        const distB = b.coordinates ? getDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng) : Infinity;
+        
+        if (distA !== distB) {
+          return distA - distB;
+        }
+      }
       const dateA = new Date(a.createdAt || 0).getTime();
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA;
     });
-  }, [listings, search, activeTab, selectedCategory]);
+  }, [listings, search, activeTab, selectedCategory, userLocation]);
 
   const popularCategories = [
     { name: "Limpieza", icon: Sparkles, color: "bg-primary/5 text-primary" },
@@ -12105,7 +12150,7 @@ const HomePage = ({
               <Search className="ml-3 sm:ml-5 text-on-surface-variant/30 w-4 h-4 sm:w-5 sm:h-5" />
               <input
                 type="text"
-                placeholder="¿Qué servicio necesitas?"
+                placeholder="Busca un profesional cerca de ti"
                 className="flex-1 px-3 sm:px-4 py-3 bg-transparent border-none outline-none text-sm sm:text-base font-medium placeholder:text-on-surface-variant/20"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
