@@ -21237,25 +21237,7 @@ function App() {
       const fbListings = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as JobListing)
       );
-      setListings((prev) => {
-        const baseMap = new Map<string, JobListing>();
-        
-        // 1. Keep initial mock listings
-        INITIAL_LISTINGS.forEach((l) => baseMap.set(l.id, l));
-        
-        // 2. Keep previously loaded listings (e.g., from localStorage)
-        prev.forEach((l) => baseMap.set(l.id, l));
-        
-        // 3. Apply the latest state from Firebase (this will override older local state)
-        for (const l of fbListings) {
-          baseMap.set(l.id, l);
-        }
-        
-        // Remove deleted listings entirely from state if we want to ensure no one sees them
-        // Alternatively, just let activeListings filter them out.
-        // We will just return the merged list. AdminPage will filter them out.
-        return Array.from(baseMap.values());
-      });
+      setListings(fbListings);
     }, (err) => {
       console.error("Error syncing listings:", err);
     });
