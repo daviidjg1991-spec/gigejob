@@ -5064,9 +5064,14 @@ const AdminPage = ({
       const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
       const count = users.filter((u) => {
         if (!u.lastActive) return false;
-        const last = u.lastActive?.toDate
-          ? u.lastActive.toDate()
-          : new Date(u.lastActive);
+        let last;
+        if (typeof u.lastActive.toDate === 'function') {
+          last = u.lastActive.toDate();
+        } else if (u.lastActive.seconds) {
+          last = new Date(u.lastActive.seconds * 1000);
+        } else {
+          last = new Date(u.lastActive);
+        }
         return last > fiveMinsAgo;
       }).length;
       setOnlineUsersCount(count);
@@ -5131,13 +5136,12 @@ const AdminPage = ({
             d.getHours() === bucketTime.getHours()
           );
         });
-        currentTotal += bucketUsers.length;
         data.push({
           date: bucketTime.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           }),
-          count: currentTotal,
+          count: bucketUsers.length,
         });
       }
     } else {
@@ -5156,13 +5160,12 @@ const AdminPage = ({
             d.getDate() === bucketTime.getDate()
           );
         });
-        currentTotal += bucketUsers.length;
         data.push({
           date: bucketTime.toLocaleDateString([], {
             day: "2-digit",
             month: "short",
           }),
-          count: currentTotal,
+          count: bucketUsers.length,
         });
       }
     }
@@ -21239,8 +21242,8 @@ function App() {
   // Presence tracking in real-time
   useEffect(() => {
     let activeInterval: NodeJS.Timeout;
-    if (user?.id && auth.currentUser) {
-      const updatePresence = async () => {
+    const updatePresence = async () => {
+      if (user?.id && auth.currentUser) {
         try {
           await setDoc(doc(db, "users", user.id), {
             lastActive: serverTimestamp()
@@ -21248,10 +21251,10 @@ function App() {
         } catch (e) {
           // Ignore failed presence updates
         }
-      };
-      updatePresence();
-      activeInterval = setInterval(updatePresence, 30000);
-    }
+      }
+    };
+    updatePresence();
+    activeInterval = setInterval(updatePresence, 5000);
     return () => {
       if (activeInterval) clearInterval(activeInterval);
     };
