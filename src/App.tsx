@@ -5823,8 +5823,14 @@ const AdminPage = ({
                         {u.createdAt
                           ? new Date(
                               u.createdAt?.seconds ? u.createdAt.seconds * 1000 : u.createdAt
-                            ).toLocaleDateString()
-                          : "N/A"}
+                            ).toLocaleString([], {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })
+                          : "No disponible"}
                       </td>
                       <td className="px-2 lg:px-4 py-3 hidden sm:table-cell">
                         {u.role === "professional" ? (
