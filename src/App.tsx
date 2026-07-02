@@ -5093,9 +5093,10 @@ const AdminPage = ({
     else {
       // 'All' - find the oldest user
       const oldestUser = users.reduce((oldest, u) => {
-        if (!u.createdAt) return oldest;
+        const timeSource = u.createdAt || u.lastActive;
+        if (!timeSource) return oldest;
         const time = new Date(
-          u.createdAt.seconds ? u.createdAt.seconds * 1000 : u.createdAt,
+          timeSource.seconds ? timeSource.seconds * 1000 : timeSource,
         ).getTime();
         return time < oldest ? time : oldest;
       }, now.getTime());
@@ -5105,16 +5106,19 @@ const AdminPage = ({
     }
 
     const validUsers = users
-      .filter((u) => u.createdAt)
-      .map((u) => ({
-        ...u,
-        time: new Date(
-          u.createdAt.seconds ? u.createdAt.seconds * 1000 : u.createdAt,
-        ).getTime(),
-      }))
+      .filter((u) => u.createdAt || u.lastActive)
+      .map((u) => {
+        const timeSource = u.createdAt || u.lastActive;
+        return {
+          ...u,
+          time: new Date(
+            timeSource.seconds ? timeSource.seconds * 1000 : timeSource,
+          ).getTime(),
+        };
+      })
       .sort((a, b) => a.time - b.time);
 
-    const usersWithoutDate = users.filter((u) => !u.createdAt).length;
+    const usersWithoutDate = users.filter((u) => !u.createdAt && !u.lastActive).length;
     let currentTotal =
       validUsers.filter((u) => u.time < startDate.getTime()).length +
       usersWithoutDate;
