@@ -5820,17 +5820,25 @@ const AdminPage = ({
                         {userAvgCost}€
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-xs text-on-surface-variant hidden sm:table-cell whitespace-nowrap">
-                        {u.createdAt
-                          ? new Date(
-                              u.createdAt?.seconds ? u.createdAt.seconds * 1000 : u.createdAt
-                            ).toLocaleString([], {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit"
-                            })
-                          : "No disponible"}
+                        {(() => {
+                          if (!u.createdAt) return "No disponible";
+                          let date;
+                          if (typeof u.createdAt.toDate === "function") {
+                            date = u.createdAt.toDate();
+                          } else if (u.createdAt.seconds) {
+                            date = new Date(u.createdAt.seconds * 1000);
+                          } else {
+                            date = new Date(u.createdAt);
+                          }
+                          return date.toLocaleString("es-ES", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit"
+                          });
+                        })()}
                       </td>
                       <td className="px-2 lg:px-4 py-3 hidden sm:table-cell">
                         {u.role === "professional" ? (
