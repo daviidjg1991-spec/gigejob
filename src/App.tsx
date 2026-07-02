@@ -5107,11 +5107,12 @@ const AdminPage = ({
       }))
       .sort((a, b) => a.time - b.time);
 
-    let currentTotal = validUsers.filter(
-      (u) => u.time < startDate.getTime(),
-    ).length;
+    const usersWithoutDate = users.filter((u) => !u.createdAt).length;
+    let currentTotal =
+      validUsers.filter((u) => u.time < startDate.getTime()).length +
+      usersWithoutDate;
     const usersInPeriod = validUsers.filter(
-      (u) => u.time >= startDate.getTime() && u.time <= now.getTime(),
+      (u) => u.time >= startDate.getTime(),
     );
 
     const data: any[] = [];
@@ -5462,9 +5463,15 @@ const AdminPage = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-surface-container-lowest p-8 rounded-xl shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)]">
                 <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-xl font-bold font-display tracking-tight">
-                    Crecimiento de Usuarios
-                  </h2>
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-bold font-display tracking-tight">
+                      Crecimiento de Usuarios
+                    </h2>
+                    <div className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                      {users.length} en tiempo real
+                    </div>
+                  </div>
                   <div className="flex bg-surface-container rounded-full p-1">
                     {["24h", "7d", "1m", "3m", "1Y", "All"].map((range) => (
                       <button
