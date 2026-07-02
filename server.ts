@@ -166,8 +166,21 @@ async function startServer() {
         hmr: process.env.DISABLE_HMR !== 'true'
       },
       appType: "spa",
-    });
     app.use(vite.middlewares);
+
+    // Fallback for SPA routing in development
+    app.use('*', async (req, res, next) => {
+      try {
+        const url = req.originalUrl;
+        const fs = await import('fs');
+        let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
