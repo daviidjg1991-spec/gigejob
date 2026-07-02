@@ -5821,14 +5821,15 @@ const AdminPage = ({
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-xs text-on-surface-variant hidden sm:table-cell whitespace-nowrap">
                         {(() => {
-                          if (!u.createdAt) return "No disponible";
+                          const timeSource = u.createdAt || u.lastActive;
+                          if (!timeSource) return "No disponible";
                           let date;
-                          if (typeof u.createdAt.toDate === "function") {
-                            date = u.createdAt.toDate();
-                          } else if (u.createdAt.seconds) {
-                            date = new Date(u.createdAt.seconds * 1000);
+                          if (typeof timeSource.toDate === "function") {
+                            date = timeSource.toDate();
+                          } else if (timeSource.seconds) {
+                            date = new Date(timeSource.seconds * 1000);
                           } else {
-                            date = new Date(u.createdAt);
+                            date = new Date(timeSource);
                           }
                           return date.toLocaleString("es-ES", {
                             day: "2-digit",
@@ -19478,6 +19479,7 @@ const AuthPage = ({
           locationRadius: 15,
           notifications: { email: true, push: true, sms: false },
         },
+        createdAt: serverTimestamp(),
       };
 
       await setDoc(doc(db, "users", firebaseUid), finalUser);
@@ -19658,6 +19660,7 @@ const AuthPage = ({
             locationRadius: 15,
             notifications: { email: true, push: true, sms: false },
           },
+          createdAt: serverTimestamp(),
         };
       }
 
