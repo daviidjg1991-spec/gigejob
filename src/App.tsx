@@ -19902,22 +19902,21 @@ const AuthPage = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <button
                     type="button"
                     onClick={() => handleSocialLogin("google")}
-                    className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
+                    className="flex items-center justify-center gap-3 w-full py-5 primary-gradient text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:scale-[1.02] active:scale-95 transition-all group"
                   >
                     <img
                       src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                       alt="Google"
-                      className="w-5 h-5 group-hover:scale-110 transition-transform"
+                      className="w-5 h-5 group-hover:scale-110 transition-transform brightness-0 invert"
                     />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-on-surface">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white">
                       Google
                     </span>
                   </button>
-
                 </div>
 
                 {errors.login && (
