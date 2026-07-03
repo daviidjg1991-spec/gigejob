@@ -368,10 +368,10 @@ export type DynamicAppConfig = {
 };
 
 export const defaultDynamicAppConfig: DynamicAppConfig = {
-  logoText1: "Job",
-  logoText2: "Pop",
-  faviconUrl: "",
-  appTitle: "JobPop - Encuentra profesionales",
+  logoText1: "Gige",
+  logoText2: "Job",
+  faviconUrl: "/favicon.png",
+  appTitle: "GigeJob: Encuentra profesiones",
   logoImageUrl: "",
   homeTitle1: "Encuentra profesionales",
   homeTitle2: "cerca de ti",
