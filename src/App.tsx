@@ -4132,10 +4132,10 @@ const StaticPageView = ({
     "StaticPageView content length:",
     content?.length,
     "isAdmin:",
-    user?.role === "admin",
+    (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com"),
   );
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
   const [isEditing, setIsEditing] = useState(false);
   const linkLabel =
     footerConfig.columns
@@ -4879,7 +4879,7 @@ const AdminPage = ({
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
-      setIsAdminAuthReady(!!u && user?.role === "admin");
+      setIsAdminAuthReady(!!u && (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com"));
     });
     return () => unsub();
   }, [user]);
@@ -5008,7 +5008,7 @@ const AdminPage = ({
   }, [isAdminAuthReady]);
 
   useEffect(() => {
-    if (isAdminAuthReady && user?.role === "admin" && users.length > 0) {
+    if (isAdminAuthReady && (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && users.length > 0) {
       const fixMissingCreatedAt = async () => {
         const usersToFix = users.filter((u) => !u.createdAt);
         if (usersToFix.length > 0) {
@@ -11449,7 +11449,7 @@ const Navbar = ({
                         Buzón
                       </span>
                     </Link>
-                    {user?.role === "admin" && (
+                    {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && (
                       <Link
                         to="/admin"
                         className="flex flex-col items-center gap-1 text-on-surface-variant/60 hover:text-primary transition-all group"
@@ -11581,7 +11581,7 @@ const Navbar = ({
                               Idioma
                             </button>
 
-                            {user?.role === "admin" && (
+                            {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && (
                               <button
                                 onClick={() => {
                                   navigate("/admin");
@@ -14255,7 +14255,7 @@ const ListingDetail = ({
   if (
     isInactive &&
     !isOwnListing &&
-    !(user?.role === "admin")
+    !((user?.role === "admin" || user?.email === "daviidjg1991@gmail.com"))
   ) {
     return (
       <div className="p-20 text-center font-display font-bold text-2xl">
@@ -14864,7 +14864,7 @@ const ProfilePage = ({
     : profileUser?.name || "Usuario";
 
   const canEditProfile =
-    isOwnProfile || user?.role === "admin";
+    isOwnProfile || (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
 
   const userListings = listings.filter((l) => {
     if (!l || !l.author) return false;
@@ -15100,7 +15100,7 @@ const ProfilePage = ({
                   ID: {profileUser?.customId}
                 </p>
                 <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight">
-                  {profileUser?.role === "admin" ? "Administrador" : (profileUser?.role === "user" ? "Usuario particular" : "Profesional Independiente")}
+                  {(profileUser?.role === "admin" || profileUser?.email === "daviidjg1991@gmail.com") ? "Administrador" : (profileUser?.role === "user" ? "Usuario particular" : "Profesional Independiente")}
                 </p>
               </div>
 
@@ -16972,7 +16972,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             ...doc.data(),
           }));
 
-          const isAdmin = user?.role === "admin";
+          const isAdmin = (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
 
           // Filter out conversations older than 24h for non-admins
           if (!isAdmin) {
@@ -17047,7 +17047,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             if (snap.exists()) {
               console.log("MessagesPage [URL]: Specific chat loaded:", chatId);
               const chatData = snap.data();
-              const isAdmin = user?.role === "admin";
+              const isAdmin = (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
               const requestedAt =
                 chatData.serviceRequestedAt?.toMillis() ||
                 chatData.createdAt?.toMillis();
@@ -22057,7 +22057,7 @@ function App() {
                           <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
                         </Link>
 
-                        {user?.role === "admin" && (
+                        {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && (
                           <Link
                             to="/admin"
                             onClick={() => setIsMenuOpen(false)}
@@ -22205,7 +22205,7 @@ function App() {
                 <Route
                   path="/admin"
                   element={
-                    user?.role === "admin" ? (
+                    (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") ? (
                       <AdminPage
                         user={user}
                         listings={listings}
