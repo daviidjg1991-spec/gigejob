@@ -19906,14 +19906,14 @@ const AuthPage = ({
                   <button
                     type="button"
                     onClick={() => handleSocialLogin("google")}
-                    className="flex items-center justify-center gap-3 w-full py-5 primary-gradient text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:scale-[1.02] active:scale-95 transition-all group"
+                    className="flex items-center justify-center gap-3 w-full py-5 bg-white border border-[#DADCE0] text-[#4285F4] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-[#F8F9FA] hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all group"
                   >
                     <img
                       src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                       alt="Google"
-                      className="w-5 h-5 group-hover:scale-110 transition-transform brightness-0 invert"
+                      className="w-5 h-5 group-hover:scale-110 transition-transform"
                     />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                    <span className="text-[10px] font-black uppercase tracking-widest">
                       Google
                     </span>
                   </button>
