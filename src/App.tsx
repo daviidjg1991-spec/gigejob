@@ -12959,22 +12959,6 @@ const AvailabilityPicker = ({
   authorPhotoUrl?: string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const clearDropdownTimeout = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
-
-  const startDropdownTimeout = () => {
-    clearDropdownTimeout();
-    timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 3000);
-  };
-
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -13265,12 +13249,7 @@ const AvailabilityPicker = ({
     <div className="space-y-4">
       <div className="relative">
         <button
-          onClick={() => {
-            const nextState = !isOpen;
-            setIsOpen(nextState);
-            if (nextState) startDropdownTimeout();
-            else clearDropdownTimeout();
-          }}
+          onClick={() => setIsOpen(!isOpen)}
           className="w-full flex justify-between items-center p-4 bg-surface-container-low rounded-2xl hover:bg-surface-container-high transition-all"
         >
           <div className="flex items-center gap-2">
@@ -13293,8 +13272,6 @@ const AvailabilityPicker = ({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              onMouseEnter={clearDropdownTimeout}
-              onMouseLeave={startDropdownTimeout}
               className="absolute top-full left-0 right-0 mt-2 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant/10 p-6 z-50 min-w-[320px]"
             >
               {!selectedDate ? (
