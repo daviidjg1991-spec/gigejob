@@ -19917,20 +19917,7 @@ const AuthPage = ({
                       Google
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSocialLogin("facebook")}
-                    className="flex items-center justify-center gap-3 py-4 px-6 bg-[#1877F2] hover:bg-[#166fe5] rounded-2xl transition-all shadow-md group"
-                  >
-                    <img
-                      src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/facebook.svg"
-                      alt="Facebook"
-                      className="w-5 h-5 group-hover:scale-110 transition-transform brightness-0 invert"
-                    />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                      Facebook
-                    </span>
-                  </button>
+
                 </div>
 
                 {errors.login && (
@@ -20094,20 +20081,7 @@ const AuthPage = ({
                           Google
                         </span>
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSocialLogin("facebook")}
-                        className="flex items-center justify-center gap-3 py-4 px-6 bg-[#1877F2] hover:bg-[#166fe5] rounded-2xl transition-all shadow-md group"
-                      >
-                        <img
-                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/facebook.svg"
-                          alt="Facebook"
-                          className="w-5 h-5 group-hover:scale-110 transition-transform brightness-0 invert"
-                        />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                          Facebook
-                        </span>
-                      </button>
+
                     </div>
                   </div>
                 )}
