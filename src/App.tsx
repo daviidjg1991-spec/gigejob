@@ -5007,6 +5007,26 @@ const AdminPage = ({
     return () => unsubLeads();
   }, [isAdminAuthReady]);
 
+  useEffect(() => {
+    if (isAdminAuthReady && user?.role === "admin" && users.length > 0) {
+      const fixMissingCreatedAt = async () => {
+        const usersToFix = users.filter((u) => !u.createdAt);
+        if (usersToFix.length > 0) {
+          console.log(`Fixing createdAt for ${usersToFix.length} users...`);
+          for (const u of usersToFix) {
+            try {
+              const fallbackDate = u.lastActive || serverTimestamp();
+              await setDoc(doc(db, "users", u.id), { createdAt: fallbackDate }, { merge: true });
+            } catch (err) {
+              console.error("Error fixing user createdAt:", err);
+            }
+          }
+        }
+      };
+      fixMissingCreatedAt();
+    }
+  }, [isAdminAuthReady, user?.role, users]);
+
   const pendingVerificationUsers = useMemo(() => {
     return users.filter(
       (u: any) =>
