@@ -13690,7 +13690,8 @@ const JobRequestModal = ({
       setDescription("");
       setErrorText(null);
     }
-  }, [isOpen, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleConfirm = async () => {
     setErrorText(null);
