@@ -13172,7 +13172,11 @@ const AvailabilityPicker = ({
         lastMessageSenderId: firebaseUid,
         lastUpdatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
-        serviceRequestedAt: serverTimestamp(), // For checking 24h limit
+        serviceRequestedAt: serverTimestamp(),
+        unreadCount: {
+          [firebaseUid]: 0,
+          [authorId]: 1,
+        },
       });
 
       console.log(
@@ -13816,6 +13820,10 @@ const JobRequestModal = ({
         lastUpdatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
         serviceRequestedAt: serverTimestamp(),
+        unreadCount: {
+          [firebaseUid]: 0,
+          [authorId]: 1,
+        },
       });
 
       console.log("JobRequestModal: Sending initial message to collection...");
