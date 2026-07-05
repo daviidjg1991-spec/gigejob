@@ -7315,33 +7315,32 @@ const AdminPage = ({
                       <label className="block text-sm font-bold text-on-surface mb-2">
                         Título Principal
                       </label>
-                      <input
-                        type="text"
-                        className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20"
-                        value={popupConfig.title}
-                        onChange={(e) =>
+                      <RichTextEditor
+                        value={popupConfig.title || ""}
+                        onChange={(html) =>
                           setPopupConfig({
                             ...popupConfig,
-                            title: e.target.value,
+                            title: html,
                           })
                         }
                         placeholder="¡No dejes escapar esta oportunidad!"
+                        minHeight="50px"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-on-surface mb-2">
                         Descripción
                       </label>
-                      <textarea
-                        className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20 min-h-[100px]"
-                        value={popupConfig.description}
-                        onChange={(e) =>
+                      <RichTextEditor
+                        value={popupConfig.description || ""}
+                        onChange={(html) =>
                           setPopupConfig({
                             ...popupConfig,
-                            description: e.target.value,
+                            description: html,
                           })
                         }
                         placeholder="Texto para tu popup..."
+                        minHeight="120px"
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -7454,14 +7453,16 @@ const AdminPage = ({
                         )}
                       >
                         {popupConfig.title && (
-                          <h3 className="text-2xl font-black font-display tracking-tight text-on-surface">
-                            {popupConfig.title}
-                          </h3>
+                          <div
+                            className="text-2xl font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                            dangerouslySetInnerHTML={{ __html: popupConfig.title }}
+                          />
                         )}
                         {popupConfig.description && (
-                          <p className="text-on-surface-variant text-sm font-medium leading-relaxed">
-                            {popupConfig.description}
-                          </p>
+                          <div
+                            className="text-on-surface-variant text-sm font-medium leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: popupConfig.description }}
+                          />
                         )}
 
                         {popupConfig.showEmailInput && (
@@ -21037,6 +21038,110 @@ const Toast = ({
   </motion.div>
 );
 
+const RichTextEditor = ({
+  value,
+  onChange,
+  placeholder,
+  minHeight = "100px",
+}: {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+  minHeight?: string;
+}) => {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (editorRef.current && !initialized.current) {
+      editorRef.current.innerHTML = value || "";
+      initialized.current = true;
+    }
+  }, [value]);
+
+  const exec = (cmd: string, val?: string) => {
+    document.execCommand(cmd, false, val);
+    editorRef.current?.focus();
+    onChange(editorRef.current?.innerHTML || "");
+  };
+
+  const applyFontSize = (px: string) => {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const fragment = range.extractContents();
+    const span = document.createElement("span");
+    span.style.fontSize = px;
+    span.appendChild(fragment);
+    range.insertNode(span);
+    sel.removeAllRanges();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(span);
+    sel.addRange(newRange);
+    onChange(editorRef.current?.innerHTML || "");
+    editorRef.current?.focus();
+  };
+
+  return (
+    <div className="border border-outline-variant/20 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-1 p-1.5 bg-surface-container border-b border-outline-variant/20 flex-wrap">
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); exec("bold"); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high font-black text-sm"
+          title="Negrita"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 12a4 4 0 0 0 0-8H6v8"/><path d="M15 20a4 4 0 0 0 0-8H6v8"/></svg>
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); exec("italic"); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high italic text-sm"
+          title="Cursiva"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/></svg>
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); exec("underline"); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high underline text-sm"
+          title="Subrayado"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/></svg>
+        </button>
+        <div className="w-px h-6 bg-outline-variant/20 mx-1" />
+        <select
+          onMouseDown={(e) => e.preventDefault()}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val) applyFontSize(val);
+            e.target.value = "";
+          }}
+          className="text-xs bg-surface-container-high rounded-lg px-2 py-1 border border-outline-variant/10 outline-none cursor-pointer"
+        >
+          <option value="">Tamaño</option>
+          <option value="14px">Pequeño</option>
+          <option value="16px">Normal</option>
+          <option value="20px">Grande</option>
+          <option value="24px">Muy Grande</option>
+          <option value="32px">Extra Grande</option>
+        </select>
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => {
+          onChange(editorRef.current?.innerHTML || "");
+        }}
+        className="p-3 outline-none text-sm leading-relaxed empty:before:content-[attr(data-placeholder)] empty:before:text-on-surface-variant/40"
+        data-placeholder={placeholder || ""}
+        style={{ minHeight }}
+      />
+    </div>
+  );
+};
+
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -22663,14 +22768,16 @@ function App() {
                     )}
                   >
                     {globalPopupConfig.title && (
-                      <h3 className="text-3xl font-black font-display tracking-tight text-on-surface">
-                        {globalPopupConfig.title}
-                      </h3>
+                      <div
+                        className="text-3xl font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                        dangerouslySetInnerHTML={{ __html: globalPopupConfig.title }}
+                      />
                     )}
                     {globalPopupConfig.description && (
-                      <p className="text-on-surface-variant text-base font-medium leading-relaxed">
-                        {globalPopupConfig.description}
-                      </p>
+                      <div
+                        className="text-on-surface-variant text-base font-medium leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: globalPopupConfig.description }}
+                      />
                     )}
 
                     {globalPopupConfig.showEmailInput && (
