@@ -4929,6 +4929,7 @@ const AdminPage = ({
     description: "",
     buttonText: "",
     buttonUrl: "",
+    buttonRedirectToRegister: false,
     showEmailInput: false,
   };
 
@@ -7396,6 +7397,26 @@ const AdminPage = ({
                         }
                         placeholder="https://..."
                       />
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={popupConfig.buttonRedirectToRegister || false}
+                          onChange={(e) =>
+                            setPopupConfig({
+                              ...popupConfig,
+                              buttonRedirectToRegister: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          id="button-redirect-register"
+                        />
+                        <label
+                          htmlFor="button-redirect-register"
+                          className="text-sm font-bold cursor-pointer text-on-surface"
+                        >
+                          Redirigir al registro de usuarios
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -21597,7 +21618,9 @@ function App() {
       }
     }
 
-    if (globalPopupConfig?.redirectGuestsToRegister && !user) {
+    if (globalPopupConfig?.buttonRedirectToRegister) {
+      navigate("/registro");
+    } else if (globalPopupConfig?.redirectGuestsToRegister && !user) {
       navigate("/registro");
     } else if (globalPopupConfig?.buttonUrl) {
       window.open(globalPopupConfig.buttonUrl, "_blank");
