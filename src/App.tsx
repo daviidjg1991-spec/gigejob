@@ -19237,6 +19237,8 @@ const AuthPage = ({
   setUser: (user: UserProfile) => void;
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPopup = (location.state as any)?.fromPopup === true;
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [legalModal, setLegalModal] = useState<{
     isOpen: boolean;
@@ -20062,34 +20064,38 @@ const AuthPage = ({
                       </button>
                     </div>
 
-                    <div className="relative py-4">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-outline-variant/30"></div>
-                      </div>
-                      <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-                        <span className="bg-white px-4 text-on-surface-variant/40">
-                          O regístrate con
-                        </span>
-                      </div>
-                    </div>
+                    {!fromPopup && (
+                      <>
+                        <div className="relative py-4">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-outline-variant/30"></div>
+                          </div>
+                          <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
+                            <span className="bg-white px-4 text-on-surface-variant/40">
+                              O regístrate con
+                            </span>
+                          </div>
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <button
-                        type="button"
-                        onClick={() => handleSocialLogin("google")}
-                        className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
-                      >
-                        <img
-                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                          alt="Google"
-                          className="w-5 h-5 group-hover:scale-110 transition-transform"
-                        />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-on-surface">
-                          Google
-                        </span>
-                      </button>
+                        <div className="grid grid-cols-2 gap-4">
+                          <button
+                            type="button"
+                            onClick={() => handleSocialLogin("google")}
+                            className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
+                          >
+                            <img
+                              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                              alt="Google"
+                              className="w-5 h-5 group-hover:scale-110 transition-transform"
+                            />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-on-surface">
+                              Google
+                            </span>
+                          </button>
 
-                    </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -21619,7 +21625,7 @@ function App() {
     }
 
     if (globalPopupConfig?.buttonRedirectToRegister) {
-      navigate("/registro");
+      navigate("/registro", { state: { fromPopup: true } });
     } else if (globalPopupConfig?.redirectGuestsToRegister && !user) {
       navigate("/registro");
     } else if (globalPopupConfig?.buttonUrl) {
