@@ -21077,6 +21077,7 @@ const RichTextEditor = ({
   minHeight?: string;
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
+  const savedRange = useRef<Range | null>(null);
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -21086,27 +21087,51 @@ const RichTextEditor = ({
     }
   }, [value]);
 
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRange.current = sel.getRangeAt(0);
+    }
+  };
+
+  const restoreSelection = () => {
+    if (!savedRange.current) return;
+    const sel = window.getSelection();
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange.current);
+    }
+  };
+
   const exec = (cmd: string, val?: string) => {
-    document.execCommand(cmd, false, val);
     editorRef.current?.focus();
+    restoreSelection();
+    document.execCommand(cmd, false, val);
     onChange(editorRef.current?.innerHTML || "");
   };
 
   const applyFontSize = (px: string) => {
+    editorRef.current?.focus();
+    restoreSelection();
+
     const sel = window.getSelection();
-    if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+    if (!sel || !sel.rangeCount || sel.isCollapsed) {
+      onChange(editorRef.current?.innerHTML || "");
+      return;
+    }
+
     const range = sel.getRangeAt(0);
     const fragment = range.extractContents();
     const span = document.createElement("span");
     span.style.fontSize = px;
     span.appendChild(fragment);
     range.insertNode(span);
+
     sel.removeAllRanges();
     const newRange = document.createRange();
     newRange.selectNodeContents(span);
     sel.addRange(newRange);
     onChange(editorRef.current?.innerHTML || "");
-    editorRef.current?.focus();
   };
 
   return (
@@ -21138,7 +21163,6 @@ const RichTextEditor = ({
         </button>
         <div className="w-px h-6 bg-outline-variant/20 mx-1" />
         <select
-          onMouseDown={(e) => e.preventDefault()}
           onChange={(e) => {
             const val = e.target.value;
             if (val) applyFontSize(val);
@@ -21161,6 +21185,8 @@ const RichTextEditor = ({
         onInput={() => {
           onChange(editorRef.current?.innerHTML || "");
         }}
+        onMouseUp={saveSelection}
+        onKeyUp={saveSelection}
         className="p-3 outline-none text-sm leading-relaxed empty:before:content-[attr(data-placeholder)] empty:before:text-on-surface-variant/40"
         data-placeholder={placeholder || ""}
         style={{ minHeight }}
