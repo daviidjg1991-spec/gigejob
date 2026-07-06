@@ -7475,13 +7475,15 @@ const AdminPage = ({
                       >
                         {popupConfig.title && (
                           <div
-                            className="text-2xl font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                            className="font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                            style={{ fontSize: "1.5rem" }}
                             dangerouslySetInnerHTML={{ __html: popupConfig.title }}
                           />
                         )}
                         {popupConfig.description && (
                           <div
-                            className="text-on-surface-variant text-sm font-medium leading-relaxed"
+                            className="text-on-surface-variant font-medium leading-relaxed"
+                            style={{ fontSize: "0.875rem" }}
                             dangerouslySetInnerHTML={{ __html: popupConfig.description }}
                           />
                         )}
@@ -21121,12 +21123,15 @@ const RichTextEditor = ({
     }
 
     const range = sel.getRangeAt(0);
-    const fragment = range.extractContents();
     const span = document.createElement("span");
-    span.style.fontSize = px;
-    span.appendChild(fragment);
-    range.insertNode(span);
-
+    span.style.setProperty("font-size", px, "important");
+    try {
+      range.surroundContents(span);
+    } catch {
+      const fragment = range.extractContents();
+      span.appendChild(fragment);
+      range.insertNode(span);
+    }
     sel.removeAllRanges();
     const newRange = document.createRange();
     newRange.selectNodeContents(span);
@@ -22824,13 +22829,15 @@ function App() {
                   >
                     {globalPopupConfig.title && (
                       <div
-                        className="text-3xl font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                        className="font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                        style={{ fontSize: "1.875rem" }}
                         dangerouslySetInnerHTML={{ __html: globalPopupConfig.title }}
                       />
                     )}
                     {globalPopupConfig.description && (
                       <div
-                        className="text-on-surface-variant text-base font-medium leading-relaxed"
+                        className="text-on-surface-variant font-medium leading-relaxed"
+                        style={{ fontSize: "1rem" }}
                         dangerouslySetInnerHTML={{ __html: globalPopupConfig.description }}
                       />
                     )}
