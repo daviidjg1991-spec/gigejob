@@ -353,6 +353,7 @@ import {
   BlogPost,
   Booking,
   PRO_PLANS,
+  isSearchMatch,
 } from "./types";
 
 export type DynamicAppConfig = {
@@ -12145,11 +12146,7 @@ const HomePage = ({
         !l.author
       )
         return false;
-      const title = l.title || "";
-      const description = l.description || "";
-      const matchesSearch =
-        title.toLowerCase().includes(search.toLowerCase()) ||
-        description.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = isSearchMatch(search, l);
       const matchesTab = activeTab === "all" || l.type === activeTab;
       const matchesCategory =
         !selectedCategory || l.category === selectedCategory;
@@ -12433,9 +12430,7 @@ const ExplorePage = ({
         return false;
       const matchesType = type === "all" || l.type === type;
       const matchesCategory = category === "all" || l.category === category;
-      const matchesSearch =
-        l.title.toLowerCase().includes(search.toLowerCase()) ||
-        l.description.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = isSearchMatch(search, l);
 
       const price = l.price || 0;
       const matchesMinPrice = !minPrice || price >= Number(minPrice);

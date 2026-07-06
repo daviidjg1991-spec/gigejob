@@ -252,6 +252,49 @@ export const CATEGORIES = [
   'Otros'
 ];
 
+export const CATEGORY_SYNONYMS: Record<string, string[]> = {
+  'Limpieza': ['limpieza', 'limpiador', 'limpiadora', 'limpiar', 'aseo', 'chica', 'asistenta'],
+  'Montaje de muebles': ['montaje', 'montador', 'carpintero', 'armar', 'mueble', 'ikea', 'armario', 'estanteria'],
+  'Fontanería': ['fontanería', 'fontanero', 'plomero', 'tubería', 'fuga', 'desatasco', 'grifo', 'agua', 'cisterna'],
+  'Electricidad': ['electricidad', 'electricista', 'luz', 'enchufe', 'cuadro', 'cortocircuito', 'cable', 'iluminacion'],
+  'Clases particulares': ['clase', 'clases', 'profesor', 'profesora', 'tutor', 'enseñar', 'apoyo', 'matemáticas', 'inglés', 'repaso'],
+  'Cuidado de personas': ['cuidado', 'cuidador', 'cuidadora', 'niñera', 'canguro', 'ancianos', 'acompañamiento', 'enfermero', 'enfermera', 'mayores'],
+  'Jardinería': ['jardinería', 'jardinero', 'jardinera', 'plantas', 'poda', 'césped', 'regar', 'arboles', 'jardin'],
+  'Informática': ['informática', 'informático', 'ordenador', 'computadora', 'pc', 'virus', 'formatear', 'tecnico', 'programador', 'mac', 'windows'],
+  'Otros': []
+};
+
+export function isSearchMatch(search: string, listing: { title?: string, description?: string, category?: string }): boolean {
+  if (!search) return true;
+  
+  const searchLower = search.toLowerCase();
+  
+  // 1. Direct match in title or description
+  const title = listing.title || '';
+  const description = listing.description || '';
+  if (title.toLowerCase().includes(searchLower) || description.toLowerCase().includes(searchLower)) {
+    return true;
+  }
+  
+  // 2. Synonym match
+  // For each category, if the search term matches any synonym (or the category name itself),
+  // we consider it a match if the listing's category is that category.
+  for (const [categoryName, synonyms] of Object.entries(CATEGORY_SYNONYMS)) {
+    if (categoryName.toLowerCase().includes(searchLower) || synonyms.some(s => s.toLowerCase().includes(searchLower))) {
+      // The search term points to this category
+      if (listing.category === categoryName) {
+        return true;
+      }
+    }
+  }
+  
+  // 3. Reverse synonym match
+  // If the listing belongs to a category, and the search term is found within that category's synonyms, it's covered by #2.
+  // What if the user searched for something else, but we want to match? The above should cover it.
+  
+  return false;
+}
+
 export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
   columns: [
     {
