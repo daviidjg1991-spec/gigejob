@@ -451,7 +451,8 @@ const usePromotionsConfig = () => {
         id: "default",
         name: "Promoción Inicial",
         isActive: false,
-        targetUsersCount: 100,
+        userRangeStart: 1,
+        userRangeEnd: 100,
         planDurationMonths: 12,
         planType: "Premium Pro",
       }
@@ -4313,7 +4314,8 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
               setFormData({
                 name: "Nueva Promoción",
                 isActive: false,
-                targetUsersCount: 100,
+                userRangeStart: 1,
+                userRangeEnd: 100,
                 planDurationMonths: 12,
                 planType: "Premium Pro"
               });
@@ -4340,7 +4342,7 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
                   <div>
                     <h3 className="font-bold text-lg">{promo.name || "Promoción"}</h3>
                     <p className="text-sm text-on-surface-variant flex items-center gap-2 mt-1">
-                      <Users className="w-4 h-4" /> {claimedUsersCount} / {promo.targetUsersCount} usuarios
+                      <Users className="w-4 h-4" /> {claimedUsersCount} / {promo.userRangeEnd - promo.userRangeStart + 1} usuarios (Rango: {promo.userRangeStart} - {promo.userRangeEnd})
                       <span className="mx-2">•</span>
                       <Crown className="w-4 h-4" /> {promo.planType} ({promo.planDurationMonths} meses)
                     </p>
@@ -4405,16 +4407,29 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                Límite de Usuarios
-              </label>
-              <input
-                type="number"
-                value={formData.targetUsersCount}
-                onChange={(e) => setFormData({...formData, targetUsersCount: parseInt(e.target.value) || 0})}
-                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              />
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                  Usuario Inicial
+                </label>
+                <input
+                  type="number"
+                  value={formData.userRangeStart || 1}
+                  onChange={(e) => setFormData({...formData, userRangeStart: parseInt(e.target.value) || 1})}
+                  className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                  Usuario Final
+                </label>
+                <input
+                  type="number"
+                  value={formData.userRangeEnd || 100}
+                  onChange={(e) => setFormData({...formData, userRangeEnd: parseInt(e.target.value) || 0})}
+                  className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
