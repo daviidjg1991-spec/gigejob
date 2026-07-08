@@ -445,24 +445,31 @@ const useProPlansConfig = () => {
 };
 
 const usePromotionsConfig = () => {
-  const [config, setConfig] = useState<any>({
-    isActive: false,
-    targetUsersCount: 100,
-    planDurationMonths: 12,
-    planType: "Premium Pro",
+  const [config, setConfig] = useState<{ promotions: any[] }>({
+    promotions: [
+      {
+        id: "default",
+        name: "Promoción Inicial",
+        isActive: false,
+        targetUsersCount: 100,
+        planDurationMonths: 12,
+        planType: "Premium Pro",
+      }
+    ]
   });
 
   useEffect(() => {
     const promoRef = doc(db, "settings", "promotions_config");
     const unsub = onSnapshot(promoRef, (docSnap) => {
       if (docSnap.exists()) {
-        setConfig(docSnap.data());
+        const data = docSnap.data();
+        setConfig({ promotions: data.promotions || [] });
       }
     });
     return unsub;
   }, []);
 
-  const updateConfig = async (newConfig: any) => {
+  const updateConfig = async (newConfig: { promotions: any[] }) => {
     const promoRef = doc(db, "settings", "promotions_config");
     await setDoc(promoRef, newConfig, { merge: true });
     setConfig(newConfig);
@@ -4252,27 +4259,39 @@ const StaticPageView = ({
 
 const AdminPromotionsTab = ({ users }: { users: any[] }) => {
   const { config, updateConfig } = usePromotionsConfig();
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState(config);
+  const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    setFormData(config);
-  }, [config]);
-
-  const claimedUsersCount = users.filter((u: any) => u.hasClaimedPromotion).length;
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateConfig(formData);
-      setIsEditing(false);
+      let newPromotions = [...config.promotions];
+      if (editingPromoId === "new") {
+        newPromotions.push({ ...formData, id: Date.now().toString() });
+      } else {
+        newPromotions = newPromotions.map((p) => p.id === editingPromoId ? formData : p);
+      }
+      await updateConfig({ promotions: newPromotions });
+      setEditingPromoId(null);
       alert("Promoción guardada exitosamente");
     } catch (error) {
       console.error(error);
       alert("Error al guardar promoción");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("¿Estás seguro de eliminar esta promoción?")) {
+      const newPromotions = config.promotions.filter((p: any) => p.id !== id);
+      try {
+        await updateConfig({ promotions: newPromotions });
+      } catch (error) {
+        console.error(error);
+        alert("Error al eliminar promoción");
+      }
     }
   };
 
@@ -4288,59 +4307,92 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
             Configura incentivos para los nuevos usuarios.
           </p>
         </div>
-        {!isEditing && (
+        {!editingPromoId && (
           <button
-            onClick={() => setIsEditing(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl font-bold hover:bg-primary/20 transition-colors"
+            onClick={() => {
+              setFormData({
+                name: "Nueva Promoción",
+                isActive: false,
+                targetUsersCount: 100,
+                planDurationMonths: 12,
+                planType: "Premium Pro"
+              });
+              setEditingPromoId("new");
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors"
           >
-            <Edit3 className="w-4 h-4" />
-            Editar Promoción
+            <Plus className="w-4 h-4" />
+            Crear Promoción
           </button>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-surface-container p-6 rounded-2xl">
-          <div className="w-10 h-10 bg-primary/20 text-primary rounded-xl flex items-center justify-center mb-4">
-            <Users className="w-5 h-5" />
-          </div>
-          <h3 className="text-sm font-bold text-on-surface-variant">
-            Usuarios con Promoción
-          </h3>
-          <p className="text-3xl font-black text-on-surface mt-1">
-            {claimedUsersCount} <span className="text-lg text-on-surface-variant">/ {config.targetUsersCount}</span>
-          </p>
+      {!editingPromoId ? (
+        <div className="grid grid-cols-1 gap-4">
+          {config.promotions.map((promo: any) => {
+            const claimedUsersCount = users.filter((u: any) => u.hasClaimedPromotion && (u.claimedPromotionId === promo.id || promo.id === "default")).length;
+            return (
+              <div key={promo.id} className="bg-surface-container p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${promo.isActive ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'}`}>
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">{promo.name || "Promoción"}</h3>
+                    <p className="text-sm text-on-surface-variant flex items-center gap-2 mt-1">
+                      <Users className="w-4 h-4" /> {claimedUsersCount} / {promo.targetUsersCount} usuarios
+                      <span className="mx-2">•</span>
+                      <Crown className="w-4 h-4" /> {promo.planType} ({promo.planDurationMonths} meses)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      setFormData({ ...promo });
+                      setEditingPromoId(promo.id);
+                    }}
+                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  >
+                    <Edit3 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(promo.id)}
+                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {config.promotions.length === 0 && (
+            <div className="text-center py-12 text-on-surface-variant">
+              No hay promociones configuradas.
+            </div>
+          )}
         </div>
-        <div className="bg-surface-container p-6 rounded-2xl">
-          <div className="w-10 h-10 bg-secondary/20 text-secondary rounded-xl flex items-center justify-center mb-4">
-            <Crown className="w-5 h-5" />
-          </div>
-          <h3 className="text-sm font-bold text-on-surface-variant">
-            Plan Ofrecido
-          </h3>
-          <p className="text-xl font-black text-on-surface mt-1">
-            {config.planType}
-          </p>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Duración: {config.planDurationMonths} meses
-          </p>
-        </div>
-        <div className="bg-surface-container p-6 rounded-2xl">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${config.isActive ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'}`}>
-            <Zap className="w-5 h-5" />
-          </div>
-          <h3 className="text-sm font-bold text-on-surface-variant">
-            Estado Actual
-          </h3>
-          <p className="text-xl font-black text-on-surface mt-1">
-            {config.isActive ? "Activa" : "Inactiva"}
-          </p>
-        </div>
-      </div>
-
-      {isEditing && (
+      ) : (
         <div className="bg-surface-container p-6 rounded-2xl space-y-4">
-          <h3 className="font-bold text-lg mb-4">Editar Configuración de Promoción</h3>
+          <h3 className="font-bold text-lg mb-4">
+            {editingPromoId === "new" ? "Nueva Promoción" : "Editar Promoción"}
+          </h3>
+          
+          <div className="grid grid-cols-1 gap-4 mb-4">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Nombre de la Promoción
+              </label>
+              <input
+                type="text"
+                value={formData.name || ""}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                placeholder="Ej. Promo Lanzamiento"
+              />
+            </div>
+          </div>
+
           <div className="flex items-center gap-2 mb-4">
             <input 
               type="checkbox" 
@@ -4393,10 +4445,7 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
           
           <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-outline-variant/20">
             <button
-              onClick={() => {
-                setFormData(config);
-                setIsEditing(false);
-              }}
+              onClick={() => setEditingPromoId(null)}
               className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-container-highest rounded-xl transition-colors"
             >
               Cancelar
