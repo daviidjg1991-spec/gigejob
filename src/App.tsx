@@ -444,6 +444,34 @@ const useProPlansConfig = () => {
   return { plans, setPlans, isEnabled, setIsEnabled };
 };
 
+const usePromotionsConfig = () => {
+  const [config, setConfig] = useState<any>({
+    isActive: false,
+    targetUsersCount: 100,
+    planDurationMonths: 12,
+    planType: "Premium Pro",
+  });
+
+  useEffect(() => {
+    const promoRef = doc(db, "settings", "promotions_config");
+    const unsub = onSnapshot(promoRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setConfig(docSnap.data());
+      }
+    });
+    return unsub;
+  }, []);
+
+  const updateConfig = async (newConfig: any) => {
+    const promoRef = doc(db, "settings", "promotions_config");
+    await setDoc(promoRef, newConfig, { merge: true });
+    setConfig(newConfig);
+  };
+
+  return { config, updateConfig };
+};
+
+
 interface ReportContextType {
   openReportModal: (
     reportedUserId: string,
@@ -658,6 +686,7 @@ const AdminSidebar = ({
     { id: "personal", label: "Usuarios", icon: User },
     { id: "professional", label: "Servicios", icon: Briefcase },
     { id: "planes-pro", label: "Planes Pro", icon: Crown },
+    { id: "promociones", label: "Promociones", icon: Zap },
     { id: "ads", label: "Moderación", icon: Hammer },
     {
       id: "reports",
@@ -4221,6 +4250,173 @@ const StaticPageView = ({
   );
 };
 
+const AdminPromotionsTab = ({ users }: { users: any[] }) => {
+  const { config, updateConfig } = usePromotionsConfig();
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState(config);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setFormData(config);
+  }, [config]);
+
+  const claimedUsersCount = users.filter((u: any) => u.hasClaimedPromotion).length;
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await updateConfig(formData);
+      setIsEditing(false);
+      alert("Promoción guardada exitosamente");
+    } catch (error) {
+      console.error(error);
+      alert("Error al guardar promoción");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-2xl font-black flex items-center gap-2">
+            <Zap className="w-6 h-6 text-primary" />
+            Promociones y Ofertas
+          </h2>
+          <p className="text-on-surface-variant mt-1">
+            Configura incentivos para los nuevos usuarios.
+          </p>
+        </div>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-xl font-bold hover:bg-primary/20 transition-colors"
+          >
+            <Edit3 className="w-4 h-4" />
+            Editar Promoción
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-surface-container p-6 rounded-2xl">
+          <div className="w-10 h-10 bg-primary/20 text-primary rounded-xl flex items-center justify-center mb-4">
+            <Users className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-bold text-on-surface-variant">
+            Usuarios con Promoción
+          </h3>
+          <p className="text-3xl font-black text-on-surface mt-1">
+            {claimedUsersCount} <span className="text-lg text-on-surface-variant">/ {config.targetUsersCount}</span>
+          </p>
+        </div>
+        <div className="bg-surface-container p-6 rounded-2xl">
+          <div className="w-10 h-10 bg-secondary/20 text-secondary rounded-xl flex items-center justify-center mb-4">
+            <Crown className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-bold text-on-surface-variant">
+            Plan Ofrecido
+          </h3>
+          <p className="text-xl font-black text-on-surface mt-1">
+            {config.planType}
+          </p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Duración: {config.planDurationMonths} meses
+          </p>
+        </div>
+        <div className="bg-surface-container p-6 rounded-2xl">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${config.isActive ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'}`}>
+            <Zap className="w-5 h-5" />
+          </div>
+          <h3 className="text-sm font-bold text-on-surface-variant">
+            Estado Actual
+          </h3>
+          <p className="text-xl font-black text-on-surface mt-1">
+            {config.isActive ? "Activa" : "Inactiva"}
+          </p>
+        </div>
+      </div>
+
+      {isEditing && (
+        <div className="bg-surface-container p-6 rounded-2xl space-y-4">
+          <h3 className="font-bold text-lg mb-4">Editar Configuración de Promoción</h3>
+          <div className="flex items-center gap-2 mb-4">
+            <input 
+              type="checkbox" 
+              id="isActive"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
+              className="w-4 h-4 text-primary rounded border-outline"
+            />
+            <label htmlFor="isActive" className="font-medium text-sm">Promoción Activa</label>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Límite de Usuarios
+              </label>
+              <input
+                type="number"
+                value={formData.targetUsersCount}
+                onChange={(e) => setFormData({...formData, targetUsersCount: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Duración del Plan (Meses)
+              </label>
+              <input
+                type="number"
+                value={formData.planDurationMonths}
+                onChange={(e) => setFormData({...formData, planDurationMonths: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Tipo de Plan
+              </label>
+              <select
+                value={formData.planType}
+                onChange={(e) => setFormData({...formData, planType: e.target.value})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              >
+                <option value="Premium Pro">Premium Pro</option>
+                <option value="Pro">Pro</option>
+                <option value="Premium">Premium</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-outline-variant/20">
+            <button
+              onClick={() => {
+                setFormData(config);
+                setIsEditing(false);
+              }}
+              className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-container-highest rounded-xl transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Guardar Cambios
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const AdminProPlansTab = ({ users }: { users: any[] }) => {
   const { plans, isEnabled } = useProPlansConfig();
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
@@ -6149,6 +6345,8 @@ const AdminPage = ({
         );
       case "planes-pro":
         return <AdminProPlansTab users={users} />;
+      case "promociones":
+        return <AdminPromotionsTab users={users} />;
       case "ads":
         return (
           <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10">
