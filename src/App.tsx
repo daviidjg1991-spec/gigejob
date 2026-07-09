@@ -11419,7 +11419,7 @@ const SettingsModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center lg:p-4 bg-black/60 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center lg:p-4 bg-black/60 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -11428,7 +11428,7 @@ const SettingsModal = ({
         initial={{ opacity: 0, scale: 0.95, y: 100 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="w-full max-w-4xl bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] lg:h-[700px] h-full lg:ambient-shadow relative overflow-hidden flex flex-col lg:flex-row shadow-2xl"
+        className="w-full max-w-4xl bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] lg:h-[700px] h-[100dvh] max-h-[100dvh] lg:max-h-full lg:h-auto lg:ambient-shadow relative overflow-hidden flex flex-col lg:flex-row shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sidebar / Mobile Header */}
@@ -11516,7 +11516,7 @@ const SettingsModal = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent">
+        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-24 lg:pb-16">
           <div className="lg:hidden h-px w-full bg-outline-variant/10" />
           <AnimatePresence>
             {showSaveToast && (
@@ -11539,7 +11539,7 @@ const SettingsModal = ({
             <X className="w-6 h-6" />
           </button>
           <AnimatePresence mode="wait" initial={false}>
-            <motion.div
+              <motion.div
               key={activeType || "menu"}
               initial={{ opacity: 0, y: 10, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -11550,7 +11550,7 @@ const SettingsModal = ({
                 damping: 30,
                 opacity: { duration: 0.2 },
               }}
-              className="h-full p-4 lg:p-0"
+              className="h-full p-4 lg:p-0 pb-16 lg:pb-0"
             >
               {renderContent()}
             </motion.div>
