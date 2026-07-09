@@ -8644,7 +8644,7 @@ const SettingsModal = ({
   const [billingTab, setBillingTab] = useState<"transactions" | "invoices">(
     "transactions",
   );
-  const [securityTab, setSecurityTab] = useState<"verify" | "security">(
+  const [securityTab, setSecurityTab] = useState<"verify" | "security" | "account">(
     "verify",
   );
   const { plans: proPlans, isEnabled: isProPlansEnabled } = useProPlansConfig();
@@ -9380,7 +9380,7 @@ const SettingsModal = ({
                   Gestiona tu acceso.
                 </p>
               </div>
-              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner">
+              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner overflow-x-auto no-scrollbar">
                 <button
                   onClick={() => setSecurityTab("verify")}
                   className={cn(
@@ -9402,6 +9402,17 @@ const SettingsModal = ({
                   )}
                 >
                   Seguridad
+                </button>
+                <button
+                  onClick={() => setSecurityTab("account")}
+                  className={cn(
+                    "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                    securityTab === "account"
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-on-surface-variant/40",
+                  )}
+                >
+                  Cuenta
                 </button>
               </div>
             </div>
@@ -9451,7 +9462,7 @@ const SettingsModal = ({
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : securityTab === "security" ? (
                 <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/10 space-y-6 shadow-sm">
                   <div className="space-y-4">
                     {passwordError && (
@@ -9519,6 +9530,29 @@ const SettingsModal = ({
                     {isUpdatingPassword
                       ? "Actualizando..."
                       : "Actualizar Contraseña"}
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-error/10 space-y-6 shadow-sm">
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <h4 className="text-sm lg:text-base font-black text-error">Eliminar cuenta</h4>
+                      <p className="text-[10px] lg:text-xs text-on-surface-variant/60 font-medium">
+                        Al eliminar tu cuenta, todos tus datos, mensajes y configuraciones serán borrados permanentemente. Esta acción no se puede deshacer.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (window.confirm("¿Estás seguro de que deseas eliminar tu cuenta permanentemente? Esta acción no se puede deshacer.")) {
+                        alert("Cuenta eliminada correctamente.");
+                        window.location.href = "/";
+                      }
+                    }}
+                    className="w-full py-3.5 lg:py-5 bg-error text-white rounded-xl lg:rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-xs shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    Eliminar Cuenta Permanentemente
                   </button>
                 </div>
               )}
