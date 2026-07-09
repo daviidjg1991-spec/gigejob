@@ -102,6 +102,8 @@ export interface UserProfile {
   photoUrl?: string;
   acceptPromotions?: boolean;
   acceptTerms?: boolean;
+  hasClaimedPromotion?: boolean;
+  claimedPromotionId?: string;
   blockedUsers?: string[];
   certifications?: {
     serviceGuarantee: boolean;

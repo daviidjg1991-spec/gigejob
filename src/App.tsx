@@ -19767,6 +19767,59 @@ const AuthPage = ({
       );
       const firebaseUid = userCredential.user.uid;
 
+      let finalProfessionalInfo = personalData.role === "professional"
+        ? {
+            availability: professionalData.availability,
+            workLocation: professionalData.workLocation,
+            workRadius: professionalData.workRadius,
+            billing: professionalData.billing,
+          }
+        : undefined;
+
+      let hasClaimedPromo = false;
+      let claimedPromoId = undefined;
+
+      if (personalData.role === "professional") {
+        try {
+          const promoConfigSnap = await getDoc(doc(db, "settings", "promotions_config"));
+          if (promoConfigSnap.exists()) {
+            const promoConfig = promoConfigSnap.data();
+            if (promoConfig.promotions) {
+              const activePromo = promoConfig.promotions.find((p: any) => p.isActive);
+              if (activePromo) {
+                const usersSnap = await getDocs(collection(db, "users"));
+                const claimedUsersCount = usersSnap.docs.filter((d: any) => {
+                  const u = d.data();
+                  return u.hasClaimedPromotion && (u.claimedPromotionId === activePromo.id || activePromo.id === "default");
+                }).length;
+
+                if (claimedUsersCount + 1 >= activePromo.userRangeStart && claimedUsersCount + 1 <= activePromo.userRangeEnd) {
+                  hasClaimedPromo = true;
+                  claimedPromoId = activePromo.id;
+                  
+                  const startDate = new Date();
+                  const endDate = new Date();
+                  endDate.setMonth(endDate.getMonth() + (activePromo.planDurationMonths || 12));
+                  
+                  finalProfessionalInfo = {
+                    ...finalProfessionalInfo!,
+                    plan: activePromo.planType || "Premium Pro",
+                    planStatus: "active",
+                    planStartDate: startDate.toISOString(),
+                    planEndDate: endDate.toISOString(),
+                    planBillingCycle: "monthly",
+                    planAutoRenew: false,
+                    planPaymentMethod: "promocion"
+                  };
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error al aplicar promoción:", error);
+        }
+      }
+
       const finalUser: UserProfile = {
         id: firebaseUid,
         username: finalUsername,
@@ -19781,15 +19834,9 @@ const AuthPage = ({
         photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${finalUsername}`,
         acceptPromotions,
         acceptTerms,
-        professionalInfo:
-          personalData.role === "professional"
-            ? {
-                availability: professionalData.availability,
-                workLocation: professionalData.workLocation,
-                workRadius: professionalData.workRadius,
-                billing: professionalData.billing,
-              }
-            : undefined,
+        hasClaimedPromotion: hasClaimedPromo,
+        claimedPromotionId: claimedPromoId,
+        professionalInfo: finalProfessionalInfo,
         settings: {
           smartSuggestions: true,
           locationRadius: 15,
