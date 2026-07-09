@@ -9371,16 +9371,16 @@ const SettingsModal = ({
       case "security":
         return (
           <div className="space-y-6 lg:space-y-8 h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex flex-col gap-4">
               <div className="space-y-1">
-                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight">
+                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight truncate whitespace-nowrap">
                   Verificaciones y Seguridad
                 </h3>
                 <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
                   Gestiona tu acceso.
                 </p>
               </div>
-              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner overflow-x-auto no-scrollbar">
+              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner overflow-x-auto no-scrollbar w-fit">
                 <button
                   onClick={() => setSecurityTab("verify")}
                   className={cn(
@@ -11902,18 +11902,7 @@ const Navbar = ({
                               Idioma
                             </button>
 
-                            {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && (
-                              <button
-                                onClick={() => {
-                                  navigate("/admin");
-                                  setActiveDropdown(null);
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all"
-                              >
-                                <ShieldCheck className="w-4 h-4" />
-                                Panel de Administración
-                              </button>
-                            )}
+
 
                             <div className="mt-4 pt-4 border-t border-outline-variant">
                               <button
@@ -22472,26 +22461,7 @@ function App() {
                           <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
                         </Link>
 
-                        {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && (
-                          <Link
-                            to="/admin"
-                            onClick={() => setIsMenuOpen(false)}
-                            className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                          >
-                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                              <ShieldCheck className="w-5 h-5 text-primary" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-black uppercase tracking-widest text-[10px]">
-                                Admin
-                              </p>
-                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                                Panel de administración
-                              </p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                          </Link>
-                        )}
+
 
                         <button
                           onClick={() => {
