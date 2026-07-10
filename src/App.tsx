@@ -8850,7 +8850,50 @@ const SettingsModal = ({
     
     try {
       const userRef = doc(db, "users", user.id);
-      const { id, gallery, ...dataToUpdate } = user;
+      let { id, gallery, ...dataToUpdate } = user;
+      
+      if (user.role === "professional" && !user.hasClaimedPromotion) {
+        try {
+          const promoConfigSnap = await getDoc(doc(db, "settings", "promotions_config"));
+          if (promoConfigSnap.exists()) {
+            const promoConfig = promoConfigSnap.data();
+            if (promoConfig.promotions) {
+              const activePromo = promoConfig.promotions.find((p: any) => p.isActive);
+              if (activePromo) {
+                const usersSnap = await getDocs(collection(db, "users"));
+                const claimedUsersCount = usersSnap.docs.filter((d: any) => {
+                  const u = d.data();
+                  return u.hasClaimedPromotion && (u.claimedPromotionId === activePromo.id || activePromo.id === "default");
+                }).length;
+
+                if (claimedUsersCount + 1 >= activePromo.userRangeStart && claimedUsersCount + 1 <= activePromo.userRangeEnd) {
+                  const startDate = new Date();
+                  const endDate = new Date();
+                  endDate.setMonth(endDate.getMonth() + (activePromo.planDurationMonths || 12));
+                  
+                  dataToUpdate = {
+                    ...dataToUpdate,
+                    hasClaimedPromotion: true,
+                    claimedPromotionId: activePromo.id,
+                    professionalInfo: {
+                      ...(dataToUpdate.professionalInfo as any),
+                      plan: activePromo.planType || "Premium Pro",
+                      planStatus: "active",
+                      planStartDate: startDate.toISOString(),
+                      planEndDate: endDate.toISOString(),
+                      planBillingCycle: "monthly",
+                      planAutoRenew: false,
+                      planPaymentMethod: "promocion"
+                    }
+                  };
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error al aplicar promoción en perfil:", error);
+        }
+      }
       
       const payload: any = { ...dataToUpdate, hasGallery: (gallery || []).length > 0 };
       await updateDoc(userRef, payload);
