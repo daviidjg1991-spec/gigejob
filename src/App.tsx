@@ -5957,6 +5957,9 @@ const AdminPage = ({
                     Plan Pro
                   </th>
                   <th className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                    Promo
+                  </th>
+                  <th className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
                     Permisos
                   </th>
                 </tr>
@@ -6151,6 +6154,23 @@ const AdminPage = ({
                         ) : (
                           <span className="text-xs text-on-surface-variant/40">
                             -
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                        {u.hasClaimedPromotion ? (
+                          <span
+                            className="inline-flex max-w-fit items-center justify-center p-1 bg-primary/10 text-primary rounded-lg"
+                            title={`Promoción reclamada: ${u.claimedPromotionId || "Sí"}`}
+                          >
+                            <Zap className="w-4 h-4" />
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex max-w-fit items-center justify-center p-1 opacity-50 text-outline-variant"
+                            title="Sin promoción"
+                          >
+                            <Minus className="w-4 h-4" />
                           </span>
                         )}
                       </td>
@@ -8860,8 +8880,6 @@ const SettingsModal = ({
 
     setIsSaving(true);
     
-    setGlobalUser(user);
-    
     try {
       const userRef = doc(db, "users", user.id);
       let { id, gallery, ...dataToUpdate } = user;
@@ -8897,6 +8915,7 @@ const SettingsModal = ({
       
       const payload: any = { ...dataToUpdate, hasGallery: (gallery || []).length > 0 };
       await updateDoc(userRef, payload);
+      setGlobalUser({ ...user, ...dataToUpdate } as UserProfile);
       
       if (gallery && gallery.length > 0) {
         const galleryRef = doc(db, "users", user.id, "private", "gallery");
