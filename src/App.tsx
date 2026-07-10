@@ -6019,15 +6019,19 @@ const AdminPage = ({
                         ).toFixed(2)
                       : "0.00";
 
-                  const planId = u.professionalInfo?.plan || "basic";
+                  let mappedPlanId = u.professionalInfo?.plan || "basic";
+                  if (mappedPlanId === "Premium Pro") mappedPlanId = "premium_pro";
+                  else if (mappedPlanId === "Premium") mappedPlanId = "premium";
+                  else if (mappedPlanId === "Pro") mappedPlanId = "medium";
+
                   const planName =
-                    proPlans.find((p: any) => p.id === planId)?.name || "Basic";
+                    proPlans.find((p: any) => p.id === mappedPlanId)?.name || "Basic";
                   const planColor =
-                    planId === "premium_pro"
+                    mappedPlanId === "premium_pro"
                       ? "text-fuchsia-500 bg-fuchsia-500/10"
-                      : planId === "premium"
+                      : mappedPlanId === "premium"
                         ? "text-secondary bg-secondary/10"
-                        : planId === "medium"
+                        : mappedPlanId === "medium"
                           ? "text-primary bg-primary/10"
                           : "text-green-600 bg-green-500/10";
 
@@ -6162,11 +6166,18 @@ const AdminPage = ({
                       </td>
                       <td className="px-2 lg:px-4 py-3 hidden sm:table-cell">
                         {u.role === "professional" ? (
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${planColor}`}
-                          >
-                            {planName}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${planColor}`}
+                            >
+                              {planName}
+                            </span>
+                            {u.professionalInfo?.planPaymentMethod === "promocion" && (
+                              <span className="text-primary flex items-center justify-center p-0.5 bg-primary/10 rounded-full" title="Promoción Activa">
+                                <Zap className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-xs text-on-surface-variant/40">
                             -
