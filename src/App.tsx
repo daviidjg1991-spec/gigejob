@@ -9775,11 +9775,11 @@ const SettingsModal = ({
                 </div>
               </>
             ) : (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-8 lg:pt-16">
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-8 lg:pt-16 pb-24 lg:pb-0">
                 {/* Back Button */}
                 <button
                   onClick={() => setGeneralTab(null)}
-                  className="absolute -top-2 -left-2 lg:-left-16 lg:top-0 p-3 hover:bg-surface-container-low rounded-2xl text-on-surface-variant/40 hover:text-on-surface transition-all"
+                  className="hidden lg:block absolute -top-2 -left-2 lg:-left-16 lg:top-0 p-3 hover:bg-surface-container-low rounded-2xl text-on-surface-variant/40 hover:text-on-surface transition-all"
                 >
                   <ArrowLeft className="w-6 h-6" />
                 </button>
@@ -11485,7 +11485,13 @@ const SettingsModal = ({
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
-                    onClick={() => setActiveType(null)}
+                    onClick={() => {
+                      if (activeType === "general" && generalTab !== null) {
+                        setGeneralTab(null);
+                      } else {
+                        setActiveType(null);
+                      }
+                    }}
                     className="lg:hidden p-2.5 bg-primary/10 rounded-2xl text-primary transition-all active:scale-90 flex items-center gap-2 group"
                   >
                     <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
