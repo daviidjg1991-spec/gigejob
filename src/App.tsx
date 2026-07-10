@@ -1804,9 +1804,14 @@ const AdminUserEditModal = ({
 
                 <div className="grid gap-3 md:grid-cols-4">
                   {proPlans.map((plan: any) => {
+                    let mappedUserPlan = editedUser.professionalInfo?.plan;
+                    if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium_pro";
+                    else if (mappedUserPlan === "Premium") mappedUserPlan = "premium";
+                    else if (mappedUserPlan === "Pro") mappedUserPlan = "medium";
+
                     const isCurrent =
-                      editedUser.professionalInfo?.plan === plan.id ||
-                      (!editedUser.professionalInfo?.plan &&
+                      mappedUserPlan === plan.id ||
+                      (!mappedUserPlan &&
                         plan.id === "basic");
                     return (
                       <div
@@ -10874,9 +10879,14 @@ const SettingsModal = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {proPlans.map((plan) => {
                         const isRecommended = plan.isRecommended;
+                        let mappedUserPlan = user?.professionalInfo?.plan;
+                        if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium_pro";
+                        else if (mappedUserPlan === "Premium") mappedUserPlan = "premium";
+                        else if (mappedUserPlan === "Pro") mappedUserPlan = "medium";
+
                         const isCurrent =
-                          user?.professionalInfo?.plan === plan.id ||
-                          (!user?.professionalInfo?.plan &&
+                          mappedUserPlan === plan.id ||
+                          (!mappedUserPlan &&
                             plan.id === "basic");
                         const displayPrice = isQuarterlyView ? plan.priceQuarterly : plan.price;
                         const displayComparePrice = isQuarterlyView ? plan.comparePriceQuarterly : plan.comparePrice;
