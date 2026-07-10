@@ -4317,7 +4317,8 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
                 userRangeStart: 1,
                 userRangeEnd: 100,
                 planDurationMonths: 12,
-                planType: "Premium Pro"
+                planType: "Premium Pro",
+                targetAudience: "professional"
               });
               setEditingPromoId("new");
             }}
@@ -4443,6 +4444,19 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
               />
             </div>
             <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Público Objetivo
+              </label>
+              <select
+                value={formData.targetAudience || "professional"}
+                onChange={(e) => setFormData({...formData, targetAudience: e.target.value})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mb-4"
+              >
+                <option value="professional">Solo Profesionales</option>
+                <option value="user">Solo Particulares</option>
+                <option value="both">Ambos (Profesionales y Particulares)</option>
+              </select>
+
               <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
                 Tipo de Plan
               </label>
@@ -8852,13 +8866,13 @@ const SettingsModal = ({
       const userRef = doc(db, "users", user.id);
       let { id, gallery, ...dataToUpdate } = user;
       
-      if (user.role === "professional" && !user.hasClaimedPromotion) {
+      if (user.role === "user" && !user.hasClaimedPromotion) {
         try {
           const promoConfigSnap = await getDoc(doc(db, "settings", "promotions_config"));
           if (promoConfigSnap.exists()) {
             const promoConfig = promoConfigSnap.data();
             if (promoConfig.promotions) {
-              const activePromo = promoConfig.promotions.find((p: any) => p.isActive);
+              const activePromo = promoConfig.promotions.find((p: any) => p.isActive && (p.targetAudience === "user" || p.targetAudience === "both"));
               if (activePromo) {
                 const usersSnap = await getDocs(collection(db, "users"));
                 const claimedUsersCount = usersSnap.docs.filter((d: any) => {
@@ -8867,31 +8881,17 @@ const SettingsModal = ({
                 }).length;
 
                 if (claimedUsersCount + 1 >= activePromo.userRangeStart && claimedUsersCount + 1 <= activePromo.userRangeEnd) {
-                  const startDate = new Date();
-                  const endDate = new Date();
-                  endDate.setMonth(endDate.getMonth() + (activePromo.planDurationMonths || 12));
-                  
                   dataToUpdate = {
                     ...dataToUpdate,
                     hasClaimedPromotion: true,
                     claimedPromotionId: activePromo.id,
-                    professionalInfo: {
-                      ...(dataToUpdate.professionalInfo as any),
-                      plan: activePromo.planType || "Premium Pro",
-                      planStatus: "active",
-                      planStartDate: startDate.toISOString(),
-                      planEndDate: endDate.toISOString(),
-                      planBillingCycle: "monthly",
-                      planAutoRenew: false,
-                      planPaymentMethod: "promocion"
-                    }
                   };
                 }
               }
             }
           }
         } catch (error) {
-          console.error("Error al aplicar promoción en perfil:", error);
+          console.error("Error al aplicar promoción en perfil a particular:", error);
         }
       }
       
@@ -18788,6 +18788,57 @@ const CreateListing = ({
 
       onAdd(newListing);
 
+      if (user.role === "professional" && !user.hasClaimedPromotion && isProfileReady) {
+        try {
+          const promoConfigSnap = await getDoc(doc(db, "settings", "promotions_config"));
+          if (promoConfigSnap.exists()) {
+            const promoConfig = promoConfigSnap.data();
+            if (promoConfig.promotions) {
+              const activePromo = promoConfig.promotions.find((p: any) => p.isActive && (p.targetAudience === "professional" || p.targetAudience === "both" || !p.targetAudience));
+              if (activePromo) {
+                const usersSnap = await getDocs(collection(db, "users"));
+                const claimedUsersCount = usersSnap.docs.filter((d: any) => {
+                  const u = d.data();
+                  return u.hasClaimedPromotion && (u.claimedPromotionId === activePromo.id || activePromo.id === "default");
+                }).length;
+
+                if (claimedUsersCount + 1 >= activePromo.userRangeStart && claimedUsersCount + 1 <= activePromo.userRangeEnd) {
+                  const startDate = new Date();
+                  const endDate = new Date();
+                  endDate.setMonth(endDate.getMonth() + (activePromo.planDurationMonths || 12));
+                  
+                  const updatedUser = {
+                    ...user,
+                    hasClaimedPromotion: true,
+                    claimedPromotionId: activePromo.id,
+                    professionalInfo: {
+                      ...(user.professionalInfo || {}),
+                      plan: activePromo.planType || "Premium Pro",
+                      planStatus: "active",
+                      planStartDate: startDate.toISOString(),
+                      planEndDate: endDate.toISOString(),
+                      planBillingCycle: "monthly",
+                      planAutoRenew: false,
+                      planPaymentMethod: "promocion"
+                    }
+                  };
+                  
+                  await updateDoc(doc(db, "users", user.id), {
+                    hasClaimedPromotion: true,
+                    claimedPromotionId: activePromo.id,
+                    professionalInfo: updatedUser.professionalInfo
+                  });
+                  
+                  setUser(updatedUser);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error al aplicar promoción a profesional en publicación:", error);
+        }
+      }
+
       setShowSuccess(true);
       setTimeout(() => {
         navigate("/");
@@ -19827,47 +19878,6 @@ const AuthPage = ({
 
       let hasClaimedPromo = false;
       let claimedPromoId = undefined;
-
-      if (personalData.role === "professional") {
-        try {
-          const promoConfigSnap = await getDoc(doc(db, "settings", "promotions_config"));
-          if (promoConfigSnap.exists()) {
-            const promoConfig = promoConfigSnap.data();
-            if (promoConfig.promotions) {
-              const activePromo = promoConfig.promotions.find((p: any) => p.isActive);
-              if (activePromo) {
-                const usersSnap = await getDocs(collection(db, "users"));
-                const claimedUsersCount = usersSnap.docs.filter((d: any) => {
-                  const u = d.data();
-                  return u.hasClaimedPromotion && (u.claimedPromotionId === activePromo.id || activePromo.id === "default");
-                }).length;
-
-                if (claimedUsersCount + 1 >= activePromo.userRangeStart && claimedUsersCount + 1 <= activePromo.userRangeEnd) {
-                  hasClaimedPromo = true;
-                  claimedPromoId = activePromo.id;
-                  
-                  const startDate = new Date();
-                  const endDate = new Date();
-                  endDate.setMonth(endDate.getMonth() + (activePromo.planDurationMonths || 12));
-                  
-                  finalProfessionalInfo = {
-                    ...finalProfessionalInfo!,
-                    plan: activePromo.planType || "Premium Pro",
-                    planStatus: "active",
-                    planStartDate: startDate.toISOString(),
-                    planEndDate: endDate.toISOString(),
-                    planBillingCycle: "monthly",
-                    planAutoRenew: false,
-                    planPaymentMethod: "promocion"
-                  };
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Error al aplicar promoción:", error);
-        }
-      }
 
       const finalUser: UserProfile = {
         id: firebaseUid,

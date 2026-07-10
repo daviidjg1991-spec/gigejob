@@ -166,6 +166,7 @@ async function startServer() {
         hmr: process.env.DISABLE_HMR !== 'true'
       },
       appType: "spa",
+    });
     app.use(vite.middlewares);
 
     // Fallback for SPA routing in development
