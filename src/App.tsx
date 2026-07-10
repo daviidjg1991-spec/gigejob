@@ -1812,12 +1812,17 @@ const AdminUserEditModal = ({
                       <div
                         key={plan.id}
                         className={cn(
-                          "p-4 rounded-xl border flex flex-col gap-2 transition-all",
+                          "p-4 rounded-xl border flex flex-col gap-2 transition-all relative",
                           isCurrent
-                            ? "border-primary bg-primary/5 shadow-sm"
+                            ? "border-2 border-primary bg-primary/5 shadow-md ring-4 ring-primary/10"
                             : "border-outline-variant/10 bg-surface-container hover:bg-surface-container-high",
                         )}
                       >
+                        {isCurrent && (
+                          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-primary text-white text-[9px] font-black uppercase tracking-widest whitespace-nowrap shadow-sm z-10">
+                            {editedUser.professionalInfo?.planPaymentMethod === "promocion" ? "Promoción Activa" : "Plan Actual"}
+                          </div>
+                        )}
                         <div className="flex justify-between items-start">
                           <div className="font-bold text-sm">{plan.name}</div>
                           <div className="flex flex-col items-end gap-0.5">
@@ -2033,7 +2038,13 @@ const AdminUserEditModal = ({
                         Método
                       </label>
                       <div className="w-full border-b border-outline-variant/20 py-1 font-bold text-sm truncate min-h-[29px] flex items-center">
-                        {editedUser.professionalInfo?.planPaymentMethod || "Ninguno"}
+                        {editedUser.professionalInfo?.planPaymentMethod === "promocion" ? (
+                          <span className="text-primary flex items-center gap-1">
+                            <Zap className="w-3 h-3" /> Promoción
+                          </span>
+                        ) : (
+                          <span className="capitalize">{editedUser.professionalInfo?.planPaymentMethod || "Ninguno"}</span>
+                        )}
                       </div>
                     </div>
                     <div className="space-y-1 flex flex-col justify-end">
