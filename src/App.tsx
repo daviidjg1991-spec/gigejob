@@ -1805,7 +1805,7 @@ const AdminUserEditModal = ({
                 <div className="grid gap-3 md:grid-cols-4">
                   {proPlans.map((plan: any) => {
                     let mappedUserPlan = editedUser.professionalInfo?.plan;
-                    if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium_pro";
+                    if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium-pro";
                     else if (mappedUserPlan === "Premium") mappedUserPlan = "premium";
                     else if (mappedUserPlan === "Pro") mappedUserPlan = "medium";
 
@@ -6020,14 +6020,14 @@ const AdminPage = ({
                       : "0.00";
 
                   let mappedPlanId = u.professionalInfo?.plan || "basic";
-                  if (mappedPlanId === "Premium Pro") mappedPlanId = "premium_pro";
+                  if (mappedPlanId === "Premium Pro") mappedPlanId = "premium-pro";
                   else if (mappedPlanId === "Premium") mappedPlanId = "premium";
                   else if (mappedPlanId === "Pro") mappedPlanId = "medium";
 
                   const planName =
                     proPlans.find((p: any) => p.id === mappedPlanId)?.name || "Basic";
                   const planColor =
-                    mappedPlanId === "premium_pro"
+                    mappedPlanId === "premium-pro"
                       ? "text-fuchsia-500 bg-fuchsia-500/10"
                       : mappedPlanId === "premium"
                         ? "text-secondary bg-secondary/10"
@@ -10891,7 +10891,7 @@ const SettingsModal = ({
                       {proPlans.map((plan) => {
                         const isRecommended = plan.isRecommended;
                         let mappedUserPlan = user?.professionalInfo?.plan;
-                        if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium_pro";
+                        if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium-pro";
                         else if (mappedUserPlan === "Premium") mappedUserPlan = "premium";
                         else if (mappedUserPlan === "Pro") mappedUserPlan = "medium";
 
