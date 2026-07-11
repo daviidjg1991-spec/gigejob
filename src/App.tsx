@@ -24,6 +24,7 @@ import {
   useLocation,
   Navigate,
 } from "react-router-dom";
+import { createPortal } from "react-dom";
 import {
   Home,
   Search,
@@ -13505,7 +13506,7 @@ const ConfirmServiceActionModal = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
       <div className="bg-surface-container-lowest w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl relative">
         <h3 className="text-xl font-bold font-display tracking-tight mb-4 text-on-surface">
@@ -13539,7 +13540,8 @@ const ConfirmServiceActionModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -14751,6 +14753,12 @@ const JobRequestModal = ({
           </div>
         </div>
       </motion.div>
+      <ConfirmServiceActionModal
+        isOpen={showConfirmModal}
+        actionType="request"
+        onConfirm={handleConfirm}
+        onCancel={() => setShowConfirmModal(false)}
+      />
     </div>
   );
 };
