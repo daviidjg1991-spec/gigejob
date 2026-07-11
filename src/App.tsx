@@ -18537,30 +18537,6 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                       Rechazar
                     </button>
                   </motion.div>
-                ) : activeBooking.status &&
-                  activeBooking.status !== "pending" ? (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="flex gap-2 mt-2"
-                  >
-                    <div
-                      className={cn(
-                        "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center",
-                        activeBooking.status === "accepted"
-                          ? "bg-[#005a54]/10 text-[#005a54]"
-                          : activeBooking.status === "pending_client_approval" 
-                          ? "bg-surface-container-high text-on-surface"
-                          : "bg-red-500/10 text-red-500",
-                      )}
-                    >
-                      {activeBooking.status === "accepted"
-                        ? "Trabajo Aceptado"
-                        : activeBooking.status === "pending_client_approval"
-                        ? "Pendiente de respuesta del cliente"
-                        : "Trabajo Rechazado"}
-                    </div>
-                  </motion.div>
                 ) : activeBooking.clientId === myActualId &&
                   activeBooking.status === "pending_client_approval" ? (
                   <motion.div
@@ -18583,8 +18559,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                       Rechazar
                     </button>
                   </motion.div>
-                ) : activeBooking.clientId === myActualId &&
-                  activeBooking.status &&
+                ) : activeBooking.status &&
                   activeBooking.status !== "pending" ? (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
@@ -18596,12 +18571,16 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                         "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center",
                         activeBooking.status === "accepted"
                           ? "bg-[#005a54]/10 text-[#005a54]"
+                          : activeBooking.status === "pending_client_approval" 
+                          ? "bg-surface-container-high text-on-surface"
                           : "bg-red-500/10 text-red-500",
                       )}
                     >
                       {activeBooking.status === "accepted"
-                        ? "Propuesta Aceptada"
-                        : "Propuesta Rechazada"}
+                        ? "Trabajo Aceptado"
+                        : activeBooking.status === "pending_client_approval"
+                        ? "Pendiente de respuesta del cliente"
+                        : "Trabajo Rechazado"}
                     </div>
                   </motion.div>
                 ) : null}
