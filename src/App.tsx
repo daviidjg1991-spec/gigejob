@@ -13428,24 +13428,22 @@ const checkBookingOverlap = async (
     snapshot.forEach((docSnap) => {
       if (excludeBookingId && docSnap.id === excludeBookingId) return;
       const data = docSnap.data();
-      if (data.status !== "rejected" && data.status !== "cancelled" && data.date === requestedDate) {
+      if (data.status === "accepted" && data.date === requestedDate) {
         sameDayCount++;
         
         // Comprobar solapamiento
-        if (data.status === "accepted") {
-          const bDurationHours = parseInt(String(data.duration || "1h").replace(/\D/g, "") || "1") || 1;
-          const [bStartHour, bStartMin] = String(data.time || "00:00").split(":").map(Number);
-          const bStartTotalMins = (bStartHour || 0) * 60 + (bStartMin || 0);
-          const bEndTotalMins = bStartTotalMins + bDurationHours * 60;
+        const bDurationHours = parseInt(String(data.duration || "1h").replace(/\D/g, "") || "1") || 1;
+        const [bStartHour, bStartMin] = String(data.time || "00:00").split(":").map(Number);
+        const bStartTotalMins = (bStartHour || 0) * 60 + (bStartMin || 0);
+        const bEndTotalMins = bStartTotalMins + bDurationHours * 60;
 
-          const reqDurationHours = parseInt(String(durationStr || "1h").replace(/\D/g, "") || "1") || 1;
-          const [reqStartHour, reqStartMin] = String(startTime || "00:00").split(":").map(Number);
-          const reqStartTotalMins = (reqStartHour || 0) * 60 + (reqStartMin || 0);
-          const reqEndTotalMins = reqStartTotalMins + reqDurationHours * 60;
+        const reqDurationHours = parseInt(String(durationStr || "1h").replace(/\D/g, "") || "1") || 1;
+        const [reqStartHour, reqStartMin] = String(startTime || "00:00").split(":").map(Number);
+        const reqStartTotalMins = (reqStartHour || 0) * 60 + (reqStartMin || 0);
+        const reqEndTotalMins = reqStartTotalMins + reqDurationHours * 60;
 
-          if (reqStartTotalMins < bEndTotalMins && reqEndTotalMins > bStartTotalMins) {
-            overlapCount++;
-          }
+        if (reqStartTotalMins < bEndTotalMins && reqEndTotalMins > bStartTotalMins) {
+          overlapCount++;
         }
       }
     });
