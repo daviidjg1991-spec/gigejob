@@ -1973,7 +1973,7 @@ const AdminUserEditModal = ({
                       <input
                         type="date"
                         className="w-full bg-transparent border-b border-outline-variant/20 py-1 font-bold text-sm outline-none focus:border-primary transition-colors disabled:opacity-50"
-                        value={editedUser.professionalInfo?.planStartDate || ""}
+                        value={editedUser.professionalInfo?.planStartDate?.split('T')[0] || ""}
                         onChange={(e) =>
                           setEditedUser({
                             ...editedUser,
@@ -1993,7 +1993,7 @@ const AdminUserEditModal = ({
                       <input
                         type="date"
                         className="w-full bg-transparent border-b border-outline-variant/20 py-1 font-bold text-sm text-error outline-none focus:border-error transition-colors disabled:opacity-50"
-                        value={editedUser.professionalInfo?.planEndDate || ""}
+                        value={editedUser.professionalInfo?.planEndDate?.split('T')[0] || ""}
                         onChange={(e) =>
                           setEditedUser({
                             ...editedUser,
