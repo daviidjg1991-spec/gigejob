@@ -5200,6 +5200,43 @@ const AdminPage = ({
   const [footerConfig, setFooterConfig] = useState<FooterConfig>(
     DEFAULT_FOOTER_CONFIG,
   );
+  const [servicesSubTab, setServicesSubTab] = useState<"list" | "requests">("list");
+  const [servicesTexts, setServicesTexts] = useState({
+    requestText: "",
+    professionalEditText: "",
+    clientAcceptText: "",
+  });
+  const [isSavingServicesTexts, setIsSavingServicesTexts] = useState(false);
+
+  const handleSaveServicesTexts = async () => {
+    setIsSavingServicesTexts(true);
+    try {
+      await setDoc(doc(db, "settings", "services"), servicesTexts, {
+        merge: true,
+      });
+      alert("Textos guardados correctamente.");
+    } catch (err) {
+      console.error("Error saving services texts", err);
+      alert("Error al guardar los textos.");
+    } finally {
+      setIsSavingServicesTexts(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAdminAuthReady) return;
+    getDoc(doc(db, "settings", "services")).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setServicesTexts({
+          requestText: data.requestText || "",
+          professionalEditText: data.professionalEditText || "",
+          clientAcceptText: data.clientAcceptText || "",
+        });
+      }
+    });
+  }, [isAdminAuthReady]);
+
   const [editingPageUrl, setEditingPageUrl] = useState<string | null>(null);
 
   const [popupsConfig, setPopupsConfig] = useState<Record<string, any>>({});
@@ -6229,11 +6266,28 @@ const AdminPage = ({
       case "professional":
         return (
           <div className="bg-surface-container-lowest p-4 md:p-8 rounded-xl shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)] overflow-hidden w-full max-w-full">
-            <h2 className="text-xl font-bold font-display tracking-tight mb-8">
-              Listado de Servicios{" "}
-              {filterStatus === "active" ? "(Activos)" : ""}
-            </h2>
-            <div className="w-full">
+            <div className="flex gap-4 mb-8">
+              <button
+                onClick={() => setServicesSubTab("list")}
+                className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${servicesSubTab === "list" ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+              >
+                Listado de Servicios
+              </button>
+              <button
+                onClick={() => setServicesSubTab("requests")}
+                className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${servicesSubTab === "requests" ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+              >
+                Solicitud de Servicios
+              </button>
+            </div>
+
+            {servicesSubTab === "list" && (
+              <>
+                <h2 className="text-xl font-bold font-display tracking-tight mb-8">
+                  Listado de Servicios{" "}
+                  {filterStatus === "active" ? "(Activos)" : ""}
+                </h2>
+                <div className="w-full">
             <table className="w-full text-left whitespace-normal">
               <thead>
                 <tr className="bg-surface-container-low/50 text-[10px] lg:text-xs font-bold text-on-surface-variant uppercase tracking-wider">
@@ -6453,6 +6507,64 @@ const AdminPage = ({
               </tbody>
             </table>
             </div>
+              </>
+            )}
+
+            {servicesSubTab === "requests" && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-bold font-display tracking-tight mb-8">
+                  Configuración de Solicitud de Servicios
+                </h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+                      Texto al enviar solicitud de reserva (Cliente)
+                    </label>
+                    <textarea
+                      value={servicesTexts.requestText}
+                      onChange={(e) => setServicesTexts({ ...servicesTexts, requestText: e.target.value })}
+                      className="w-full bg-surface p-4 rounded-xl border border-outline-variant/20 min-h-[100px] outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm transition-all"
+                      placeholder="Ej: Estás a punto de enviar una solicitud. El profesional debe aceptarla..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+                      Texto cuando el profesional edita el servicio (Profesional)
+                    </label>
+                    <textarea
+                      value={servicesTexts.professionalEditText}
+                      onChange={(e) => setServicesTexts({ ...servicesTexts, professionalEditText: e.target.value })}
+                      className="w-full bg-surface p-4 rounded-xl border border-outline-variant/20 min-h-[100px] outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm transition-all"
+                      placeholder="Ej: Estás enviando una propuesta editada al cliente..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+                      Texto final cuando el cliente acepta la última propuesta
+                    </label>
+                    <textarea
+                      value={servicesTexts.clientAcceptText}
+                      onChange={(e) => setServicesTexts({ ...servicesTexts, clientAcceptText: e.target.value })}
+                      className="w-full bg-surface p-4 rounded-xl border border-outline-variant/20 min-h-[100px] outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm transition-all"
+                      placeholder="Ej: Vas a confirmar y proceder al pago o reserva final..."
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-outline-variant/10 flex justify-end">
+                  <button
+                    onClick={handleSaveServicesTexts}
+                    disabled={isSavingServicesTexts}
+                    className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-lg disabled:opacity-50"
+                  >
+                    {isSavingServicesTexts ? "Guardando..." : "Guardar Textos"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <AdminServiceDetailModal
               isOpen={!!selectedService}
@@ -13348,6 +13460,88 @@ const checkBookingOverlap = async (
     return { allowed: false, reason: "Error al comprobar disponibilidad del profesional." };
   }
 };
+const ConfirmServiceActionModal = ({
+  isOpen,
+  actionType,
+  onConfirm,
+  onCancel,
+}: {
+  isOpen: boolean;
+  actionType: "request" | "professionalEdit" | "clientAccept";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) => {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLoading(true);
+      getDoc(doc(db, "settings", "services")).then((snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (actionType === "request")
+            setText(
+              data.requestText ||
+                "Por favor, confirma que deseas enviar la solicitud de reserva.",
+            );
+          if (actionType === "professionalEdit")
+            setText(
+              data.professionalEditText ||
+                "Por favor, confirma que deseas editar este servicio.",
+            );
+          if (actionType === "clientAccept")
+            setText(
+              data.clientAcceptText ||
+                "Por favor, confirma que deseas aceptar la propuesta final.",
+            );
+        } else {
+          setText("¿Estás seguro de continuar con esta acción?");
+        }
+        setLoading(false);
+      });
+    }
+  }, [isOpen, actionType]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
+      <div className="bg-surface-container-lowest w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+        <h3 className="text-xl font-bold font-display tracking-tight mb-4 text-on-surface">
+          Confirmación requerida
+        </h3>
+        {loading ? (
+          <div className="animate-pulse flex space-x-4">
+            <div className="flex-1 space-y-4 py-1">
+              <div className="h-4 bg-surface-container rounded w-3/4"></div>
+              <div className="h-4 bg-surface-container rounded"></div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-on-surface-variant font-medium whitespace-pre-wrap">
+            {text}
+          </p>
+        )}
+        <div className="mt-8 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-5 py-2.5 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-5 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            Aceptar y Continuar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AvailabilityPicker = ({
   authorName,
@@ -13441,10 +13635,26 @@ const AvailabilityPicker = ({
   }, [availability]);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const [errorText, setErrorText] = useState<string | null>(null);
 
+  const handleInitialConfirm = () => {
+    setErrorText(null);
+    if (!selectedDate || !selectedTime) {
+      setErrorText("Por favor, selecciona un día y una hora para la cita.");
+      return;
+    }
+    const firebaseUid = auth.currentUser?.uid;
+    if (!firebaseUid || !user) {
+      setErrorText("Debes iniciar sesión para concertar una cita.");
+      return;
+    }
+    setShowConfirmModal(true);
+  };
+
   const handleConfirm = async () => {
+    setShowConfirmModal(false);
     setErrorText(null);
     if (!selectedDate || !selectedTime) {
       setErrorText("Por favor, selecciona un día y una hora para la cita.");
@@ -13815,7 +14025,7 @@ const AvailabilityPicker = ({
                       </div>
                     )}
                     <button
-                      onClick={handleConfirm}
+                      onClick={handleInitialConfirm}
                       disabled={isProcessing}
                       className={cn(
                         "w-full py-4 rounded-full font-black uppercase tracking-widest text-[9px] shadow-lg flex items-center justify-center gap-2 transition-all",
@@ -13849,6 +14059,12 @@ const AvailabilityPicker = ({
           )}
         </AnimatePresence>
       </div>
+      <ConfirmServiceActionModal
+        isOpen={showConfirmModal}
+        actionType="request"
+        onConfirm={handleConfirm}
+        onCancel={() => setShowConfirmModal(false)}
+      />
     </div>
   );
 };
@@ -14101,7 +14317,24 @@ const JobRequestModal = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const handleInitialConfirm = () => {
+    setErrorText(null);
+    if (!selectedDate || !location || !description || !startTime) {
+      setErrorText("Por favor, rellena todos los campos del servicio.");
+      return;
+    }
+    const firebaseUid = auth.currentUser?.uid;
+    if (!firebaseUid || !user) {
+      setErrorText("Debes iniciar sesión para realizar solicitudes.");
+      return;
+    }
+    setShowConfirmModal(true);
+  };
+
   const handleConfirm = async () => {
+    setShowConfirmModal(false);
     setErrorText(null);
     if (!selectedDate || !location || !description || !startTime) {
       setErrorText("Por favor, rellena todos los campos del servicio.");
@@ -14495,7 +14728,7 @@ const JobRequestModal = ({
                 </div>
               )}
               <button
-                onClick={handleConfirm}
+                onClick={handleInitialConfirm}
                 disabled={isProcessing}
                 className={cn(
                   "w-full py-5 text-white rounded-[1.5rem] font-black uppercase tracking-[0.15em] text-[10px] shadow-xl transition-all flex items-center justify-center gap-3",
@@ -17274,6 +17507,141 @@ const SettingsSubPage = ({
     </div>
   </div>
 );
+const EditBookingModal = ({
+  isOpen,
+  onClose,
+  booking,
+  onSave,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  booking: any;
+  onSave: (date: string, time: string, duration: string, newTotalCost: number) => void;
+}) => {
+  const [dateStr, setDateStr] = useState(booking?.date || "");
+  const [timeStr, setTimeStr] = useState(booking?.time || "");
+  const [durationStr, setDurationStr] = useState(booking?.duration || "1h");
+  
+  // Try to extract numerical hours
+  const currentHours = parseInt(durationStr.replace(/[^0-9]/g, '')) || 1;
+  const originalCost = booking?.totalCost || 0;
+  const originalHours = parseInt((booking?.duration || "1h").replace(/[^0-9]/g, '')) || 1;
+  const hourlyRate = originalHours > 0 ? originalCost / originalHours : 0;
+  
+  const [durationNum, setDurationNum] = useState(currentHours);
+
+  const estimatedTotalCost = durationNum * hourlyRate;
+
+  useEffect(() => {
+    if (isOpen && booking) {
+      setDateStr(booking.date);
+      setTimeStr(booking.time);
+      const h = parseInt((booking.duration || "1h").replace(/[^0-9]/g, '')) || 1;
+      setDurationStr(booking.duration || "1h");
+      setDurationNum(h);
+    }
+  }, [isOpen, booking]);
+
+  if (!isOpen || !booking) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
+      <div className="bg-surface-container-lowest w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+        <div className="flex justify-between items-center mb-6 border-b border-outline-variant/10 pb-4">
+          <h2 className="text-xl font-bold font-display flex items-center gap-2 text-on-surface">
+            <Edit3 className="w-5 h-5 text-primary" /> Editar Reserva
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-on-surface-variant" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest pl-1">
+              Fecha (ej. 24 de mayo de 2024)
+            </label>
+            <input
+              type="text"
+              value={dateStr}
+              onChange={(e) => setDateStr(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-container-low rounded-xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-primary/20 text-on-surface"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest pl-1">
+              Hora de Inicio (ej. 10:00)
+            </label>
+            <input
+              type="text"
+              value={timeStr}
+              onChange={(e) => setTimeStr(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-container-low rounded-xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-primary/20 text-on-surface"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest pl-1">
+              Horas Trabajadas (estimadas)
+            </label>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDurationNum(Math.max(1, durationNum - 1))}
+                className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface hover:text-primary transition-all"
+              >
+                -
+              </button>
+              <div className="flex-1 h-10 bg-surface-container-low/50 rounded-xl flex items-center justify-center border border-outline-variant/10">
+                <span className="text-sm font-black text-on-surface">
+                  {durationNum}h
+                </span>
+              </div>
+              <button
+                onClick={() => setDurationNum(durationNum + 1)}
+                className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface hover:text-primary transition-all"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-outline-variant/10 mt-4">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] pl-1">
+              NUEVO COSTE TOTAL ESTIMADO
+            </label>
+            <div className="h-10 bg-[#005a54]/5 rounded-xl flex items-center justify-center border border-[#005a54]/10 mt-2">
+              <span className="text-lg font-display font-black text-[#005a54]">
+                {estimatedTotalCost.toFixed(2)}€
+              </span>
+            </div>
+            <p className="text-[9px] text-center text-on-surface-variant/40 font-bold mt-2 uppercase">
+              El coste se ha recalculado automáticamente.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(dateStr, timeStr, `${durationNum}h`, estimatedTotalCost)}
+            className="px-5 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors"
+          >
+            Siguiente
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const navigate = useNavigate();
@@ -17310,6 +17678,11 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const [specificChat, setSpecificChat] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [showEditBookingModal, setShowEditBookingModal] = useState(false);
+  const [showProfessionalConfirm, setShowProfessionalConfirm] = useState(false);
+  const [showClientConfirm, setShowClientConfirm] = useState(false);
+  const [pendingEditData, setPendingEditData] = useState<any>(null);
 
   const currentChat =
     chats.find((c: any) => c.id === selectedChatId) || specificChat;
@@ -17651,10 +18024,9 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         updatedAt: serverTimestamp(),
       });
       if (selectedChatId && myActualId) {
-        const textMsg =
-          status === "accepted"
-            ? "¡He aceptado el trabajo!"
-            : "He rechazado la solicitud.";
+        let textMsg = status === "accepted" ? "¡He aceptado el trabajo!" : "He rechazado la solicitud.";
+        if (status === "pending_client_approval") textMsg = "He enviado una propuesta editada. Por favor, revísala.";
+        
         await addDoc(
           collection(db, "conversations", selectedChatId, "messages"),
           {
@@ -17681,6 +18053,56 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       console.error("Error updating booking status:", e);
       handleFirestoreError(e, OperationType.UPDATE, `bookings/${bookingId}`);
     }
+  };
+
+
+  const confirmProfessionalEdit = async () => {
+    setShowProfessionalConfirm(false);
+    if (!activeBooking || !pendingEditData) return;
+    try {
+      await updateDoc(doc(db, "bookings", activeBooking.id), {
+        date: pendingEditData.date,
+        time: pendingEditData.time,
+        duration: pendingEditData.duration,
+        totalCost: pendingEditData.newTotalCost,
+        status: "pending_client_approval",
+        updatedAt: serverTimestamp(),
+      });
+      setPendingEditData(null);
+      if (selectedChatId && myActualId) {
+        const textMsg = "He enviado una propuesta editada. Por favor, revísala y confirma si estás de acuerdo.";
+        await addDoc(
+          collection(db, "conversations", selectedChatId, "messages"),
+          {
+            text: textMsg,
+            senderId: myActualId,
+            createdAt: serverTimestamp(),
+          },
+        );
+        const recipientId = otherParticipantId;
+        const convRef = doc(db, "conversations", selectedChatId);
+        const convSnap = await getDoc(convRef);
+        const currentUnread = convSnap.exists()
+          ? convSnap.data().unreadCount || {}
+          : {};
+
+        await updateDoc(convRef, {
+          lastMessage: textMsg,
+          lastMessageSenderId: myActualId,
+          lastUpdatedAt: serverTimestamp(),
+          [`unreadCount.${recipientId}`]: (currentUnread[recipientId] || 0) + 1,
+        });
+      }
+    } catch (e) {
+      console.error("Error editing booking:", e);
+      handleFirestoreError(e, OperationType.UPDATE, `bookings/${activeBooking.id}`);
+    }
+  };
+
+  const confirmClientAccept = async () => {
+    setShowClientConfirm(false);
+    if (!activeBooking) return;
+    handleUpdateBookingStatus(activeBooking.id, "accepted");
   };
 
   const handleBlockUser = async () => {
@@ -18085,6 +18507,12 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                     className="flex gap-2 mt-2"
                   >
                     <button
+                      onClick={() => setShowEditBookingModal(true)}
+                      className="flex-1 bg-surface-container-high text-on-surface rounded-xl py-2 text-[10px] uppercase font-black tracking-widest shadow-sm hover:opacity-90 transition-opacity"
+                    >
+                      Editar Propuesta
+                    </button>
+                    <button
                       onClick={() =>
                         handleUpdateBookingStatus(activeBooking.id, "accepted")
                       }
@@ -18113,12 +18541,59 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                         "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center",
                         activeBooking.status === "accepted"
                           ? "bg-[#005a54]/10 text-[#005a54]"
+                          : activeBooking.status === "pending_client_approval" 
+                          ? "bg-surface-container-high text-on-surface"
                           : "bg-red-500/10 text-red-500",
                       )}
                     >
                       {activeBooking.status === "accepted"
                         ? "Trabajo Aceptado"
+                        : activeBooking.status === "pending_client_approval"
+                        ? "Pendiente de respuesta del cliente"
                         : "Trabajo Rechazado"}
+                    </div>
+                  </motion.div>
+                ) : activeBooking.clientId === myActualId &&
+                  activeBooking.status === "pending_client_approval" ? (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="flex gap-2 mt-2"
+                  >
+                    <button
+                      onClick={() => setShowClientConfirm(true)}
+                      className="flex-1 bg-[#005a54] text-white rounded-xl py-2 text-[10px] uppercase font-black tracking-widest shadow-sm hover:opacity-90 transition-opacity"
+                    >
+                      Aceptar Propuesta
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleUpdateBookingStatus(activeBooking.id, "rejected")
+                      }
+                      className="flex-1 bg-red-500/10 text-red-500 rounded-xl py-2 text-[10px] uppercase font-black tracking-widest hover:bg-red-500/20 transition-colors"
+                    >
+                      Rechazar
+                    </button>
+                  </motion.div>
+                ) : activeBooking.clientId === myActualId &&
+                  activeBooking.status &&
+                  activeBooking.status !== "pending" ? (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="flex gap-2 mt-2"
+                  >
+                    <div
+                      className={cn(
+                        "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center",
+                        activeBooking.status === "accepted"
+                          ? "bg-[#005a54]/10 text-[#005a54]"
+                          : "bg-red-500/10 text-red-500",
+                      )}
+                    >
+                      {activeBooking.status === "accepted"
+                        ? "Propuesta Aceptada"
+                        : "Propuesta Rechazada"}
                     </div>
                   </motion.div>
                 ) : null}
@@ -18436,6 +18911,31 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <EditBookingModal
+        isOpen={showEditBookingModal}
+        onClose={() => setShowEditBookingModal(false)}
+        booking={activeBooking}
+        onSave={(date, time, duration, newTotalCost) => {
+          setPendingEditData({ date, time, duration, newTotalCost });
+          setShowEditBookingModal(false);
+          setShowProfessionalConfirm(true);
+        }}
+      />
+
+      <ConfirmServiceActionModal
+        isOpen={showProfessionalConfirm}
+        actionType="professionalEdit"
+        onConfirm={confirmProfessionalEdit}
+        onCancel={() => setShowProfessionalConfirm(false)}
+      />
+
+      <ConfirmServiceActionModal
+        isOpen={showClientConfirm}
+        actionType="clientAccept"
+        onConfirm={confirmClientAccept}
+        onCancel={() => setShowClientConfirm(false)}
+      />
     </div>
   );
 };
