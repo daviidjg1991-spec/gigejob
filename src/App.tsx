@@ -13395,6 +13395,7 @@ const checkBookingOverlap = async (
   requestedDate: string,
   startTime: string,
   durationStr: string,
+  excludeBookingId?: string,
 ): Promise<{ allowed: boolean; reason?: string }> => {
   try {
     // 1. Obtener plan del profesional
@@ -13425,6 +13426,7 @@ const checkBookingOverlap = async (
     let overlapCount = 0;
 
     snapshot.forEach((docSnap) => {
+      if (excludeBookingId && docSnap.id === excludeBookingId) return;
       const data = docSnap.data();
       if (data.status !== "rejected" && data.status !== "cancelled" && data.date === requestedDate) {
         sameDayCount++;
@@ -18019,6 +18021,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             bookingData.date,
             bookingData.time,
             bookingData.duration || "1h",
+            bookingId,
           );
           if (!bookingCheck.allowed) {
             alert(bookingCheck.reason || "Ya tienes otra reserva aceptada en este horario o has alcanzado tu límite.");
