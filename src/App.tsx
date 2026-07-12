@@ -20476,6 +20476,14 @@ const AuthPage = ({
       navigate("/");
     } catch (error: any) {
       console.error("Firebase: Registration error:", error);
+      if (auth.currentUser && auth.currentUser.email === authData.email) {
+        try {
+          await auth.currentUser.delete();
+          console.log("Rolled back Auth user due to registration error");
+        } catch (deleteError) {
+          console.error("Failed to rollback Auth user:", deleteError);
+        }
+      }
       setErrors({ server: getLocalizedFirebaseError(error) });
     }
   };
