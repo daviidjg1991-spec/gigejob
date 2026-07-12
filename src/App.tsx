@@ -20435,17 +20435,7 @@ const AuthPage = ({
       );
       const firebaseUid = userCredential.user.uid;
 
-      let finalProfessionalInfo = personalData.role === "professional"
-        ? {
-            availability: professionalData.availability,
-            workLocation: professionalData.workLocation,
-            workRadius: professionalData.workRadius,
-            billing: professionalData.billing,
-          }
-        : undefined;
-
       let hasClaimedPromo = false;
-      let claimedPromoId = undefined;
 
       const finalUser: UserProfile = {
         id: firebaseUid,
@@ -20462,8 +20452,6 @@ const AuthPage = ({
         acceptPromotions,
         acceptTerms,
         hasClaimedPromotion: hasClaimedPromo,
-        claimedPromotionId: claimedPromoId,
-        professionalInfo: finalProfessionalInfo,
         settings: {
           smartSuggestions: true,
           locationRadius: 15,
@@ -20471,6 +20459,15 @@ const AuthPage = ({
         },
         createdAt: serverTimestamp(),
       };
+
+      if (personalData.role === "professional") {
+        finalUser.professionalInfo = {
+          availability: professionalData.availability,
+          workLocation: professionalData.workLocation,
+          workRadius: professionalData.workRadius,
+          billing: professionalData.billing,
+        };
+      }
 
       await setDoc(doc(db, "users", firebaseUid), finalUser);
 
