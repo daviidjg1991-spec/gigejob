@@ -41,6 +41,27 @@ interface PlanningCalendarModalProps {
 
 type ViewMode = "day" | "week" | "month";
 
+const parseSpanishDate = (dateStr: string): Date | null => {
+  if (!dateStr) return null;
+  const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const parts = dateStr.toLowerCase().split(" ");
+  if (parts.length >= 3) {
+    const day = parseInt(parts[0]);
+    const monthStr = parts[2];
+    const month = months.indexOf(monthStr);
+    const year = parts[4] ? parseInt(parts[4]) : new Date().getFullYear();
+    
+    if (!isNaN(day) && month !== -1) {
+      return new Date(year, month, day);
+    }
+  }
+  
+  const isoParsed = parseISO(dateStr);
+  if (!isNaN(isoParsed.getTime())) return isoParsed;
+
+  return null;
+};
+
 export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
   isOpen,
   onClose,
@@ -76,12 +97,16 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
         ]);
 
         const fetchedBookings: Booking[] = [];
-        authSnap.forEach((doc) =>
-          fetchedBookings.push({ ...doc.data(), id: doc.id } as Booking)
-        );
+        authSnap.forEach((doc) => {
+          const data = doc.data() as Booking;
+          if (data.status === "accepted") {
+            fetchedBookings.push({ ...data, id: doc.id });
+          }
+        });
         clientSnap.forEach((doc) => {
-          if (!fetchedBookings.some((b) => b.id === doc.id)) {
-            fetchedBookings.push({ ...doc.data(), id: doc.id } as Booking);
+          const data = doc.data() as Booking;
+          if (data.status === "accepted" && !fetchedBookings.some((b) => b.id === doc.id)) {
+            fetchedBookings.push({ ...data, id: doc.id });
           }
         });
 
@@ -120,11 +145,9 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
   const renderDailySchedule = (dateStr: string, dateObj: Date) => {
     const dayBookings = bookings.filter((b) => {
       if (!b.date) return false;
-      try {
-        return isSameDay(parseISO(b.date), dateObj);
-      } catch {
-        return false;
-      }
+      const parsedDate = parseSpanishDate(b.date);
+      if (!parsedDate) return false;
+      return isSameDay(parsedDate, dateObj);
     });
 
     return (
@@ -206,11 +229,9 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
             {days.map((day) => {
               const dayBookings = bookings.filter((b) => {
                 if (!b.date) return false;
-                try {
-                  return isSameDay(parseISO(b.date), day);
-                } catch {
-                  return false;
-                }
+                const parsedDate = parseSpanishDate(b.date);
+                if (!parsedDate) return false;
+                return isSameDay(parsedDate, day);
               });
 
               return (
