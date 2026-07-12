@@ -178,6 +178,38 @@ const validateUsername = (username: string): string | null => {
   return null;
 };
 
+export const getLocalizedFirebaseError = (error: any): string => {
+  const isES = navigator.language.toLowerCase().startsWith("es");
+  const code = error?.code || "";
+  const message = error?.message || "";
+
+  if (code === "permission-denied" || message.includes("Missing or insufficient permissions")) {
+    return isES 
+      ? "No tienes los permisos necesarios para realizar esta acción. Verifica tu cuenta o contacta con soporte."
+      : "You do not have the required permissions to perform this action. Check your account or contact support.";
+  }
+  if (code === "auth/email-already-in-use") {
+    return isES ? "Este correo electrónico ya está registrado." : "This email is already registered.";
+  }
+  if (code === "auth/invalid-email") {
+    return isES ? "El formato del correo electrónico no es válido." : "Invalid email format.";
+  }
+  if (code === "auth/weak-password") {
+    return isES ? "La contraseña es demasiado débil." : "The password is too weak.";
+  }
+  if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+    return isES ? "Email o contraseña incorrectos." : "Invalid email or password.";
+  }
+  if (code === "auth/popup-closed-by-user") {
+    return isES ? "El proceso de inicio de sesión fue cancelado." : "The login process was cancelled.";
+  }
+  
+  return isES 
+    ? `Ha ocurrido un error inesperado${message ? `: ${message}` : ""}`
+    : `An unexpected error occurred${message ? `: ${message}` : ""}`;
+};
+
+
 const generateBookingCode = async (
   bookingDate: Date,
   requesterFirstName: string,
@@ -19384,10 +19416,7 @@ const CreateListing = ({
       }, 2000);
     } catch (error: any) {
       console.error("Error creating listing:", error);
-      setError(
-        error.message ||
-          "Hubo un error al publicar el anuncio. Por favor, inténtalo de nuevo.",
-      );
+      setError(getLocalizedFirebaseError(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -20450,7 +20479,7 @@ const AuthPage = ({
       navigate("/");
     } catch (error: any) {
       console.error("Firebase: Registration error:", error);
-      setErrors({ server: error.message || "Error al registrar el usuario" });
+      setErrors({ server: getLocalizedFirebaseError(error) });
     }
   };
 
@@ -20532,15 +20561,7 @@ const AuthPage = ({
       navigate("/");
     } catch (error: any) {
       console.error("Firebase: Login error:", error);
-      if (
-        error.code === "auth/invalid-credential" ||
-        error.code === "auth/wrong-password" ||
-        error.code === "auth/user-not-found"
-      ) {
-        setErrors({ login: "Email o contraseña incorrectos" });
-      } else {
-        setErrors({ login: `Error: ${error.message}` });
-      }
+      setErrors({ login: getLocalizedFirebaseError(error) });
     }
   };
 
@@ -20642,7 +20663,7 @@ const AuthPage = ({
       }
       console.error(`Firebase: ${providerName} login error:`, error);
       setErrors({
-        login: `Error al iniciar sesión con ${providerName}: ${error.message}`,
+        login: getLocalizedFirebaseError(error),
       });
     }
   };
