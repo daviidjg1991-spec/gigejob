@@ -21032,10 +21032,13 @@ const AuthPage = ({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          Nombre
+                          Nombre *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.firstName && "ring-2 ring-red-500"
+                          )}
                           value={personalData.firstName}
                           onChange={(e) =>
                             setPersonalData({
@@ -21047,10 +21050,13 @@ const AuthPage = ({
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          1º Apellido
+                          1º Apellido *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.lastName1 && "ring-2 ring-red-500"
+                          )}
                           value={personalData.lastName1}
                           onChange={(e) =>
                             setPersonalData({
@@ -21080,10 +21086,13 @@ const AuthPage = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          DNI / NIE
+                          DNI / NIE *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.documentId && "ring-2 ring-red-500"
+                          )}
                           placeholder="12345678X"
                           value={personalData.documentId}
                           onChange={(e) =>
@@ -21096,10 +21105,13 @@ const AuthPage = ({
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          Teléfono
+                          Teléfono *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.phoneNumber && "ring-2 ring-red-500"
+                          )}
                           placeholder="600 000 000"
                           value={personalData.phoneNumber}
                           onChange={(e) =>
@@ -21115,7 +21127,7 @@ const AuthPage = ({
                     {/* Address Section */}
                     <div className="p-8 bg-surface-container-low rounded-[2rem] space-y-4">
                       <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">
-                        Dirección Completa
+                        Dirección Completa *
                       </p>
                       <div className="grid grid-cols-3 gap-3">
                         <select
@@ -21140,8 +21152,11 @@ const AuthPage = ({
                           <option value="Travesía">Travesía</option>
                         </select>
                         <input
-                          className="col-span-2 px-6 py-3 bg-white rounded-xl font-bold outline-none"
-                          placeholder="Nombre de la vía"
+                          className={cn(
+                            "col-span-2 px-6 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.streetName && "ring-2 ring-red-500"
+                          )}
+                          placeholder="Nombre de la vía *"
                           value={personalData.address.streetName}
                           onChange={(e) =>
                             setPersonalData({
@@ -21156,8 +21171,11 @@ const AuthPage = ({
                       </div>
                       <div className="grid grid-cols-4 gap-3">
                         <input
-                          placeholder="Nº"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="Nº *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.number && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.number}
                           onChange={(e) =>
                             setPersonalData({
@@ -21214,8 +21232,11 @@ const AuthPage = ({
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         <input
-                          placeholder="CP"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="CP *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.postalCode && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.postalCode}
                           onChange={(e) =>
                             setPersonalData({
@@ -21386,32 +21407,43 @@ const AuthPage = ({
                       </div>
                     )}
 
-                    <div className="flex gap-4 pt-4">
-                      <button
-                        onClick={() => setRegisterStep(1)}
-                        className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
-                      >
-                        <ChevronLeft className="w-6 h-6" />
-                      </button>
-                      <button
-                        onClick={handleNextStep}
-                        disabled={
-                          !personalData.role ||
-                          (personalData.role === "user" && !acceptTerms)
-                        }
-                        className={cn(
-                          "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
-                          !personalData.role ||
+                    <div className="flex flex-col gap-4 pt-4">
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setRegisterStep(1)}
+                          className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
+                        >
+                          <ChevronLeft className="w-6 h-6" />
+                        </button>
+                        <button
+                          onClick={handleNextStep}
+                          disabled={
+                            !personalData.role ||
                             (personalData.role === "user" && !acceptTerms)
-                            ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
-                            : "primary-gradient text-white shadow-xl",
-                        )}
-                      >
-                        {personalData.role === "professional"
-                          ? "Datos Profesionales"
-                          : "Finalizar Registro"}
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                          }
+                          className={cn(
+                            "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
+                            !personalData.role ||
+                              (personalData.role === "user" && !acceptTerms)
+                              ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
+                              : "primary-gradient text-white shadow-xl",
+                          )}
+                        >
+                          {personalData.role === "professional"
+                            ? "Datos Profesionales"
+                            : "Finalizar Registro"}
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {Object.values(errors).length > 0 && (
+                        <div className="flex flex-col items-center space-y-1">
+                          {Object.values(errors).map((err, i) => (
+                            <p key={i} className="text-[10px] font-black text-red-500 uppercase tracking-widest text-center">
+                              {err}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -21598,7 +21630,7 @@ const AuthPage = ({
                               "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
                               errors.billingName && "ring-2 ring-red-500",
                             )}
-                            placeholder="Nombre Fiscal"
+                            placeholder="Nombre Fiscal *"
                             value={professionalData.billing.name}
                             onChange={(e) =>
                               setProfessionalData({
@@ -21622,7 +21654,7 @@ const AuthPage = ({
                               "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
                               errors.billingDoc && "ring-2 ring-red-500",
                             )}
-                            placeholder="DNI / NIE / CIF"
+                            placeholder="DNI / NIE / CIF *"
                             value={professionalData.billing.documentId}
                             onChange={(e) =>
                               setProfessionalData({
@@ -21896,26 +21928,37 @@ const AuthPage = ({
                       </div>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
-                      <button
-                        onClick={() => setRegisterStep(2)}
-                        className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
-                      >
-                        <ChevronLeft className="w-6 h-6" />
-                      </button>
-                      <button
-                        onClick={finishRegistration}
-                        disabled={!acceptTerms}
-                        className={cn(
-                          "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
-                          !acceptTerms
-                            ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
-                            : "primary-gradient text-white shadow-xl",
-                        )}
-                      >
-                        Completar mi Perfil Profesional
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
+                    <div className="flex flex-col gap-4 pt-4">
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setRegisterStep(2)}
+                          className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
+                        >
+                          <ChevronLeft className="w-6 h-6" />
+                        </button>
+                        <button
+                          onClick={finishRegistration}
+                          disabled={!acceptTerms}
+                          className={cn(
+                            "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
+                            !acceptTerms
+                              ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
+                              : "primary-gradient text-white shadow-xl",
+                          )}
+                        >
+                          Completar mi Perfil Profesional
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {Object.values(errors).length > 0 && (
+                        <div className="flex flex-col items-center space-y-1">
+                          {Object.values(errors).map((err, i) => (
+                            <p key={i} className="text-[10px] font-black text-red-500 uppercase tracking-widest text-center">
+                              {err}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
