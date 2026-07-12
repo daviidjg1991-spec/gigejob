@@ -20528,31 +20528,16 @@ const AuthPage = ({
           return;
         }
       } else {
-        finalUserData = {
-          id: firebaseUid,
-          username: authData.email.split("@")[0],
-          email: authData.email,
-          role: "user",
-          firstName: "Usuario",
-          lastName1: "",
-          lastName2: "",
-          documentId: "",
-          phoneNumber: "",
-          address: {
-            streetType: "Calle",
-            streetName: "",
-            number: "",
-            postalCode: "",
-            locality: "",
-            province: "",
-          },
-          photoUrl: `https://i.pravatar.cc/150?u=${authData.email}`,
-          settings: {
-            smartSuggestions: true,
-            locationRadius: 15,
-            notifications: { email: true, push: true, sms: false },
-          },
-        };
+        if (auth.currentUser) {
+          try {
+            await auth.currentUser.delete();
+          } catch (deleteError) {
+            console.error("Failed to delete orphaned Auth user on login:", deleteError);
+          }
+        }
+        await auth.signOut();
+        setErrors({ login: "Tu registro anterior no se completó correctamente. Tu cuenta ha sido eliminada. Por favor, regístrate de nuevo." });
+        return;
       }
 
       if (
