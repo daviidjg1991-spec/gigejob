@@ -258,6 +258,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   updatePassword,
+  sendEmailVerification,
 } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -20471,6 +20472,14 @@ const AuthPage = ({
 
       await setDoc(doc(db, "users", firebaseUid), finalUser);
 
+      try {
+        if (auth.currentUser) {
+          await sendEmailVerification(auth.currentUser);
+        }
+      } catch (err) {
+        console.error("Error sending verification email:", err);
+      }
+
       sessionStorage.setItem("is_first_login_session", "true");
       setUser(finalUser);
       navigate("/");
@@ -22187,6 +22196,81 @@ const ScrollToTop = () => {
   return null;
 };
 
+const EmailVerificationScreen = ({ user, auth }: { user: UserProfile, auth: any }) => {
+  const [isSending, setIsSending] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleResend = async () => {
+    if (!auth.currentUser) return;
+    setIsSending(true);
+    try {
+      await sendEmailVerification(auth.currentUser);
+      setMessage("Se ha enviado un nuevo enlace de verificación a tu correo.");
+    } catch (error: any) {
+      console.error(error);
+      setMessage("Hubo un error al enviar el correo. Por favor, inténtalo más tarde.");
+    }
+    setIsSending(false);
+  };
+
+  const handleCheck = async () => {
+    if (!auth.currentUser) return;
+    await auth.currentUser.reload();
+    if (auth.currentUser.emailVerified) {
+      window.location.reload();
+    } else {
+      setMessage("Todavía no se ha verificado el correo. Revisa tu bandeja de entrada o spam.");
+    }
+  };
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    window.location.reload();
+  };
+
+  return (
+    <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4 text-center">
+      <div className="bg-surface-container-lowest rounded-[3rem] p-8 max-w-md w-full shadow-xl">
+        <h2 className="text-2xl font-black mb-4">Verifica tu correo electrónico</h2>
+        <p className="text-on-surface-variant mb-8 text-sm">
+          Hemos enviado un enlace de verificación a <br/><strong>{auth.currentUser?.email}</strong>.<br/><br/>
+          Por favor, haz clic en el enlace para activar tu cuenta y poder utilizar la plataforma.
+        </p>
+        
+        {message && (
+          <div className="bg-primary/10 text-primary p-3 rounded-xl mb-6 text-sm font-medium">
+            {message}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <button
+            onClick={handleCheck}
+            className="w-full bg-primary text-white py-4 rounded-xl font-bold shadow-lg"
+          >
+            Ya he verificado mi correo
+          </button>
+          
+          <button
+            onClick={handleResend}
+            disabled={isSending}
+            className="w-full border-2 border-primary/20 text-primary py-4 rounded-xl font-bold hover:bg-primary/5 transition-colors"
+          >
+            {isSending ? "Enviando..." : "Reenviar correo"}
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="w-full text-on-surface-variant mt-4 text-sm font-medium hover:text-on-surface transition-colors"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -22943,6 +23027,12 @@ function App() {
     location.pathname.startsWith("/estadisticas") ||
     location.pathname.startsWith("/monederos") ||
     location.pathname.startsWith("/configuracion");
+
+  const isEmailVerified = user && auth.currentUser ? auth.currentUser.emailVerified || user.role === "admin" : true;
+
+  if (user && auth.currentUser && !isEmailVerified) {
+    return <EmailVerificationScreen user={user} auth={auth} />;
+  }
 
   return (
     <ReportContext.Provider
