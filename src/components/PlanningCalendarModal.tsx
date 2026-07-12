@@ -119,7 +119,7 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
     };
 
     fetchBookings();
-  }, [isOpen, user]);
+  }, [isOpen, user?.id]);
 
   useEffect(() => {
     // Scroll container to top when view changes
