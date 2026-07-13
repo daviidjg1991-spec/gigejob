@@ -22261,7 +22261,7 @@ const ScrollToTop = () => {
   return null;
 };
 
-const EmailVerificationScreen = ({ user, auth }: { user: UserProfile, auth: any }) => {
+const EmailVerificationScreen = ({ user, auth, isModal }: { user: UserProfile, auth: any, isModal?: boolean }) => {
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -22295,8 +22295,8 @@ const EmailVerificationScreen = ({ user, auth }: { user: UserProfile, auth: any 
   };
 
   return (
-    <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-4 text-center">
-      <div className="bg-surface-container-lowest rounded-[3rem] p-8 max-w-md w-full shadow-xl">
+    <div className={isModal ? "fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 text-center" : "min-h-screen bg-surface flex flex-col items-center justify-center p-4 text-center"}>
+      <div className="bg-surface-container-lowest rounded-[3rem] p-8 max-w-md w-full shadow-xl pointer-events-auto">
         <h2 className="text-2xl font-black mb-4">Verifica tu correo electrónico</h2>
         <p className="text-on-surface-variant mb-8 text-sm">
           Hemos enviado un enlace de verificación a <br/><strong>{auth.currentUser?.email}</strong>.<br/><br/>
@@ -23096,10 +23096,6 @@ function App() {
 
   const isEmailVerified = user && auth.currentUser ? auth.currentUser.emailVerified || user.role === "admin" : true;
 
-  if (user && auth.currentUser && !isEmailVerified) {
-    return <EmailVerificationScreen user={user} auth={auth} />;
-  }
-
   return (
     <ReportContext.Provider
       value={{
@@ -23107,6 +23103,9 @@ function App() {
           setReportTarget({ userId, listingId, conversationId }),
       }}
     >
+      {user && auth.currentUser && !isEmailVerified && (
+        <EmailVerificationScreen user={user} auth={auth} isModal={true} />
+      )}
       <div
         className={cn(
           "font-sans text-gray-900 antialiased selection:bg-blue-100 selection:text-blue-900",
