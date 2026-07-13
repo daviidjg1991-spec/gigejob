@@ -22274,7 +22274,11 @@ const EmailVerificationScreen = ({ user, auth, isModal }: { user: UserProfile, a
       setMessage("Se ha enviado un nuevo enlace de verificación a tu correo.");
     } catch (error: any) {
       console.error(error);
-      setMessage("Hubo un error al enviar el correo. Por favor, inténtalo más tarde.");
+      if (error.code === 'auth/too-many-requests') {
+        setMessage("Has intentado reenviar el correo demasiadas veces. Por favor, espera unos minutos.");
+      } else {
+        setMessage("Hubo un error al enviar el correo. Por favor, inténtalo más tarde.");
+      }
     }
     setIsSending(false);
   };
@@ -22291,7 +22295,7 @@ const EmailVerificationScreen = ({ user, auth, isModal }: { user: UserProfile, a
 
   const handleLogout = async () => {
     await auth.signOut();
-    window.location.reload();
+    window.location.href = '/';
   };
 
   return (
