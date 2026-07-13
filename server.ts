@@ -5,9 +5,74 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import Stripe from 'stripe';
+import cron from "node-cron";
+import * as admin from "firebase-admin";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Firebase Admin
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+     admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+     });
+  } else {
+     admin.initializeApp();
+  }
+} catch (error) {
+  console.log("Firebase Admin SDK failed to initialize. Cleanup job may fail:", error);
+}
+
+// Cron job: run every hour to delete unverified users older than 24h
+cron.schedule('0 * * * *', async () => {
+  try {
+    console.log("Running unverified user cleanup...");
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).getTime();
+    
+    let nextPageToken: string | undefined;
+    const usersToDelete: string[] = [];
+    
+    do {
+      const listUsersResult = await admin.auth().listUsers(1000, nextPageToken);
+      
+      listUsersResult.users.forEach((userRecord) => {
+        const creationTime = new Date(userRecord.metadata.creationTime).getTime();
+        
+        if (!userRecord.emailVerified && creationTime < twentyFourHoursAgo) {
+          usersToDelete.push(userRecord.uid);
+        }
+      });
+      nextPageToken = listUsersResult.pageToken;
+    } while (nextPageToken);
+    
+    if (usersToDelete.length > 0) {
+      console.log(`Found ${usersToDelete.length} unverified users to delete.`);
+      
+      // Delete in batches of 1000 (Auth max is 1000)
+      for (let i = 0; i < usersToDelete.length; i += 1000) {
+         const batch = usersToDelete.slice(i, i + 1000);
+         await admin.auth().deleteUsers(batch);
+         console.log(`Deleted batch of ${batch.length} users from Auth.`);
+         
+         const db = admin.firestore();
+         for (let j = 0; j < batch.length; j += 500) {
+            const dbBatch = db.batch();
+            const subBatch = batch.slice(j, j + 500);
+            for (const uid of subBatch) {
+              const userRef = db.collection('users').doc(uid);
+              dbBatch.delete(userRef);
+            }
+            await dbBatch.commit();
+         }
+         console.log(`Deleted batch of ${batch.length} users from Firestore.`);
+      }
+    }
+  } catch (error) {
+    console.error("Error during unverified user cleanup:", error);
+  }
+});
 
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {

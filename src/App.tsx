@@ -5101,6 +5101,67 @@ const AdminLogosConfig = () => {
   );
 };
 
+const AdminEmailConfig = () => {
+  const [emailSubject, setEmailSubject] = useState("Verifica tu correo en JobPop");
+  const [emailBody, setEmailBody] = useState("Hola,\n\nGracias por registrarte en JobPop. Por favor, verifica tu correo haciendo clic en el enlace a continuación:\n\n[Enlace de verificación]\n\nSi no creaste esta cuenta, puedes ignorar este mensaje.");
+  
+  const handleSave = () => {
+    alert("Para aplicar estos cambios en producción, por favor solicita a la IA que actualice el código fuente, ya que las configuraciones globales no usan base de datos (según las reglas del proyecto).");
+  };
+
+  return (
+    <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)]">
+      <div className="mb-6">
+        <h2 className="text-2xl font-black font-display tracking-tight text-primary">
+          Formato de Correo de Verificación
+        </h2>
+        <p className="text-sm font-medium text-on-surface-variant mt-1">
+          Configura el asunto y el mensaje que se enviará a los nuevos usuarios.
+        </p>
+      </div>
+
+      <div className="bg-primary/5 p-4 rounded-2xl mb-6 border border-primary/10 flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+        <div className="text-sm text-on-surface">
+          <p className="font-bold mb-1">Evitar la carpeta de SPAM</p>
+          <p>Para asegurar que los correos no lleguen a SPAM, debes configurar los registros <strong>SPF, DKIM y DMARC</strong> en tu proveedor de dominio (Godaddy, Cloudflare, etc.) para el dominio de JobPop. El formato del correo por defecto de Firebase solo permite ciertas modificaciones para evitar el SPAM.</p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-bold text-on-surface mb-2">Asunto del Correo</label>
+          <input
+            type="text"
+            value={emailSubject}
+            onChange={(e) => setEmailSubject(e.target.value)}
+            className="w-full bg-surface-container p-4 rounded-xl text-on-surface border-none focus:ring-2 focus:ring-primary outline-none transition-all"
+            placeholder="Asunto"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-on-surface mb-2">Cuerpo del Mensaje</label>
+          <textarea
+            value={emailBody}
+            onChange={(e) => setEmailBody(e.target.value)}
+            className="w-full bg-surface-container p-4 rounded-xl text-on-surface border-none focus:ring-2 focus:ring-primary outline-none transition-all min-h-[200px]"
+            placeholder="Escribe el mensaje..."
+          />
+          <p className="text-xs text-on-surface-variant mt-2">Nota: El [Enlace de verificación] se insertará automáticamente según la plantilla de Firebase.</p>
+        </div>
+        
+        <button
+          onClick={handleSave}
+          className="w-full py-4 rounded-xl font-bold transition-all bg-primary text-white hover:bg-primary/90 hover:scale-[0.98] active:scale-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+        >
+          <Save className="w-5 h-5" />
+          Guardar Cambios
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const AdminInicioConfig = () => {
   const { config, updateConfig } = useDynamicAppConfig();
   const [title1, setTitle1] = useState(config.homeTitle1);
@@ -6844,7 +6905,7 @@ const AdminPage = ({
         return (
           <div className="space-y-6">
             <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-4">
-              {["settings", "footer", "info"].map((tab) => (
+              {["settings", "email", "footer", "info"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setAdminSubTab(tab)}
@@ -6852,6 +6913,8 @@ const AdminPage = ({
                 >
                   {tab === "settings"
                     ? "Configuración"
+                    : tab === "email"
+                      ? "Correos"
                     : tab === "footer"
                       ? "Configuración del footer"
                       : "+Info / Legal"}
@@ -7005,6 +7068,7 @@ const AdminPage = ({
                 </div>
               </div>
             )}
+            {adminSubTab === "email" && <AdminEmailConfig />}
             {adminSubTab === "footer" && (
               <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)]">
                 <div className="mb-8 p-6 bg-surface-container-low rounded-2xl border border-outline-variant/10">
@@ -20474,6 +20538,7 @@ const AuthPage = ({
 
       try {
         if (auth.currentUser) {
+          auth.languageCode = navigator.language || 'es';
           await sendEmailVerification(auth.currentUser);
         }
       } catch (err) {
@@ -22204,6 +22269,7 @@ const EmailVerificationScreen = ({ user, auth }: { user: UserProfile, auth: any 
     if (!auth.currentUser) return;
     setIsSending(true);
     try {
+      auth.languageCode = navigator.language || 'es';
       await sendEmailVerification(auth.currentUser);
       setMessage("Se ha enviado un nuevo enlace de verificación a tu correo.");
     } catch (error: any) {
