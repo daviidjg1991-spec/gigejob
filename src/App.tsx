@@ -22261,9 +22261,11 @@ const ScrollToTop = () => {
   return null;
 };
 
-const EmailVerificationScreen = ({ user, auth, isModal }: { user: UserProfile, auth: any, isModal?: boolean }) => {
+const EmailVerificationScreen = ({ user, auth, isModal, setUser }: { user: UserProfile, auth: any, isModal?: boolean, setUser?: any }) => {
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState("");
+
+  const navigate = useNavigate();
 
   const handleResend = async () => {
     if (!auth.currentUser) return;
@@ -22294,8 +22296,9 @@ const EmailVerificationScreen = ({ user, auth, isModal }: { user: UserProfile, a
   };
 
   const handleLogout = async () => {
+    if (setUser) setUser(null);
     await auth.signOut();
-    window.location.href = '/';
+    navigate("/");
   };
 
   return (
@@ -23108,7 +23111,7 @@ function App() {
       }}
     >
       {user && auth.currentUser && !isEmailVerified && (
-        <EmailVerificationScreen user={user} auth={auth} isModal={true} />
+        <EmailVerificationScreen user={user} auth={auth} isModal={true} setUser={setUser} />
       )}
       <div
         className={cn(
