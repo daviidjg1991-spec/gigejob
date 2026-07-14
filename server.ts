@@ -209,6 +209,30 @@ async function startServer() {
     }
   });
 
+  // Endpoint for asynchronous heavy tasks (e.g. bulk updates)
+  app.post("/api/tasks/bulk-update", async (req, res) => {
+    // Acknowledge the request immediately so the client isn't blocked
+    res.status(202).json({ status: "accepted", message: "Task started in background" });
+    
+    const { collectionName, ids, updates } = req.body;
+    try {
+      if (admin.apps.length > 0) {
+        const db = admin.firestore();
+        const batch = db.batch();
+        ids.forEach((id: string) => {
+          const ref = db.collection(collectionName).doc(id);
+          batch.update(ref, updates);
+        });
+        await batch.commit();
+        console.log(`[Async Task] Successfully updated ${ids.length} docs in ${collectionName}`);
+      } else {
+        console.log("[Async Task] Firebase Admin not initialized, skipping DB update");
+      }
+    } catch (err) {
+      console.error("[Async Task] Failed during background execution:", err);
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     // Import Vite plugins dynamically or at the top. Here we just require them.
