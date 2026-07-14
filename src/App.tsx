@@ -6127,9 +6127,15 @@ const AdminPage = ({
                      );
                    })
                    .sort((a, b) => {
-                     const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
-                     const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
-                     return dateB - dateA;
+                     const getTime = (u: any) => {
+                       const ts = u.createdAt || u.lastActive;
+                       if (!ts) return 0;
+                       if (typeof ts.toDate === "function") return ts.toDate().getTime();
+                       if (ts.seconds) return ts.seconds * 1000;
+                       const num = new Date(ts).getTime();
+                       return isNaN(num) ? 0 : num;
+                     };
+                     return getTime(b) - getTime(a);
                    })
                    .map((u, i, arr) => {
                   const userListingsArr = listings.filter(
