@@ -5251,6 +5251,7 @@ const AdminPage = ({
   const { plans: proPlans } = useProPlansConfig();
   const [searchTerm, setSearchTerm] = useState("");
   const [users, setUsers] = useState<any[]>([]);
+  const [userListTab, setUserListTab] = useState<"TODOS" | "PROFESIONALES" | "CLIENTES">("TODOS");
   const [bookings, setBookings] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
@@ -6078,9 +6079,26 @@ const AdminPage = ({
       case "personal":
         return (
           <div className="bg-surface-container-lowest p-4 md:p-8 rounded-xl shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)] overflow-hidden w-full max-w-full">
-            <h2 className="text-xl font-bold font-display tracking-tight mb-8">
-              Listado de Usuarios
-            </h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+              <h2 className="text-xl font-bold font-display tracking-tight mb-0">
+                Listado de Usuarios
+              </h2>
+              <div className="flex bg-surface-container-low rounded-lg p-1 overflow-x-auto max-w-full">
+                {(["TODOS", "PROFESIONALES", "CLIENTES"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setUserListTab(tab)}
+                    className={`px-4 py-2 text-sm font-bold rounded-md whitespace-nowrap transition-colors ${
+                      userListTab === tab
+                        ? "bg-primary text-on-primary shadow-sm"
+                        : "text-on-surface-variant hover:text-primary hover:bg-surface-container"
+                    }`}
+                  >
+                    {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="w-full">
             <table className="w-full text-left whitespace-normal">
               <thead className="w-full">
@@ -6116,6 +6134,17 @@ const AdminPage = ({
                   {users
                    .filter((u, index, self) => index === self.findIndex((t) => t.id === u.id))
                    .filter((u) => u.emailVerified !== false)
+                   .filter((u) => {
+                     if (userListTab === "TODOS") return true;
+                     const userListingsCount = listings.filter((l) => l.author?.id === u.id).length;
+                     if (userListTab === "PROFESIONALES") {
+                       return u.role === "professional" && userListingsCount > 0;
+                     }
+                     if (userListTab === "CLIENTES") {
+                       return u.role !== "professional" || userListingsCount === 0;
+                     }
+                     return true;
+                   })
                    .filter((u) => {
                      if (!searchTerm) return true;
                      const searchLower = searchTerm.toLowerCase();
