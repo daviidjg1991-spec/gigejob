@@ -6115,6 +6115,7 @@ const AdminPage = ({
               <tbody className="divide-y divide-surface-container">
                   {users
                    .filter((u, index, self) => index === self.findIndex((t) => t.id === u.id))
+                   .filter((u) => u.emailVerified !== false)
                    .filter((u) => {
                      if (!searchTerm) return true;
                      const searchLower = searchTerm.toLowerCase();
@@ -20535,6 +20536,7 @@ const AuthPage = ({
           notifications: { email: true, push: true, sms: false },
         },
         createdAt: serverTimestamp(),
+        emailVerified: false,
       };
 
       if (personalData.role === "professional") {
@@ -22522,7 +22524,13 @@ function App() {
 
         unsubsDoc = onSnapshot(doc(db, "users", firebaseUser.uid), (docSnap) => {
           if (docSnap.exists()) {
-            const remoteUser = { id: firebaseUser.uid, email: firebaseUser.email || undefined, ...docSnap.data() } as UserProfile;
+            const data = docSnap.data();
+            if (firebaseUser.emailVerified && data.emailVerified !== true) {
+              import("firebase/firestore").then(({ updateDoc }) => {
+                updateDoc(doc(db, "users", firebaseUser.uid), { emailVerified: true }).catch(console.error);
+              });
+            }
+            const remoteUser = { id: firebaseUser.uid, email: firebaseUser.email || undefined, ...data } as UserProfile;
              // Update the global state so admin edits reflect immediately 
              // without the user needing to refresh
             setUser(prev => {

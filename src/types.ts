@@ -147,6 +147,7 @@ export interface UserProfile {
   suspendedUntil?: any;
   banReason?: string;
   isVerified?: boolean;
+  emailVerified?: boolean;
   documents?: {
     name: string;
     status: string;
