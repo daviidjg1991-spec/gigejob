@@ -6113,20 +6113,25 @@ const AdminPage = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
-                {users
-                  .filter((u) => {
-                    if (!searchTerm) return true;
-                    const searchLower = searchTerm.toLowerCase();
-                    return (
-                      (u.customId || u.id)?.toLowerCase().includes(searchLower) ||
-                      u.username?.toLowerCase().includes(searchLower) ||
-                      u.email?.toLowerCase().includes(searchLower) ||
-                      u.firstName?.toLowerCase().includes(searchLower) ||
-                      u.name?.toLowerCase().includes(searchLower) ||
-                      u.lastName1?.toLowerCase().includes(searchLower)
-                    );
-                  })
-                  .map((u, i) => {
+                  {users
+                   .filter((u) => {
+                     if (!searchTerm) return true;
+                     const searchLower = searchTerm.toLowerCase();
+                     return (
+                       (u.customId || u.id)?.toLowerCase().includes(searchLower) ||
+                       u.username?.toLowerCase().includes(searchLower) ||
+                       u.email?.toLowerCase().includes(searchLower) ||
+                       u.firstName?.toLowerCase().includes(searchLower) ||
+                       u.name?.toLowerCase().includes(searchLower) ||
+                       u.lastName1?.toLowerCase().includes(searchLower)
+                     );
+                   })
+                   .sort((a, b) => {
+                     const dateA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+                     const dateB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+                     return dateB - dateA;
+                   })
+                   .map((u, i, arr) => {
                   const userListingsArr = listings.filter(
                     (l) => l.author?.id === u.id,
                   );
@@ -6182,7 +6187,7 @@ const AdminPage = ({
                       onClick={() => setEditingUser(u)}
                     >
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm">
-                        {i + 1}
+                        {arr.length - i}
                       </td>
                       <td
                         className={`px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold hidden sm:table-cell truncate max-w-[80px] ${u.accountStatus === "banned" ? "text-error" : u.accountStatus === "suspended" && u.suspendedUntil && u.suspendedUntil > Date.now() ? "text-orange-600" : "text-primary"}`}
