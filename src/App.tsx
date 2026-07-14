@@ -6114,6 +6114,8 @@ const AdminPage = ({
               </thead>
               <tbody className="divide-y divide-surface-container">
                   {users
+                   .filter((u, index, self) => index === self.findIndex((t) => t.id === u.id))
+                   .filter((u) => u.emailVerified)
                    .filter((u) => {
                      if (!searchTerm) return true;
                      const searchLower = searchTerm.toLowerCase();
