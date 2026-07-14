@@ -15566,7 +15566,7 @@ const ListingDetail = ({
                     ) : (
                       <>
                         <Share2 className="w-4 h-4" />
-                        Compartir
+                        RECOMENDAR
                       </>
                     )}
                   </button>
