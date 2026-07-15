@@ -17928,19 +17928,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
           const isAdmin = (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
 
-          // Filter out conversations older than 24h for non-admins
-          if (!isAdmin) {
-            const now = Date.now();
-            convs = convs.filter((chat: any) => {
-              const requestedAt =
-                chat.serviceRequestedAt?.toMillis() ||
-                chat.createdAt?.toMillis();
-              if (requestedAt && now - requestedAt > 24 * 60 * 60 * 1000) {
-                return false;
-              }
-              return true;
-            });
-          }
+          // 24h filter removed per user request
 
           // Filter out conversations with blocked users
           if (user?.blockedUsers && user.blockedUsers.length > 0) {
@@ -18005,18 +17993,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
               const requestedAt =
                 chatData.serviceRequestedAt?.toMillis() ||
                 chatData.createdAt?.toMillis();
-              if (
-                !isAdmin &&
-                requestedAt &&
-                Date.now() - requestedAt > 24 * 60 * 60 * 1000
-              ) {
-                console.warn(
-                  "MessagesPage [URL]: Specific chat is older than 24h, hiding for non-admin",
-                );
-                setSpecificChat(null);
-              } else {
-                setSpecificChat({ id: snap.id, ...chatData });
-              }
+              setSpecificChat({ id: snap.id, ...chatData });
             } else {
               console.warn(
                 "MessagesPage [URL]: Specific chat not found in Firestore:",
@@ -18170,6 +18147,35 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   }, [selectedChatId, myActualId, otherParticipantId]);
 
   const activeBooking = bookings[0]; // The latest one
+
+  const isChatDisabled = useMemo(() => {
+    if (!activeBooking || !activeBooking.date || !activeBooking.time) return false;
+    
+    if (activeBooking.status !== "accepted" && activeBooking.status !== "completed") return false;
+    
+    try {
+      const [year, month, day] = activeBooking.date.split("-").map(Number);
+      const [hours, minutes] = activeBooking.time.split(":").map(Number);
+      if (!year || !month || !day || isNaN(hours) || isNaN(minutes)) return false;
+
+      const startDate = new Date(year, month - 1, day, hours, minutes);
+      
+      let durationHours = 0;
+      if (activeBooking.duration) {
+         const match = String(activeBooking.duration).match(/(\d+(\.\d+)?)/);
+         if (match) {
+            durationHours = parseFloat(match[1]);
+         }
+      }
+      
+      const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
+      const disableDate = new Date(endDate.getTime() + 12 * 60 * 60 * 1000);
+      
+      return Date.now() > disableDate.getTime();
+    } catch(e) {
+      return false;
+    }
+  }, [activeBooking]);
 
   const handleDeleteConversation = async () => {
     if (!selectedChatId) return;
@@ -18916,39 +18922,46 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             {/* Input del Chat - Bottom flow */}
             {currentChat && (
               <div className="py-2 px-2 bg-white border-t border-outline-variant/10">
-                <div className="w-full">
-                  <div className="flex items-center gap-2 bg-surface-container-low rounded-[2rem] p-1 px-3">
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex p-3 text-on-surface-variant/40 hover:text-primary transition-colors"
-                    >
-                      <PlusCircle className="w-6 h-6" />
-                    </button>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      accept="image/*"
-                    />
-                    <input
-                      type="text"
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handleSendMessage()
-                      }
-                      placeholder="Escribe tu mensaje aquí..."
-                      className="flex-1 bg-transparent border-none focus:ring-0 text-sm font-medium py-3 md:py-4"
-                    />
-                    <button
-                      onClick={handleSendMessage}
-                      className="w-12 h-12 md:w-14 md:h-14 primary-gradient text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all font-bold"
-                    >
-                      <Send className="w-4 h-4 md:w-5 md:h-5" />
-                    </button>
+                {isChatDisabled ? (
+                  <div className="text-center text-sm text-on-surface-variant/60 py-4 font-medium flex items-center justify-center gap-2">
+                    <Lock className="w-4 h-4" />
+                    El chat ha sido deshabilitado tras finalizar el servicio.
                   </div>
-                </div>
+                ) : (
+                  <div className="w-full">
+                    <div className="flex items-center gap-2 bg-surface-container-low rounded-[2rem] p-1 px-3">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex p-3 text-on-surface-variant/40 hover:text-primary transition-colors"
+                      >
+                        <PlusCircle className="w-6 h-6" />
+                      </button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        accept="image/*"
+                      />
+                      <input
+                        type="text"
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleSendMessage()
+                        }
+                        placeholder="Escribe tu mensaje aquí..."
+                        className="flex-1 bg-transparent border-none focus:ring-0 text-sm font-medium py-3 md:py-4"
+                      />
+                      <button
+                        onClick={handleSendMessage}
+                        className="w-12 h-12 md:w-14 md:h-14 primary-gradient text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all font-bold"
+                      >
+                        <Send className="w-4 h-4 md:w-5 md:h-5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -22980,16 +22993,6 @@ function App() {
 
           snapshot.docs.forEach((doc) => {
             const data = doc.data();
-
-            // Filter out conversations older than 24h for non-admins
-            if (!isAdmin) {
-              const requestedAt =
-                data.serviceRequestedAt?.toMillis() ||
-                data.createdAt?.toMillis();
-              if (requestedAt && now - requestedAt > 24 * 60 * 60 * 1000) {
-                return;
-              }
-            }
 
             // Filter out conversations with blocked users
             if (currentUser?.blockedUsers && currentUser.blockedUsers.length > 0) {
