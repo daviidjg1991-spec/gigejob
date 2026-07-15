@@ -140,6 +140,22 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
     else setBaseDate(addMonths(baseDate, 1));
   };
 
+  const getHeaderTitle = () => {
+    if (viewMode === "day") {
+      return format(baseDate, "d MMMM yyyy", { locale: es });
+    } else if (viewMode === "week") {
+      const start = subDays(baseDate, 1);
+      const end = addDays(baseDate, 5);
+      if (isSameMonth(start, end)) {
+        return `${format(start, "d")} - ${format(end, "d MMMM yyyy", { locale: es })}`;
+      } else {
+        return `${format(start, "d MMM", { locale: es })} - ${format(end, "d MMM yyyy", { locale: es })}`;
+      }
+    } else {
+      return format(baseDate, "MMMM yyyy", { locale: es });
+    }
+  };
+
   if (!isOpen) return null;
 
   const renderDailySchedule = (dateStr: string, dateObj: Date) => {
@@ -429,8 +445,8 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <h2 className="text-sm md:text-base font-bold capitalize w-32 text-center text-on-surface">
-                    {format(baseDate, "MMMM yyyy", { locale: es })}
+                  <h2 className="text-sm md:text-base font-bold capitalize min-w-[140px] text-center text-on-surface">
+                    {getHeaderTitle()}
                   </h2>
                   <button
                     onClick={handleNext}
