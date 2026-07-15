@@ -5233,6 +5233,40 @@ const AdminInicioConfig = () => {
   );
 };
 
+const AdminReviewConfig = () => {
+  return (
+    <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)] space-y-4">
+      <h2 className="text-2xl font-black mb-6">Configuración de Cuadro de Reseñas</h2>
+      <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mb-6">
+        <p className="text-amber-800 text-sm">
+          <strong>Aviso:</strong> Según las reglas de desarrollo, los textos de este cuadro deben estar configurados en el código fuente (hardcodeados). Para modificarlos, pide a tu asistente de Inteligencia Artificial que edite el archivo <code>types.ts</code> (constante <code>DEFAULT_REVIEW_MODAL_CONFIG</code>).
+        </p>
+      </div>
+      
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Título</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.title} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Subtítulo</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.subtitle} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Etiqueta de estrellas</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.starLabel} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Etiqueta de comentarios</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.commentLabel} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Texto del botón</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.submitButtonText} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+    </div>
+  );
+};
+
 const AdminPage = ({
   user,
   listings,
@@ -6949,7 +6983,7 @@ const AdminPage = ({
         return (
           <div className="space-y-6">
             <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-4">
-              {["settings", "email", "footer", "info"].map((tab) => (
+              {["settings", "email", "footer", "info", "reviews"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setAdminSubTab(tab)}
@@ -6961,6 +6995,8 @@ const AdminPage = ({
                       ? "Correos"
                     : tab === "footer"
                       ? "Configuración del footer"
+                    : tab === "reviews"
+                      ? "Reseñas"
                       : "+Info / Legal"}
                 </button>
               ))}
@@ -7557,6 +7593,7 @@ const AdminPage = ({
                 </div>
               </div>
             )}
+            {adminSubTab === "reviews" && <AdminReviewConfig />}
           </div>
         );
       case "popup":
