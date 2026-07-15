@@ -13526,7 +13526,7 @@ const checkUserProBooking24hGap = async (
     const bookingsRef = collection(db, "bookings");
     const q = query(
       bookingsRef,
-      where("targetId", "==", professionalId),
+      where("professionalId", "==", professionalId),
       where("clientId", "==", clientId),
     );
     const snapshot = await getDocs(q);
@@ -13619,7 +13619,7 @@ const checkBookingOverlap = async (
     const bookingsRef = collection(db, "bookings");
     const q = query(
       bookingsRef,
-      where("targetId", "==", professionalId),
+      where("professionalId", "==", professionalId),
     );
     const snapshot = await getDocs(q);
 
@@ -15017,7 +15017,7 @@ const ListingDetail = ({
 
     const qJobs = query(
       collection(db, "bookings"),
-      where("targetId", "==", listing.author.id),
+      where("professionalId", "==", listing.author.id),
     );
     const unsubscribeJobs = onSnapshot(
       qJobs,
@@ -16614,7 +16614,7 @@ const StatsPage = ({ user, listings }: { user: any; listings: any[] }) => {
     if (!user?.id) return;
     const q = query(
       collection(db, "bookings"),
-      where("targetId", "==", user.id),
+      where("professionalId", "==", user.id),
     );
     const unsub = onSnapshot(
       q,
@@ -22630,7 +22630,7 @@ const useReviewPrompt = (user: UserProfile | null) => {
     const checkBookings = async () => {
       try {
         const qClient = query(collection(db, "bookings"), where("clientId", "==", user.id), where("status", "==", "completed"));
-        const qPro = query(collection(db, "bookings"), where("targetId", "==", user.id), where("status", "==", "completed"));
+        const qPro = query(collection(db, "bookings"), where("professionalId", "==", user.id), where("status", "==", "completed"));
         
         const [snapClient, snapPro] = await Promise.all([getDocs(qClient), getDocs(qPro)]);
         const bookings = [...snapClient.docs, ...snapPro.docs].map(d => ({ id: d.id, ...d.data() }));
@@ -22639,7 +22639,20 @@ const useReviewPrompt = (user: UserProfile | null) => {
           const durationStr = typeof b.duration === 'string' ? b.duration.replace(/\\D/g, '') : "1";
           const durationHours = parseInt(durationStr) || 1;
           
-          const startDateTime = new Date(`${b.date}T${b.time}`);
+          let startDateTime = new Date(`${b.date}T${b.time}`);
+          if (isNaN(startDateTime.getTime()) && typeof b.date === 'string') {
+            const parts = b.date.toLowerCase().split(" de ");
+            if (parts.length >= 2) {
+              const day = parseInt(parts[0]);
+              const months: Record<string, number> = { 'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5, 'julio': 6, 'agosto': 7, 'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11 };
+              const month = months[parts[1]] || 0;
+              const year = parts.length === 3 ? parseInt(parts[2]) : new Date().getFullYear();
+              
+              const [hh, mm] = (b.time || "00:00").split(":");
+              startDateTime = new Date(year, month, day, parseInt(hh||"0"), parseInt(mm||"0"));
+            }
+          }
+          
           if (isNaN(startDateTime.getTime())) continue;
 
           const endDateTime = new Date(startDateTime.getTime() + (durationHours * 60 * 60 * 1000));
