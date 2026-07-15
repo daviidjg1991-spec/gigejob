@@ -13561,6 +13561,7 @@ const checkUserProBooking24hGap = async (
   professionalId: string,
   requestedDateObj: Date,
   startTimeStr: string,
+  listingId?: string,
 ): Promise<boolean> => {
   try {
     const bookingsRef = collection(db, "bookings");
@@ -13571,12 +13572,7 @@ const checkUserProBooking24hGap = async (
     );
     const snapshot = await getDocs(q);
 
-    const [reqStartHour, reqStartMin] = String(startTimeStr || "00:00")
-      .split(":")
-      .map(Number);
     const proposedTime = new Date(requestedDateObj);
-    proposedTime.setHours(reqStartHour, reqStartMin, 0, 0);
-    const proposedMs = proposedTime.getTime();
 
     const months = {
       enero: 0,
@@ -13596,6 +13592,13 @@ const checkUserProBooking24hGap = async (
     return snapshot.docs.some((doc) => {
       const data = doc.data();
       if (["cancelled", "rejected"].includes(data.status)) return false;
+      
+      // Permitir si es diferente trabajo/anuncio
+      if (listingId) {
+        if (data.listingId !== listingId) return false;
+      } else {
+        if (data.listingId) return false;
+      }
 
       let parsedDate = new Date();
       if (data.date) {
@@ -13616,14 +13619,12 @@ const checkUserProBooking24hGap = async (
         }
       }
 
-      const [bStartHour, bStartMin] = String(data.time || "00:00")
-        .split(":")
-        .map(Number);
-      parsedDate.setHours(bStartHour, bStartMin, 0, 0);
+      const isSameDay = 
+        parsedDate.getFullYear() === proposedTime.getFullYear() &&
+        parsedDate.getMonth() === proposedTime.getMonth() &&
+        parsedDate.getDate() === proposedTime.getDate();
 
-      const existingMs = parsedDate.getTime();
-      const diffMs = Math.abs(proposedMs - existingMs);
-      return diffMs < 24 * 60 * 60 * 1000;
+      return isSameDay;
     });
   } catch (e) {
     console.error(e);
@@ -13803,7 +13804,40 @@ const AvailabilityPicker = ({
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [acceptedBookings, setAcceptedBookings] = useState<any[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchAcceptedBookings = async () => {
+      if (!selectedDate || !authorId) {
+        setAcceptedBookings([]);
+        return;
+      }
+      try {
+        const dateStr = selectedDate.toLocaleDateString("es-ES", {
+          day: "numeric",
+          month: "long",
+        });
+        const bookingsRef = collection(db, "bookings");
+        const q = query(
+          bookingsRef,
+          where("professionalId", "==", authorId)
+        );
+        const snapshot = await getDocs(q);
+        const accepted: any[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.status === "accepted" && data.date === dateStr) {
+            accepted.push(data);
+          }
+        });
+        setAcceptedBookings(accepted);
+      } catch (e) {
+        console.error("Error fetching accepted bookings:", e);
+      }
+    };
+    fetchAcceptedBookings();
+  }, [selectedDate, authorId]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -13860,22 +13894,45 @@ const AvailabilityPicker = ({
     "19:00",
     "20:00",
   ];
+
+  const isTimeBlocked = (t: string) => {
+    const reqDurationHours = 1; // Picker always checks 1h
+    const [reqStartHour, reqStartMin] = String(t || "00:00").split(":").map(Number);
+    const reqStartTotalMins = (reqStartHour || 0) * 60 + (reqStartMin || 0);
+    const reqEndTotalMins = reqStartTotalMins + reqDurationHours * 60;
+
+    return acceptedBookings.some((booking) => {
+      const bDurationHours = parseInt(String(booking.duration || "1h").replace(/\D/g, "") || "1") || 1;
+      const [bStartHour, bStartMin] = String(booking.time || "00:00").split(":").map(Number);
+      const bStartTotalMins = (bStartHour || 0) * 60 + (bStartMin || 0);
+      const bEndTotalMins = bStartTotalMins + bDurationHours * 60;
+
+      return reqStartTotalMins < bEndTotalMins && reqEndTotalMins > bStartTotalMins;
+    });
+  };
+
   const availableTimes = useMemo(() => {
     if (!availability || availability.length === 0) return allTimes;
 
-    // This is a simplified version for AvailabilityPicker which doesn't know the exact selected date yet inside this memo
-    // but we can show all possible hours defined in any day shift
-    return allTimes.filter((t) =>
-      availability.some((avail) =>
+    let relevantAvail = availability;
+    if (selectedDate) {
+      const daysWeek = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const dayName = daysWeek[selectedDate.getDay()];
+      relevantAvail = availability.filter(a => a.day === dayName);
+    }
+
+    return allTimes.filter((t) => {
+      const isWithinSlots = relevantAvail.some((avail) =>
         avail.slots.some((slot) => {
           const tVal = parseInt(t.replace(":", ""));
           const sVal = parseInt(slot.start.replace(":", ""));
           const eVal = parseInt(slot.end.replace(":", ""));
           return tVal >= sVal && tVal <= eVal;
-        }),
-      ),
-    );
-  }, [availability]);
+        })
+      );
+      return isWithinSlots && !isTimeBlocked(t);
+    });
+  }, [availability, selectedDate, acceptedBookings]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -13935,7 +13992,7 @@ const AvailabilityPicker = ({
       selectedTime,
     );
     if (is24hOverlap) {
-      setErrorText("Ya tiene una solicitud próxima a la fecha seleccionada.");
+      setErrorText("Ya tiene una solicitud para este profesional en la fecha seleccionada.");
       setIsProcessing(false);
       return;
     }
@@ -14615,9 +14672,10 @@ const JobRequestModal = ({
       authorId,
       selectedDate,
       startTime,
+      listing.id
     );
     if (is24hOverlap) {
-      setErrorText("Ya tiene una solicitud próxima a la fecha seleccionada.");
+      setErrorText("Ya tiene una solicitud para este profesional y anuncio en la fecha seleccionada.");
       setIsProcessing(false);
       return;
     }
