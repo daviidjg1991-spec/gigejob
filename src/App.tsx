@@ -5238,6 +5238,29 @@ const AdminInicioConfig = () => {
 };
 
 const AdminReviewConfig = () => {
+  const [showTestModal, setShowTestModal] = useState(false);
+  
+  const testBooking = {
+    id: "test-booking",
+    clientId: "admin-test",
+    professionalId: "test-pro",
+    date: "1 de enero",
+    time: "10:00",
+    duration: "1h",
+    status: "completed",
+  };
+  
+  const testUser = {
+    id: "admin-test",
+    email: "admin@jobpop.com",
+    username: "Admin",
+    firstName: "Administrador",
+    lastName1: "Prueba",
+    photoUrl: "",
+    role: "admin",
+    createdAt: new Date().toISOString(),
+  };
+
   return (
     <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)] space-y-4">
       <h2 className="text-2xl font-black mb-6">Configuración de Cuadro de Reseñas</h2>
@@ -5262,6 +5285,23 @@ const AdminReviewConfig = () => {
         <label className="block text-xs font-bold mb-1 text-on-surface-variant">Texto del botón</label>
         <input value={DEFAULT_REVIEW_MODAL_CONFIG.submitButtonText} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
       </div>
+
+      <div className="pt-6 mt-6 border-t border-outline-variant/10">
+        <button
+          onClick={() => setShowTestModal(true)}
+          className="px-6 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-lg flex items-center gap-2"
+        >
+          Probar Ventana Flotante (Test)
+        </button>
+      </div>
+
+      {showTestModal && (
+        <ReviewModal
+          booking={testBooking}
+          user={testUser as any}
+          onComplete={() => setShowTestModal(false)}
+        />
+      )}
     </div>
   );
 };
