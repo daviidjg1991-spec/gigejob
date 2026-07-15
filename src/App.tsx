@@ -22947,6 +22947,11 @@ function App() {
       window.removeEventListener("admin-updated-user", handleAdminUserUpdate);
   }, [user]);
 
+  const userRef = useRef<UserProfile | null>(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
@@ -22969,8 +22974,33 @@ function App() {
         q,
         (snapshot) => {
           let count = 0;
+          const currentUser = userRef.current;
+          const isAdmin = currentUser?.role === "admin" || currentUser?.email === "daviidjg1991@gmail.com";
+          const now = Date.now();
+
           snapshot.docs.forEach((doc) => {
             const data = doc.data();
+
+            // Filter out conversations older than 24h for non-admins
+            if (!isAdmin) {
+              const requestedAt =
+                data.serviceRequestedAt?.toMillis() ||
+                data.createdAt?.toMillis();
+              if (requestedAt && now - requestedAt > 24 * 60 * 60 * 1000) {
+                return;
+              }
+            }
+
+            // Filter out conversations with blocked users
+            if (currentUser?.blockedUsers && currentUser.blockedUsers.length > 0) {
+              const otherId = data.participants?.find(
+                (p: string) => p !== firebaseUser.uid,
+              );
+              if (otherId && currentUser.blockedUsers.includes(otherId)) {
+                return;
+              }
+            }
+
             if (data.unreadCount && data.unreadCount[firebaseUser.uid]) {
               count += data.unreadCount[firebaseUser.uid];
             }
