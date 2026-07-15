@@ -18149,32 +18149,47 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const activeBooking = bookings[0]; // The latest one
 
   const isChatDisabled = useMemo(() => {
-    if (!activeBooking || !activeBooking.date || !activeBooking.time) return false;
+    if (!activeBooking) return false;
     
-    if (activeBooking.status !== "accepted" && activeBooking.status !== "completed") return false;
-    
-    try {
-      const [year, month, day] = activeBooking.date.split("-").map(Number);
-      const [hours, minutes] = activeBooking.time.split(":").map(Number);
-      if (!year || !month || !day || isNaN(hours) || isNaN(minutes)) return false;
+    const now = Date.now();
+    const createdTime = activeBooking.createdAt?.toMillis ? activeBooking.createdAt.toMillis() : (activeBooking.createdAt || now);
 
-      const startDate = new Date(year, month - 1, day, hours, minutes);
-      
-      let durationHours = 0;
-      if (activeBooking.duration) {
-         const match = String(activeBooking.duration).match(/(\d+(\.\d+)?)/);
-         if (match) {
-            durationHours = parseFloat(match[1]);
-         }
+    if (activeBooking.status === "pending" || !activeBooking.status) {
+      if (now - createdTime > 24 * 60 * 60 * 1000) {
+        return true;
       }
-      
-      const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
-      const disableDate = new Date(endDate.getTime() + 12 * 60 * 60 * 1000);
-      
-      return Date.now() > disableDate.getTime();
-    } catch(e) {
-      return false;
+    } else if (activeBooking.status === "accepted" || activeBooking.status === "completed") {
+      try {
+        if (!activeBooking.date || !activeBooking.time) {
+           const updatedTime = activeBooking.updatedAt?.toMillis ? activeBooking.updatedAt.toMillis() : createdTime;
+           if (now - updatedTime > 24 * 60 * 60 * 1000) return true;
+           return false;
+        }
+
+        const [year, month, day] = activeBooking.date.split("-").map(Number);
+        const [hours, minutes] = activeBooking.time.split(":").map(Number);
+        if (!year || !month || !day || isNaN(hours) || isNaN(minutes)) return false;
+
+        const startDate = new Date(year, month - 1, day, hours, minutes);
+        
+        let durationHours = 0;
+        if (activeBooking.duration) {
+           const match = String(activeBooking.duration).match(/(\d+(\.\d+)?)/);
+           if (match) {
+              durationHours = parseFloat(match[1]);
+           }
+        }
+        
+        const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
+        const disableDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+        
+        return now > disableDate.getTime();
+      } catch(e) {
+        return false;
+      }
     }
+    
+    return false;
   }, [activeBooking]);
 
   const handleDeleteConversation = async () => {
@@ -19045,7 +19060,9 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                           className={cn(
                             "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
                             booking.status === "pending" || !booking.status
-                              ? "bg-amber-100 text-amber-700"
+                              ? (booking.createdAt && Date.now() - (booking.createdAt.toMillis ? booking.createdAt.toMillis() : booking.createdAt) > 24 * 60 * 60 * 1000)
+                                ? "bg-red-500/10 text-red-500"
+                                : "bg-amber-100 text-amber-700"
                               : booking.status === "completed"
                                 ? "bg-[#005a54]/10 text-[#005a54]"
                                 : booking.status === "accepted"
@@ -19056,7 +19073,9 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                           )}
                         >
                           {booking.status === "pending" || !booking.status
-                            ? "Pendiente"
+                            ? (booking.createdAt && Date.now() - (booking.createdAt.toMillis ? booking.createdAt.toMillis() : booking.createdAt) > 24 * 60 * 60 * 1000)
+                              ? "Cancelado (Automático)"
+                              : "Pendiente"
                             : booking.status === "completed"
                               ? "Completado"
                               : booking.status === "accepted"
