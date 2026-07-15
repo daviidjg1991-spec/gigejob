@@ -341,3 +341,34 @@ export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
   copyrightText: '© 2013-2026 JobPop. Todos los derechos reservados',
   pages: {}
 };
+
+export interface Review {
+  id: string;
+  bookingId: string;
+  authorId: string;
+  targetId: string;
+  rating: number;
+  comment: string;
+  photoUrl?: string;
+  createdAt: any;
+}
+
+export interface ReviewModalConfig {
+  title: string;
+  subtitle: string;
+  starLabel: string;
+  commentLabel: string;
+  commentPlaceholder: string;
+  photoLabel: string;
+  submitButtonText: string;
+}
+
+export const DEFAULT_REVIEW_MODAL_CONFIG: ReviewModalConfig = {
+  title: 'Valora el servicio',
+  subtitle: 'Por favor, puntúa el trabajo realizado para poder continuar.',
+  starLabel: 'Puntuación',
+  commentLabel: 'Observaciones (opcional)',
+  commentPlaceholder: 'Escribe aquí tus observaciones sobre el servicio...',
+  photoLabel: 'Adjuntar foto (opcional)',
+  submitButtonText: 'Enviar valoración'
+};

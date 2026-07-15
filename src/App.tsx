@@ -388,6 +388,8 @@ import {
   Booking,
   PRO_PLANS,
   isSearchMatch,
+  Review,
+  DEFAULT_REVIEW_MODAL_CONFIG
 } from "./types";
 
 export type DynamicAppConfig = {
@@ -13469,7 +13471,7 @@ const checkUserProBooking24hGap = async (
     const bookingsRef = collection(db, "bookings");
     const q = query(
       bookingsRef,
-      where("professionalId", "==", professionalId),
+      where("targetId", "==", professionalId),
       where("clientId", "==", clientId),
     );
     const snapshot = await getDocs(q);
@@ -13562,7 +13564,7 @@ const checkBookingOverlap = async (
     const bookingsRef = collection(db, "bookings");
     const q = query(
       bookingsRef,
-      where("professionalId", "==", professionalId),
+      where("targetId", "==", professionalId),
     );
     const snapshot = await getDocs(q);
 
@@ -14945,7 +14947,7 @@ const ListingDetail = ({
     if (!listing?.author?.id) return;
     const qReviews = query(
       collection(db, "reviews"),
-      where("professionalId", "==", listing.author.id),
+      where("targetId", "==", listing.author.id),
       orderBy("createdAt", "desc"),
     );
     const unsubscribeReviews = onSnapshot(
@@ -14960,7 +14962,7 @@ const ListingDetail = ({
 
     const qJobs = query(
       collection(db, "bookings"),
-      where("professionalId", "==", listing.author.id),
+      where("targetId", "==", listing.author.id),
     );
     const unsubscribeJobs = onSnapshot(
       qJobs,
@@ -15667,7 +15669,7 @@ const ProfilePage = ({
     if (!targetUserId) return;
     const q = query(
       collection(db, "reviews"),
-      where("professionalId", "==", targetUserId),
+      where("targetId", "==", targetUserId),
       orderBy("createdAt", "desc"),
     );
     const unsubscribe = onSnapshot(
@@ -16200,20 +16202,20 @@ const ProfilePage = ({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 sm:gap-4">
                               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary flex items-center justify-center text-white font-black text-xs sm:text-base overflow-hidden">
-                                {review.clientPhotoUrl ? (
+                                {review.authorPhotoUrl || review.clientPhotoUrl ? (
                                   <img
-                                    src={review.clientPhotoUrl}
-                                    alt={review.clientName}
+                                    src={review.authorPhotoUrl || review.clientPhotoUrl}
+                                    alt={review.authorName || review.clientName || "Usuario"}
                                     className="w-full h-full object-cover"
                                     referrerPolicy="no-referrer"
                                   />
                                 ) : (
-                                  (review.clientName || "?").charAt(0)
+                                  (review.authorName || review.clientName || "?").charAt(0)
                                 )}
                               </div>
                               <div>
                                 <div className="font-black text-on-surface text-sm sm:text-base">
-                                  {review.clientName || "Anónimo"}
+                                  {review.authorName || review.clientName || "Anónimo"}
                                 </div>
                                 <div className="text-[8px] sm:text-[10px] text-on-surface-variant/40 uppercase font-bold tracking-widest">
                                   {review.createdAt?.seconds
@@ -16241,6 +16243,11 @@ const ProfilePage = ({
                           <p className="text-on-surface-variant font-medium text-sm sm:text-base leading-relaxed italic opacity-80">
                             "{review.comment}"
                           </p>
+                          {review.photoUrl && (
+                            <div className="mt-4 rounded-xl overflow-hidden max-w-xs border border-outline-variant/20">
+                              <img src={review.photoUrl} alt="Reseña foto" className="w-full h-auto object-cover" />
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
@@ -16552,7 +16559,7 @@ const StatsPage = ({ user, listings }: { user: any; listings: any[] }) => {
     if (!user?.id) return;
     const q = query(
       collection(db, "bookings"),
-      where("professionalId", "==", user.id),
+      where("targetId", "==", user.id),
     );
     const unsub = onSnapshot(
       q,
@@ -22395,6 +22402,186 @@ const EmailVerificationScreen = ({ user, auth, isModal, setUser }: { user: UserP
   );
 };
 
+const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserProfile, onComplete: () => void }) => {
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const config = DEFAULT_REVIEW_MODAL_CONFIG;
+
+  const handleSubmit = async () => {
+    if (rating === 0) return;
+    setIsSubmitting(true);
+    try {
+      let photoUrl = "";
+      if (file) {
+        const storageRef = ref(storage, `reviews/${Date.now()}_${file.name}`);
+        await uploadBytes(storageRef, file);
+        photoUrl = await getDownloadURL(storageRef);
+      }
+
+      const targetId = booking.clientId === user.id ? booking.professionalId : booking.clientId;
+
+      await addDoc(collection(db, "reviews"), {
+        bookingId: booking.id,
+        authorId: user.id,
+        authorName: user.firstName ? `${user.firstName} ${user.lastName1 || ''}`.trim() : user.username || "Usuario",
+        authorPhotoUrl: user.photoUrl || "",
+        targetId,
+        rating,
+        comment,
+        photoUrl,
+        createdAt: serverTimestamp(),
+      });
+      onComplete();
+    } catch (err) {
+      console.error("Error submitting review:", err);
+      alert("Error al enviar la valoración.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const renderStars = () => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      const isHalf = hoverRating ? hoverRating + 0.5 === i : rating + 0.5 === i;
+      const isFull = hoverRating ? hoverRating >= i : rating >= i;
+      stars.push(
+        <div 
+          key={i} 
+          className="relative cursor-pointer w-10 h-10"
+          onMouseLeave={() => setHoverRating(0)}
+        >
+          <div 
+            className="absolute left-0 w-1/2 h-full z-10" 
+            onMouseEnter={() => setHoverRating(i - 0.5)}
+            onClick={() => setRating(i - 0.5)}
+          />
+          <div 
+            className="absolute right-0 w-1/2 h-full z-10" 
+            onMouseEnter={() => setHoverRating(i)}
+            onClick={() => setRating(i)}
+          />
+          <Star
+            className={`w-10 h-10 ${isFull ? 'fill-amber-400 text-amber-400' : 'text-outline-variant'} transition-colors`}
+          />
+          {isHalf && (
+            <div className="absolute top-0 left-0 overflow-hidden w-1/2 h-full pointer-events-none">
+              <Star className="w-10 h-10 fill-amber-400 text-amber-400" />
+            </div>
+          )}
+        </div>
+      );
+    }
+    return <div className="flex items-center gap-1">{stars}</div>;
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-scrim/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-surface rounded-3xl w-full max-w-md shadow-2xl p-6 sm:p-8 animate-in fade-in zoom-in duration-200">
+        <h2 className="text-2xl font-display font-black text-on-surface mb-2">
+          {config.title}
+        </h2>
+        <p className="text-on-surface-variant text-sm mb-6">
+          {config.subtitle}
+        </p>
+
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-on-surface mb-2">
+              {config.starLabel}
+            </label>
+            {renderStars()}
+            <p className="text-sm font-bold text-amber-500 mt-2">{rating > 0 ? rating : ''}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-on-surface mb-2">
+              {config.commentLabel}
+            </label>
+            <textarea
+              className="w-full bg-surface-container-lowest border-2 border-outline-variant rounded-xl p-4 text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none resize-none min-h-[120px]"
+              placeholder={config.commentPlaceholder}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-on-surface mb-2">
+              {config.photoLabel}
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="w-full text-sm text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-colors"
+            />
+          </div>
+
+          <button
+            onClick={handleSubmit}
+            disabled={rating === 0 || isSubmitting}
+            className="w-full bg-primary text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+          >
+            {isSubmitting ? "Enviando..." : config.submitButtonText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const useReviewPrompt = (user: UserProfile | null) => {
+  const [pendingBooking, setPendingBooking] = useState<any>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const checkBookings = async () => {
+      try {
+        const qClient = query(collection(db, "bookings"), where("clientId", "==", user.id), where("status", "==", "completed"));
+        const qPro = query(collection(db, "bookings"), where("targetId", "==", user.id), where("status", "==", "completed"));
+        
+        const [snapClient, snapPro] = await Promise.all([getDocs(qClient), getDocs(qPro)]);
+        const bookings = [...snapClient.docs, ...snapPro.docs].map(d => ({ id: d.id, ...d.data() }));
+
+        for (const b of bookings) {
+          const durationStr = typeof b.duration === 'string' ? b.duration.replace(/\\D/g, '') : "1";
+          const durationHours = parseInt(durationStr) || 1;
+          
+          const startDateTime = new Date(`${b.date}T${b.time}`);
+          if (isNaN(startDateTime.getTime())) continue;
+
+          const endDateTime = new Date(startDateTime.getTime() + (durationHours * 60 * 60 * 1000));
+          const triggerTime = new Date(endDateTime.getTime() + (3 * 60 * 60 * 1000));
+          
+          if (new Date() >= triggerTime) {
+            const qReview = query(collection(db, "reviews"), where("bookingId", "==", b.id), where("authorId", "==", user.id));
+            const reviewSnap = await getDocs(qReview);
+            
+            if (reviewSnap.empty) {
+              setPendingBooking(b);
+              return; 
+            }
+          }
+        }
+        setPendingBooking(null);
+      } catch(e) {
+        console.error("Error checking bookings for reviews:", e);
+      }
+    };
+
+    checkBookings();
+    const interval = setInterval(checkBookings, 5 * 60 * 1000); 
+    return () => clearInterval(interval);
+  }, [user]);
+
+  return { pendingBooking, setPendingBooking };
+};
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -22470,6 +22657,8 @@ function App() {
     isOpen: boolean;
     type: string;
   }>({ isOpen: false, type: "" });
+
+  const { pendingBooking, setPendingBooking } = useReviewPrompt(user);
 
   // Global seed for testing requested user
   useEffect(() => {
@@ -23177,6 +23366,13 @@ function App() {
         )}
       >
         <ScrollToTop />
+        {pendingBooking && user && (
+          <ReviewModal 
+            booking={pendingBooking} 
+            user={user} 
+            onComplete={() => setPendingBooking(null)} 
+          />
+        )}
         <SettingsModal
           isOpen={settingsModal.isOpen}
           onClose={() => setSettingsModal({ ...settingsModal, isOpen: false })}
