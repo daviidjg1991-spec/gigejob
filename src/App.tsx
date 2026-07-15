@@ -9229,6 +9229,25 @@ const SettingsModal = ({
       const payload: any = { ...dataToUpdate, hasGallery: (gallery || []).length > 0 };
       await updateDoc(userRef, payload);
       setGlobalUser({ ...user, ...dataToUpdate } as UserProfile);
+
+      // Sync availability to listings if the user is a professional
+      if (user.role === "professional" && dataToUpdate.professionalInfo?.availability) {
+        try {
+          const listingsQuery = query(
+            collection(db, "listings"),
+            where("author.id", "==", user.id)
+          );
+          const listingsSnap = await getDocs(listingsQuery);
+          const listingsPromises = listingsSnap.docs.map((listingDoc) =>
+            updateDoc(doc(db, "listings", listingDoc.id), {
+              "author.professionalInfo.availability": dataToUpdate.professionalInfo.availability,
+            })
+          );
+          await Promise.all(listingsPromises);
+        } catch (error) {
+          console.error("Error al sincronizar disponibilidad con las publicaciones:", error);
+        }
+      }
       
       if (gallery && gallery.length > 0) {
         const galleryRef = doc(db, "users", user.id, "private", "gallery");
