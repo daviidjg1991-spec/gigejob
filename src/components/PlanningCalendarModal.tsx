@@ -196,9 +196,17 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
               <div className="font-bold text-[10px] sm:text-xs truncate leading-tight mb-1">
                 {b.listingTitle}
               </div>
-              <div className="text-[9px] font-medium opacity-80 truncate flex items-center gap-1">
-                <Clock className="w-2.5 h-2.5" />
-                {b.time}
+              <div className="text-[9px] font-medium opacity-80 flex flex-col gap-0.5">
+                <div className="flex items-center gap-1 truncate">
+                  <Clock className="w-2.5 h-2.5 shrink-0" />
+                  <span>{b.time}</span>
+                </div>
+                <div className="truncate">
+                  {b.duration || "1h"}
+                </div>
+                <div className="truncate">
+                  {b.date ? (parseSpanishDate(b.date) ? format(parseSpanishDate(b.date)!, "d MMMM", { locale: es }) : b.date) : ""}
+                </div>
               </div>
               <div className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-70">
                 {isProfessional ? "Como Profesional" : "Como Cliente"}
@@ -274,9 +282,11 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
                               ? "bg-primary/10 text-primary border border-primary/10"
                               : "bg-amber-500/10 text-amber-700 border border-amber-500/10"
                           )}
-                          title={`${b.listingTitle} - ${b.time}`}
+                          title={`${b.listingTitle} - Inicio: ${b.time} - Total: ${b.duration || "1h"}`}
                         >
-                          {b.time} {b.listingTitle}
+                          <div className="font-bold truncate">{b.listingTitle}</div>
+                          <div className="truncate">{b.time} | {b.duration || "1h"}</div>
+                          <div className="truncate">{b.date ? (parseSpanishDate(b.date) ? format(parseSpanishDate(b.date)!, "d MMMM", { locale: es }) : b.date) : ""}</div>
                         </div>
                       );
                     })}
