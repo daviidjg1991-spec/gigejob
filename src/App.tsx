@@ -9241,6 +9241,7 @@ const SettingsModal = ({
           const listingsPromises = listingsSnap.docs.map((listingDoc) =>
             updateDoc(doc(db, "listings", listingDoc.id), {
               "author.professionalInfo.availability": dataToUpdate.professionalInfo.availability,
+              "availability": dataToUpdate.professionalInfo.availability,
             })
           );
           await Promise.all(listingsPromises);
