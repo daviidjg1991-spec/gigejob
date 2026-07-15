@@ -10198,11 +10198,13 @@ const SettingsModal = ({
                             })
                           }
                         >
-                          <option>Calle</option>
-                          <option>Av. de</option>
-                          <option>Plaza de</option>
-                          <option>Pasaje</option>
-                          <option>Camino</option>
+                          <option value="Calle">Calle</option>
+                          <option value="Avenida">Avenida</option>
+                          <option value="Plaza">Plaza</option>
+                          <option value="Camino">Camino</option>
+                          <option value="Carretera">Carretera</option>
+                          <option value="Paseo">Paseo</option>
+                          <option value="Travesía">Travesía</option>
                         </select>
                         <input
                           className={cn(
@@ -10567,7 +10569,10 @@ const SettingsModal = ({
                                 <option value="Calle">Calle</option>
                                 <option value="Avenida">Avenida</option>
                                 <option value="Plaza">Plaza</option>
-                                <option value="Pasaje">Pasaje</option>
+                                <option value="Camino">Camino</option>
+                                <option value="Carretera">Carretera</option>
+                                <option value="Paseo">Paseo</option>
+                                <option value="Travesía">Travesía</option>
                               </select>
                               <input
                                 className={cn(
@@ -21837,10 +21842,13 @@ const AuthPage = ({
                               })
                             }
                           >
-                            <option>Calle</option>
-                            <option>Av.</option>
-                            <option>Plaza</option>
-                            <option>Pasaje</option>
+                            <option value="Calle">Calle</option>
+                            <option value="Avenida">Avenida</option>
+                            <option value="Plaza">Plaza</option>
+                            <option value="Camino">Camino</option>
+                            <option value="Carretera">Carretera</option>
+                            <option value="Paseo">Paseo</option>
+                            <option value="Travesía">Travesía</option>
                           </select>
                           <input
                             className="px-6 py-3 bg-white rounded-xl font-bold outline-none"
