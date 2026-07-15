@@ -207,6 +207,17 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
                 <div className="truncate">
                   {b.date ? (parseSpanishDate(b.date) ? format(parseSpanishDate(b.date)!, "d MMMM", { locale: es }) : b.date) : ""}
                 </div>
+                {b.location && (
+                  <div className="flex items-center gap-1 truncate mt-0.5">
+                    <MapPin className="w-2.5 h-2.5 shrink-0" />
+                    <span>{b.location}</span>
+                  </div>
+                )}
+                {b.description && (
+                  <div className="truncate mt-0.5 opacity-80">
+                    {b.description}
+                  </div>
+                )}
               </div>
               <div className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-70">
                 {isProfessional ? "Como Profesional" : "Como Cliente"}
@@ -277,16 +288,18 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
                         <div
                           key={b.id}
                           className={cn(
-                            "text-[9px] px-1.5 py-1 rounded truncate font-medium",
+                            "text-[9px] px-1.5 py-1 rounded truncate font-medium flex flex-col gap-0.5",
                             isProfessional
                               ? "bg-primary/10 text-primary border border-primary/10"
                               : "bg-amber-500/10 text-amber-700 border border-amber-500/10"
                           )}
-                          title={`${b.listingTitle} - Inicio: ${b.time} - Total: ${b.duration || "1h"}`}
+                          title={`${b.listingTitle} - Inicio: ${b.time} - Total: ${b.duration || "1h"}${b.location ? ` - Dir: ${b.location}` : ""}`}
                         >
                           <div className="font-bold truncate">{b.listingTitle}</div>
                           <div className="truncate">{b.time} | {b.duration || "1h"}</div>
                           <div className="truncate">{b.date ? (parseSpanishDate(b.date) ? format(parseSpanishDate(b.date)!, "d MMMM", { locale: es }) : b.date) : ""}</div>
+                          {b.location && <div className="truncate opacity-80 mt-0.5"><MapPin className="inline w-2.5 h-2.5 mr-0.5"/>{b.location}</div>}
+                          {b.description && <div className="truncate opacity-70 mt-0.5">{b.description}</div>}
                         </div>
                       );
                     })}
