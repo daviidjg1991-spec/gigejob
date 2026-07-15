@@ -1010,11 +1010,15 @@ const AdminUserEditModal = ({
         where("author.id", "==", editedUser.id),
       );
       const listingsSnap = await getDocs(listingsQuery);
-      const listingsPromises = listingsSnap.docs.map((listingDoc) =>
-        updateDoc(doc(db, "listings", listingDoc.id), {
+      const listingsPromises = listingsSnap.docs.map((listingDoc) => {
+        const payload: any = {
           "author.isVerified": editedUser.isVerified || false,
-        }),
-      );
+        };
+        if (editedUser.professionalInfo?.availability) {
+          payload["availability"] = editedUser.professionalInfo.availability;
+        }
+        return updateDoc(doc(db, "listings", listingDoc.id), payload);
+      });
       await Promise.all(listingsPromises);
 
       window.dispatchEvent(
@@ -9230,8 +9234,8 @@ const SettingsModal = ({
       await updateDoc(userRef, payload);
       setGlobalUser({ ...user, ...dataToUpdate } as UserProfile);
 
-      // Sync availability to listings if the user is a professional
-      if (user.role === "professional" && dataToUpdate.professionalInfo?.availability) {
+      // Sync availability to listings if the user has professional availability
+      if (dataToUpdate.professionalInfo?.availability) {
         try {
           const listingsQuery = query(
             collection(db, "listings"),
@@ -9240,7 +9244,6 @@ const SettingsModal = ({
           const listingsSnap = await getDocs(listingsQuery);
           const listingsPromises = listingsSnap.docs.map((listingDoc) =>
             updateDoc(doc(db, "listings", listingDoc.id), {
-              "author.professionalInfo.availability": dataToUpdate.professionalInfo.availability,
               "availability": dataToUpdate.professionalInfo.availability,
             })
           );
