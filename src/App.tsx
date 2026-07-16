@@ -235,6 +235,8 @@ const generateBookingCode = async (
 };
 
 import { db, auth, storage } from "./lib/firebase";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
 import {
   AreaChart,
@@ -9048,6 +9050,75 @@ const SettingsModal = ({
   const [newEmail, setNewEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const q = query(
+      collection(db, "users", user.id, "transactions"),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const txs = snapshot.docs.map(doc => {
+          const data = doc.data();
+          const d = data.createdAt ? data.createdAt.toDate() : new Date();
+          return {
+            id: doc.id,
+            ...data,
+            date: d.toISOString().split('T')[0]
+          };
+        });
+        setTransactions(txs);
+      },
+      (error) => console.error("Error fetching transactions", error)
+    );
+    return () => unsubscribe();
+  }, [user?.id]);
+
+  const servicesInvoices = useMemo(() => {
+    return transactions.filter(t => t.type === 'income' || t.type === 'in');
+  }, [transactions]);
+
+  const monthlyInvoices = useMemo(() => {
+    const groups: Record<string, { id: string, amount: number, date: string, count: number, concept: string }> = {};
+    transactions.forEach(t => {
+      if (t.type === 'income' || t.type === 'in') {
+        const d = new Date(t.date);
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!groups[monthKey]) {
+          groups[monthKey] = { id: `MES-${monthKey}`, amount: 0, date: monthKey, count: 0, concept: `Resumen de Mes: ${monthKey}` };
+        }
+        groups[monthKey].amount += Number(t.amount) || 0;
+        groups[monthKey].count += 1;
+      }
+    });
+    return Object.values(groups).sort((a, b) => b.id.localeCompare(a.id));
+  }, [transactions]);
+
+  const handleDownloadPDF = () => {
+    if (!selectedInvoice) return;
+    const doc = new jsPDF();
+    doc.setFontSize(22);
+    doc.text("FACTURA", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(`Factura ID: ${selectedInvoice.id}`, 20, 40);
+    doc.text(`Fecha: ${selectedInvoice.date}`, 20, 50);
+    doc.text(`Cliente: ${user?.username || 'Cliente Final'}`, 20, 60);
+    doc.text(`DNI: ${user?.documentId || '-'}`, 20, 70);
+    
+    autoTable(doc, {
+      startY: 85,
+      head: [["Concepto", "Importe"]],
+      body: [
+        [selectedInvoice.concept || (invoiceSubTab === "services" ? "Servicio Prestado" : "Resumen del Mes"), `${Number(selectedInvoice.amount).toFixed(2)} \u20AC`]
+      ],
+    });
+    
+    doc.save(`Factura_${selectedInvoice.id}.pdf`);
+  };
+
   const [verifyPassword, setVerifyPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -9414,41 +9485,6 @@ const SettingsModal = ({
     }
   }, [user?.professionalInfo?.workLocation, generalTab]);
 
-  const MOCK_TRANSACTIONS = [
-    {
-      id: "T1",
-      type: "in",
-      amount: 350.0,
-      concept: "Servicio Limpieza Premium",
-      date: "2024-04-24",
-      status: "completed",
-      paymentMethod: "cash",
-    },
-    {
-      id: "T2",
-      type: "out",
-      amount: 15.0,
-      concept: "Tasa Gestión Plataforma",
-      date: "2024-04-23",
-      status: "completed",
-    },
-    {
-      id: "T3",
-      type: "in",
-      amount: 120.0,
-      concept: "Montaje de muebles",
-      date: "2024-04-20",
-      status: "completed",
-    },
-    {
-      id: "T4",
-      type: "out",
-      amount: 2.5,
-      concept: "Seguro Profesional diario",
-      date: "2024-04-20",
-      status: "completed",
-    },
-  ];
 
   if (!isOpen) return null;
 
@@ -9588,7 +9624,7 @@ const SettingsModal = ({
             <div className="flex-1 min-h-0 pt-4 lg:pt-6">
               {billingTab === "transactions" ? (
                 <div className="flex flex-col gap-2 overflow-y-auto no-scrollbar pb-8">
-                  {MOCK_TRANSACTIONS.map((tx) => (
+                  {transactions.map((tx) => (
                     <div
                       key={tx.id}
                       className="p-3 lg:p-6 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/5 flex items-center justify-between group hover:border-primary/20 transition-all shadow-sm"
@@ -9597,12 +9633,12 @@ const SettingsModal = ({
                         <div
                           className={cn(
                             "p-2 lg:p-4 rounded-xl shadow-inner",
-                            tx.type === "in"
+                            (tx.type === "in" || tx.type === "income")
                               ? "bg-green-500/10 text-green-500"
                               : "bg-red-500/10 text-red-500",
                           )}
                         >
-                          {tx.type === "in" ? (
+                          {(tx.type === "in" || tx.type === "income") ? (
                             <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" />
                           ) : (
                             <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 rotate-180" />
@@ -9610,7 +9646,7 @@ const SettingsModal = ({
                         </div>
                         <div className="min-w-0">
                           <p className="font-display font-black text-on-surface tracking-tight text-[11px] lg:text-base truncate max-w-[120px] sm:max-w-none">
-                            {tx.concept}
+                            {tx.concept || (tx.type === "income" ? "Ingreso" : "Pago")}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
@@ -9628,13 +9664,13 @@ const SettingsModal = ({
                         <p
                           className={cn(
                             "text-xs lg:text-xl font-display font-black",
-                            tx.type === "in"
+                            (tx.type === "in" || tx.type === "income")
                               ? "text-green-600"
                               : "text-red-600",
                           )}
                         >
-                          {tx.type === "in" ? "+" : "-"}
-                          {tx.amount.toFixed(2)}€
+                          {(tx.type === "in" || tx.type === "income") ? "+" : "-"}
+                          {Number(tx.amount || 0).toFixed(2)}€
                         </p>
                       </div>
                     </div>
@@ -9669,14 +9705,12 @@ const SettingsModal = ({
                         </button>
                       </div>
                       <div className="grid grid-cols-2 gap-2 lg:gap-4 pb-8 overflow-y-auto no-scrollbar">
-                      {[1, 2, 3].map((i) => (
+                      {(invoiceSubTab === "services" ? servicesInvoices : monthlyInvoices).map((inv) => (
                         <button
-                          key={i}
+                          key={inv.id}
                           onClick={() =>
                             setSelectedInvoice({
-                              id: `INV-24-00${i}`,
-                              date: `2024-04-1${i}`,
-                              amount: 150 * i,
+                              ...inv,
                               client: "Cliente Final",
                             })
                           }
@@ -9689,15 +9723,15 @@ const SettingsModal = ({
                           </div>
                           <div>
                             <p className="text-[7px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">
-                              2024/00{i}
+                              {inv.id}
                             </p>
                             <p className="font-display font-black text-[11px] lg:text-xl text-on-surface leading-tight">
-                              {invoiceSubTab === "services" ? `Servicio 0${i}` : "Abril 2024"}
+                              {inv.date}
                             </p>
                           </div>
                           <div className="pt-2 border-t border-outline-variant/10 flex justify-between items-center mt-auto">
                             <p className="text-[10px] lg:text-sm font-black text-primary">
-                              {150 * i}€
+                              {Number(inv.amount).toFixed(2)}€
                             </p>
                             <ChevronRight className="w-3 h-3 lg:w-5 lg:h-5 text-on-surface-variant/20 group-hover:text-primary transition-all" />
                           </div>
@@ -9714,7 +9748,7 @@ const SettingsModal = ({
                         >
                           <ArrowLeft className="w-4 h-4" /> Volver
                         </button>
-                        <button className="flex items-center gap-3 px-6 py-3 bg-on-surface text-surface rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
+                        <button onClick={handleDownloadPDF} className="flex items-center gap-3 px-6 py-3 bg-on-surface text-surface rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
                           <Download className="w-4 h-4" /> PDF
                         </button>
                       </div>
