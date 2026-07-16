@@ -9035,6 +9035,9 @@ const SettingsModal = ({
   const [billingTab, setBillingTab] = useState<"transactions" | "invoices">(
     "transactions",
   );
+  const [invoiceSubTab, setInvoiceSubTab] = useState<"services" | "months">(
+    "services",
+  );
   const [securityTab, setSecurityTab] = useState<"verify" | "security" | "account">(
     "verify",
   );
@@ -9419,6 +9422,7 @@ const SettingsModal = ({
       concept: "Servicio Limpieza Premium",
       date: "2024-04-24",
       status: "completed",
+      paymentMethod: "cash",
     },
     {
       id: "T2",
@@ -9543,16 +9547,16 @@ const SettingsModal = ({
       case "billing":
         return (
           <div className="space-y-6 lg:space-y-8 h-full flex flex-col">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex flex-col gap-4">
               <div className="space-y-1">
-                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight">
+                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight whitespace-nowrap">
                   Facturación
                 </h3>
-                <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
+                <p className="text-[10px] lg:text-sm text-on-surface-variant/40 whitespace-nowrap">
                   Tus movimientos financieros.
                 </p>
               </div>
-              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner">
+              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner w-full lg:w-fit">
                 <button
                   onClick={() => {
                     setBillingTab("transactions");
@@ -9608,9 +9612,16 @@ const SettingsModal = ({
                           <p className="font-display font-black text-on-surface tracking-tight text-[11px] lg:text-base truncate max-w-[120px] sm:max-w-none">
                             {tx.concept}
                           </p>
-                          <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
-                            {tx.date}
-                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
+                              {tx.date}
+                            </p>
+                            {(tx as any).paymentMethod === "cash" && (
+                              <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Pago en mano*
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -9630,9 +9641,34 @@ const SettingsModal = ({
                   ))}
                 </div>
               ) : (
-                <div className="h-full">
+                <div className="h-full flex flex-col gap-4">
                   {!selectedInvoice ? (
-                    <div className="grid grid-cols-2 gap-2 lg:gap-4 pb-8">
+                    <>
+                      <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner w-full lg:w-fit mb-2">
+                        <button
+                          onClick={() => setInvoiceSubTab("services")}
+                          className={cn(
+                            "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                            invoiceSubTab === "services"
+                              ? "bg-white text-primary shadow-sm"
+                              : "text-on-surface-variant/40",
+                          )}
+                        >
+                          Facturas por servicios
+                        </button>
+                        <button
+                          onClick={() => setInvoiceSubTab("months")}
+                          className={cn(
+                            "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                            invoiceSubTab === "months"
+                              ? "bg-white text-primary shadow-sm"
+                              : "text-on-surface-variant/40",
+                          )}
+                        >
+                          Facturas por mes
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 lg:gap-4 pb-8 overflow-y-auto no-scrollbar">
                       {[1, 2, 3].map((i) => (
                         <button
                           key={i}
@@ -9656,7 +9692,7 @@ const SettingsModal = ({
                               2024/00{i}
                             </p>
                             <p className="font-display font-black text-[11px] lg:text-xl text-on-surface leading-tight">
-                              Abril 2024
+                              {invoiceSubTab === "services" ? `Servicio 0${i}` : "Abril 2024"}
                             </p>
                           </div>
                           <div className="pt-2 border-t border-outline-variant/10 flex justify-between items-center mt-auto">
@@ -9668,6 +9704,7 @@ const SettingsModal = ({
                         </button>
                       ))}
                     </div>
+                    </>
                   ) : (
                     <div className="bg-surface-container-low rounded-[2rem] lg:rounded-[3rem] p-5 lg:p-10 h-full border border-outline-variant/10 animate-in zoom-in-95 duration-300 flex flex-col overflow-hidden">
                       <div className="flex justify-between items-center mb-6 lg:mb-10 shrink-0 px-2 lg:px-0">
