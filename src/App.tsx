@@ -18350,7 +18350,9 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       if (now - createdTime > 24 * 60 * 60 * 1000) {
         return true;
       }
-    } else if (activeBooking.status === "accepted" || activeBooking.status === "completed") {
+    } else if (activeBooking.status === "completed") {
+      return true;
+    } else if (activeBooking.status === "accepted") {
       try {
         if (!activeBooking.date || !activeBooking.time) {
            const updatedTime = activeBooking.updatedAt?.toMillis ? activeBooking.updatedAt.toMillis() : createdTime;
@@ -18373,7 +18375,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         }
         
         const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
-        const disableDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+        // Automatically disabled after 3 hours for accepted, although it should transition to completed.
+        const disableDate = new Date(endDate.getTime() + 3 * 60 * 60 * 1000);
         
         return now > disableDate.getTime();
       } catch(e) {
@@ -22833,6 +22836,16 @@ const useReviewPrompt = (user: UserProfile | null) => {
           console.log(`[ReviewPrompt] Reserva ${b.id} - Estado: ${b.status} - TriggerTime: ${triggerTime.toLocaleString()} - Ahora: ${new Date().toLocaleString()}`);
           
           if (new Date() >= triggerTime) {
+            // Auto-completar el trabajo si aún estaba "aceptado"
+            if (b.status === "accepted") {
+              try {
+                await updateDoc(doc(db, "bookings", b.id), { status: "completed" });
+                b.status = "completed"; // Update local object
+                console.log(`[ReviewPrompt] Reserva ${b.id} auto-completada.`);
+              } catch(e) {
+                console.error("Error auto-completando reserva:", e);
+              }
+            }
             const qReview = query(collection(db, "reviews"), where("bookingId", "==", b.id), where("authorId", "==", user.id));
             const reviewSnap = await getDocs(qReview);
             
