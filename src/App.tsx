@@ -12806,11 +12806,14 @@ const ListingCard = ({
               e.stopPropagation();
               onToggleFavorite(listing.id);
             }}
+            disabled={!auth.currentUser}
             className={cn(
               "p-2 sm:p-2.5 rounded-full transition-all shadow-sm flex-shrink-0",
-              isFavorite
-                ? "bg-primary/10 text-primary"
-                : "bg-surface-container-low text-on-surface-variant/40 hover:bg-primary/5 hover:text-primary",
+              !auth.currentUser
+                ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                : isFavorite
+                  ? "bg-primary/10 text-primary"
+                  : "bg-surface-container-low text-on-surface-variant/40 hover:bg-primary/5 hover:text-primary",
             )}
           >
             <Heart
@@ -15458,7 +15461,11 @@ const ListingDetail = ({
                   </div>
                   <button
                     onClick={() => onToggleFavorite(listing.id)}
-                    className="ml-auto"
+                    disabled={!user}
+                    className={cn(
+                      "ml-auto",
+                      !user && "opacity-50 cursor-not-allowed grayscale"
+                    )}
                   >
                     <Heart
                       className={cn(
@@ -15471,7 +15478,11 @@ const ListingDetail = ({
                     onClick={() =>
                       openReportModal(listing.author.id, listing.id)
                     }
-                    className="ml-2 hover:text-warning transition-colors"
+                    disabled={!user}
+                    className={cn(
+                      "ml-2 transition-colors",
+                      !user ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50" : "hover:text-warning"
+                    )}
                   >
                     <AlertTriangle className="w-4 h-4" />
                   </button>
@@ -15498,11 +15509,14 @@ const ListingDetail = ({
                 </div>
                 <button
                   onClick={() => onToggleFavorite(listing.id)}
+                  disabled={!user}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
-                    isFavorite
-                      ? "bg-primary text-white shadow-lg"
-                      : "bg-surface-container-low text-on-surface-variant hover:text-primary",
+                    !user 
+                      ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                      : isFavorite
+                        ? "bg-primary text-white shadow-lg"
+                        : "bg-surface-container-low text-on-surface-variant hover:text-primary",
                   )}
                 >
                   <Heart
@@ -15512,7 +15526,13 @@ const ListingDetail = ({
                 </button>
                 <button
                   onClick={() => openReportModal(listing.author.id, listing.id)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest bg-surface-container-low text-on-surface-variant hover:text-warning"
+                  disabled={!user}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
+                    !user 
+                      ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                      : "bg-surface-container-low text-on-surface-variant hover:text-warning"
+                  )}
                 >
                   <AlertTriangle className="w-4 h-4" />
                   Reportar
@@ -16138,8 +16158,14 @@ const ProfilePage = ({
               {!isOwnProfile && profileUser?.id && (
                 <button
                   onClick={() => openReportModal(profileUser.id)}
-                  className="absolute top-6 right-6 p-3 text-on-surface-variant/30 hover:text-warning transition-colors rounded-full hover:bg-surface-container-high group"
-                  title="Reportar usuario"
+                  disabled={!user}
+                  className={cn(
+                    "absolute top-6 right-6 p-3 rounded-full transition-all group",
+                    !user 
+                      ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                      : "text-on-surface-variant/30 hover:text-warning hover:bg-surface-container-high"
+                  )}
+                  title={!user ? "Debes iniciar sesión para reportar" : "Reportar usuario"}
                 >
                   <AlertTriangle className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </button>
