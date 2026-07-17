@@ -14324,7 +14324,14 @@ const AvailabilityPicker = ({
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-full flex justify-between items-center p-4 bg-surface-container-low rounded-2xl hover:bg-surface-container-high transition-all"
+          disabled={!user}
+          className={cn(
+            "w-full flex justify-between items-center p-4 rounded-2xl transition-all",
+            user
+              ? "bg-surface-container-low hover:bg-surface-container-high"
+              : "bg-surface-container-low/50 opacity-50 cursor-not-allowed"
+          )}
+          title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
         >
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary" />
@@ -23767,6 +23774,10 @@ function App() {
   }, [user]);
 
   const toggleFavorite = (id: string) => {
+    if (!user) {
+      alert("Debes iniciar sesión para añadir a favoritos.");
+      return;
+    }
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id],
     );
@@ -23866,8 +23877,13 @@ function App() {
   return (
     <ReportContext.Provider
       value={{
-        openReportModal: (userId, listingId, conversationId) =>
-          setReportTarget({ userId, listingId, conversationId }),
+        openReportModal: (userId, listingId, conversationId) => {
+          if (!user) {
+            alert("Debes iniciar sesión para reportar a un usuario o anuncio.");
+            return;
+          }
+          setReportTarget({ userId, listingId, conversationId });
+        },
       }}
     >
       {user && auth.currentUser && !isEmailVerified && (
