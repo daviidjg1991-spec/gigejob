@@ -17429,53 +17429,86 @@ const WalletManager = ({
                   </p>
                 </div>
               ) : (
-                transactions.slice(0, 3).map((tx, i) => (
-                  <div
-                    key={i}
-                    className="p-6 sm:p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
+                transactions.slice(0, 3).map((tx, i) => {
+                  const isIncome = tx.type === "in" || tx.type === "income";
+                  const isCash = tx.paymentMethod === "cash";
+
+                  let iconBgColor = "";
+                  let iconTextColor = "";
+                  let amountColor = "";
+
+                  if (isIncome) {
+                    if (isCash) {
+                      iconBgColor = "bg-yellow-500/10";
+                      iconTextColor = "text-yellow-600";
+                      amountColor = "text-yellow-600";
+                    } else {
+                      iconBgColor = "bg-green-500/10";
+                      iconTextColor = "text-green-500";
+                      amountColor = "text-green-500";
+                    }
+                  } else {
+                    iconBgColor = "bg-red-500/10";
+                    iconTextColor = "text-red-500";
+                    amountColor = "text-red-600";
+                  }
+
+                  return (
+                    <div
+                      key={i}
+                      className="p-6 sm:p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0",
+                            iconBgColor,
+                            iconTextColor
+                          )}
+                        >
+                          {isIncome ? (
+                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                          ) : tx.type === "withdrawal" ? (
+                            <Landmark className="w-5 h-5 sm:w-6 sm:h-6" />
+                          ) : (
+                            <CreditCard className="w-5 h-5 sm:w-6 sm:h-6" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-on-surface text-sm truncate">
+                            {tx.label || (isIncome ? "Ingreso por servicio" : "Pago por servicio")}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
+                              {formatTxDate(tx.date)}
+                            </p>
+                            {isCash ? (
+                              <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Pago en mano*
+                              </span>
+                            ) : (
+                              <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Mediante web*
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <p
                         className={cn(
-                          "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0",
-                          tx.type === "income"
-                            ? "bg-green-500/10 text-green-500"
-                            : "bg-on-surface-variant/5 text-on-surface-variant",
+                          "text-base sm:text-lg font-display font-black shrink-0 ml-4",
+                          amountColor
                         )}
                       >
-                        {tx.type === "income" ? (
-                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                        ) : tx.type === "withdrawal" ? (
-                          <Landmark className="w-5 h-5 sm:w-6 sm:h-6" />
-                        ) : (
-                          <CreditCard className="w-5 h-5 sm:w-6 sm:h-6" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-on-surface text-sm truncate">
-                          {tx.label}
-                        </p>
-                        <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                          {formatTxDate(tx.date)}
-                        </p>
-                      </div>
+                        {isIncome ? "+" : "-"}
+                        {Number(tx.amount || 0).toLocaleString("es-ES", {
+                          minimumFractionDigits: 2,
+                        })}
+                        €
+                      </p>
                     </div>
-                    <p
-                      className={cn(
-                        "text-base sm:text-lg font-display font-black shrink-0 ml-4",
-                        tx.type === "income"
-                          ? "text-green-500"
-                          : "text-on-surface",
-                      )}
-                    >
-                      {tx.amount > 0 ? "+" : ""}
-                      {tx.amount.toLocaleString("es-ES", {
-                        minimumFractionDigits: 2,
-                      })}
-                      €
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -17653,58 +17686,91 @@ const WalletManager = ({
           <div className="bg-surface-container-lowest rounded-[3rem] ambient-shadow border border-outline-variant/10 overflow-hidden">
             <div className="divide-y divide-outline-variant/5">
               {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((tx, i) => (
-                  <div
-                    key={i}
-                    className="p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-6">
-                      <div
-                        className={cn(
-                          "w-14 h-14 rounded-2xl flex items-center justify-center",
-                          tx.type === "income"
-                            ? "bg-green-500/10 text-green-500"
-                            : "bg-on-surface-variant/5 text-on-surface-variant",
-                        )}
-                      >
-                        {tx.type === "income" ? (
-                          <TrendingUp className="w-6 h-6" />
-                        ) : tx.type === "withdrawal" ? (
-                          <Landmark className="w-6 h-6" />
-                        ) : (
-                          <CreditCard className="w-6 h-6" />
-                        )}
+                filteredTransactions.map((tx, i) => {
+                  const isIncome = tx.type === "in" || tx.type === "income";
+                  const isCash = tx.paymentMethod === "cash";
+
+                  let iconBgColor = "";
+                  let iconTextColor = "";
+                  let amountColor = "";
+
+                  if (isIncome) {
+                    if (isCash) {
+                      iconBgColor = "bg-yellow-500/10";
+                      iconTextColor = "text-yellow-600";
+                      amountColor = "text-yellow-600";
+                    } else {
+                      iconBgColor = "bg-green-500/10";
+                      iconTextColor = "text-green-500";
+                      amountColor = "text-green-500";
+                    }
+                  } else {
+                    iconBgColor = "bg-red-500/10";
+                    iconTextColor = "text-red-500";
+                    amountColor = "text-red-600";
+                  }
+
+                  return (
+                    <div
+                      key={i}
+                      className="p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-6">
+                        <div
+                          className={cn(
+                            "w-14 h-14 rounded-2xl flex items-center justify-center",
+                            iconBgColor,
+                            iconTextColor
+                          )}
+                        >
+                          {isIncome ? (
+                            <TrendingUp className="w-6 h-6" />
+                          ) : tx.type === "withdrawal" ? (
+                            <Landmark className="w-6 h-6" />
+                          ) : (
+                            <CreditCard className="w-6 h-6" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-bold text-on-surface text-base">
+                            {tx.label || (isIncome ? "Ingreso por servicio" : "Pago por servicio")}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
+                              {formatTxDate(tx.date)}
+                            </p>
+                            {isCash ? (
+                              <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Pago en mano*
+                              </span>
+                            ) : (
+                              <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Mediante web*
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-on-surface text-base">
-                          {tx.label}
+                      <div className="text-right">
+                        <p
+                          className={cn(
+                            "text-xl font-display font-black",
+                            amountColor
+                          )}
+                        >
+                          {isIncome ? "+" : "-"}
+                          {Number(tx.amount || 0).toLocaleString("es-ES", {
+                            minimumFractionDigits: 2,
+                          })}
+                          €
                         </p>
-                        <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-1">
-                          {formatTxDate(tx.date)}
+                        <p className="text-[8px] font-black text-on-surface-variant/30 uppercase tracking-widest mt-1">
+                          Completado
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p
-                        className={cn(
-                          "text-xl font-display font-black",
-                          tx.type === "income"
-                            ? "text-green-500"
-                            : "text-on-surface",
-                        )}
-                      >
-                        {tx.amount > 0 ? "+" : ""}
-                        {tx.amount.toLocaleString("es-ES", {
-                          minimumFractionDigits: 2,
-                        })}
-                        €
-                      </p>
-                      <p className="text-[8px] font-black text-on-surface-variant/30 uppercase tracking-widest mt-1">
-                        Completado
-                      </p>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-20 text-center">
                   <History className="w-12 h-12 text-on-surface-variant/10 mx-auto mb-4" />
