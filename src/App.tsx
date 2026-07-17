@@ -15444,7 +15444,12 @@ const ListingDetail = ({
                   <div className="w-1/3 text-right">
                     <button
                       onClick={() => setIsRequestModalOpen(true)}
-                      className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-lg shadow-sm active:scale-95 transition-transform w-full"
+                      disabled={!user}
+                      className={cn(
+                        "text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-lg shadow-sm transition-all w-full",
+                        !user ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50" : "bg-primary text-white active:scale-95"
+                      )}
+                      title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
                     >
                       CONCRETAR CITA
                     </button>
@@ -15851,7 +15856,14 @@ const ListingDetail = ({
                         e.stopPropagation();
                         setIsRequestModalOpen(true);
                       }}
-                      className="w-full p-5 bg-[#005a54] text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-xl shadow-[#005a54]/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
+                      disabled={!user}
+                      className={cn(
+                        "w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all",
+                        !user 
+                          ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                          : "bg-[#005a54] text-white shadow-xl shadow-[#005a54]/20 hover:scale-[1.02] active:scale-95"
+                      )}
+                      title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
                     >
                       <Calendar className="w-4 h-4" />
                       CONCRETAR CITA
