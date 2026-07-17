@@ -9054,27 +9054,85 @@ const SettingsModal = ({
 
   useEffect(() => {
     if (!user?.id) return;
-    const q = query(
-      collection(db, "users", user.id, "transactions"),
+    const uid = user.id;
+    const qTxs = query(
+      collection(db, "users", uid, "transactions"),
       orderBy("createdAt", "desc")
     );
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const txs = snapshot.docs.map(doc => {
-          const data = doc.data();
-          const d = data.createdAt ? data.createdAt.toDate() : new Date();
-          return {
-            id: doc.id,
-            ...data,
-            date: d.toISOString().split('T')[0]
-          };
-        });
-        setTransactions(txs);
-      },
-      (error) => console.error("Error fetching transactions", error)
+    const qPro = query(
+      collection(db, "bookings"),
+      where("professionalId", "==", uid),
+      where("status", "==", "completed")
     );
-    return () => unsubscribe();
+    const qClient = query(
+      collection(db, "bookings"),
+      where("clientId", "==", uid),
+      where("status", "==", "completed")
+    );
+
+    let baseTxs: any[] = [];
+    let proBookings: any[] = [];
+    let clientBookings: any[] = [];
+
+    const updateCombined = () => {
+      const combined = [...baseTxs];
+      proBookings.forEach(b => {
+        const dStr = b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString());
+        combined.push({
+          id: b.id,
+          type: "income",
+          amount: b.totalCost || 0,
+          concept: b.listingTitle || "Servicio Prestado",
+          date: dStr.split('T')[0],
+          status: "completed",
+          paymentMethod: b.paymentMethod || "platform"
+        });
+      });
+      clientBookings.forEach(b => {
+        const dStr = b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString());
+        combined.push({
+          id: b.id,
+          type: "payment",
+          amount: b.totalCost || 0,
+          concept: b.listingTitle || "Servicio Contratado",
+          date: dStr.split('T')[0],
+          status: "completed",
+          paymentMethod: b.paymentMethod || "platform"
+        });
+      });
+
+      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTransactions(combined);
+    };
+
+    const unsubTxs = onSnapshot(qTxs, (snapshot) => {
+      baseTxs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const d = data.createdAt ? data.createdAt.toDate() : new Date();
+        return {
+          id: doc.id,
+          ...data,
+          date: d.toISOString().split('T')[0]
+        };
+      });
+      updateCombined();
+    }, (error) => console.error("Error fetching transactions", error));
+
+    const unsubPro = onSnapshot(qPro, (snapshot) => {
+      proBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
+    });
+
+    const unsubClient = onSnapshot(qClient, (snapshot) => {
+      clientBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
+    });
+
+    return () => {
+      unsubTxs();
+      unsubPro();
+      unsubClient();
+    };
   }, [user?.id]);
 
   const servicesInvoices = useMemo(() => {
@@ -17204,36 +17262,92 @@ const WalletManager = ({
 
   useEffect(() => {
     if (!auth.currentUser) return;
-    const q = query(
-      collection(db, "users", auth.currentUser.uid, "transactions"),
+    const uid = auth.currentUser.uid;
+    const qTxs = query(
+      collection(db, "users", uid, "transactions"),
       orderBy("createdAt", "desc"),
     );
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const txs: any[] = [];
-        let total = 0;
-        snapshot.forEach((doc) => {
-          const data = doc.data();
-          txs.push({
-            id: doc.id,
-            ...data,
-            date: data.createdAt
-              ? data.createdAt.toDate().toISOString()
-              : new Date().toISOString(),
-          });
-          if (data.type === "income") total += Number(data.amount) || 0;
-          if (data.type === "payment" || data.type === "withdrawal")
-            total -= Math.abs(Number(data.amount) || 0);
-        });
-        setTransactions(txs);
-        setBalance(total);
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, "transactions");
-      },
+    const qPro = query(
+      collection(db, "bookings"),
+      where("professionalId", "==", uid),
+      where("status", "==", "completed")
     );
-    return () => unsubscribe();
+    const qClient = query(
+      collection(db, "bookings"),
+      where("clientId", "==", uid),
+      where("status", "==", "completed")
+    );
+
+    let baseTxs: any[] = [];
+    let proBookings: any[] = [];
+    let clientBookings: any[] = [];
+
+    const updateCombined = () => {
+      const combined = [...baseTxs];
+      proBookings.forEach(b => {
+        combined.push({
+          id: b.id,
+          type: "income",
+          amount: b.totalCost || 0,
+          label: b.listingTitle || "Servicio Prestado",
+          concept: b.listingTitle || "Servicio Prestado",
+          date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
+          status: "completed",
+          paymentMethod: b.paymentMethod || "platform"
+        });
+      });
+      clientBookings.forEach(b => {
+        combined.push({
+          id: b.id,
+          type: "payment",
+          amount: b.totalCost || 0,
+          label: b.listingTitle || "Servicio Contratado",
+          concept: b.listingTitle || "Servicio Contratado",
+          date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
+          status: "completed",
+          paymentMethod: b.paymentMethod || "platform"
+        });
+      });
+      
+      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTransactions(combined);
+      
+      let total = 0;
+      combined.forEach(data => {
+        if (data.type === "income" || data.type === "in") total += Number(data.amount) || 0;
+        if (data.type === "payment" || data.type === "withdrawal" || data.type === "out")
+          total -= Math.abs(Number(data.amount) || 0);
+      });
+      setBalance(total);
+    };
+
+    const unsubTxs = onSnapshot(qTxs, (snapshot) => {
+      baseTxs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+        };
+      });
+      updateCombined();
+    }, (error) => handleFirestoreError(error, OperationType.LIST, "transactions"));
+
+    const unsubPro = onSnapshot(qPro, (snapshot) => {
+      proBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
+    });
+
+    const unsubClient = onSnapshot(qClient, (snapshot) => {
+      clientBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
+    });
+
+    return () => {
+      unsubTxs();
+      unsubPro();
+      unsubClient();
+    };
   }, []);
 
   const handleWithdraw = async () => {
