@@ -22798,8 +22798,8 @@ const useReviewPrompt = (user: UserProfile | null) => {
 
     const checkBookings = async () => {
       try {
-        const qClient = query(collection(db, "bookings"), where("clientId", "==", user.id), where("status", "==", "completed"));
-        const qPro = query(collection(db, "bookings"), where("professionalId", "==", user.id), where("status", "==", "completed"));
+        const qClient = query(collection(db, "bookings"), where("clientId", "==", user.id), where("status", "in", ["accepted", "completed"]));
+        const qPro = query(collection(db, "bookings"), where("professionalId", "==", user.id), where("status", "in", ["accepted", "completed"]));
         
         const [snapClient, snapPro] = await Promise.all([getDocs(qClient), getDocs(qPro)]);
         const bookings = [...snapClient.docs, ...snapPro.docs].map(d => ({ id: d.id, ...d.data() }));
@@ -22822,10 +22822,15 @@ const useReviewPrompt = (user: UserProfile | null) => {
             }
           }
           
-          if (isNaN(startDateTime.getTime())) continue;
+          if (isNaN(startDateTime.getTime())) {
+            console.log(`[ReviewPrompt] Ignorando reserva ${b.id}: Fecha inválida (${b.date} ${b.time})`);
+            continue;
+          }
 
           const endDateTime = new Date(startDateTime.getTime() + (durationHours * 60 * 60 * 1000));
           const triggerTime = new Date(endDateTime.getTime() + (3 * 60 * 60 * 1000));
+          
+          console.log(`[ReviewPrompt] Reserva ${b.id} - Estado: ${b.status} - TriggerTime: ${triggerTime.toLocaleString()} - Ahora: ${new Date().toLocaleString()}`);
           
           if (new Date() >= triggerTime) {
             const qReview = query(collection(db, "reviews"), where("bookingId", "==", b.id), where("authorId", "==", user.id));
