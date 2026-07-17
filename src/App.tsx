@@ -9624,57 +9624,84 @@ const SettingsModal = ({
             <div className="flex-1 min-h-0 pt-4 lg:pt-6">
               {billingTab === "transactions" ? (
                 <div className="flex flex-col gap-2 overflow-y-auto no-scrollbar pb-8">
-                  {transactions.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="p-3 lg:p-6 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/5 flex items-center justify-between group hover:border-primary/20 transition-all shadow-sm"
-                    >
-                      <div className="flex items-center gap-3 lg:gap-6">
-                        <div
-                          className={cn(
-                            "p-2 lg:p-4 rounded-xl shadow-inner",
-                            (tx.type === "in" || tx.type === "income")
-                              ? "bg-green-500/10 text-green-500"
-                              : "bg-red-500/10 text-red-500",
-                          )}
-                        >
-                          {(tx.type === "in" || tx.type === "income") ? (
-                            <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" />
-                          ) : (
-                            <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 rotate-180" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-display font-black text-on-surface tracking-tight text-[11px] lg:text-base truncate max-w-[120px] sm:max-w-none">
-                            {tx.concept || (tx.type === "income" ? "Ingreso" : "Pago")}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
-                              {tx.date}
-                            </p>
-                            {(tx as any).paymentMethod === "cash" && (
-                              <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                *Pago en mano*
-                              </span>
+                  {transactions.map((tx) => {
+                    const isIncome = tx.type === "in" || tx.type === "income";
+                    const isCash = tx.paymentMethod === "cash";
+
+                    let iconBgColor = "";
+                    let iconTextColor = "";
+                    let amountColor = "";
+
+                    if (isIncome) {
+                      if (isCash) {
+                        iconBgColor = "bg-yellow-500/10";
+                        iconTextColor = "text-yellow-600";
+                        amountColor = "text-yellow-600";
+                      } else {
+                        iconBgColor = "bg-green-500/10";
+                        iconTextColor = "text-green-500";
+                        amountColor = "text-green-600";
+                      }
+                    } else {
+                      // Pagos como cliente siempre en rojo
+                      iconBgColor = "bg-red-500/10";
+                      iconTextColor = "text-red-500";
+                      amountColor = "text-red-600";
+                    }
+
+                    return (
+                      <div
+                        key={tx.id}
+                        className="p-3 lg:p-6 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/5 flex items-center justify-between group hover:border-primary/20 transition-all shadow-sm"
+                      >
+                        <div className="flex items-center gap-3 lg:gap-6">
+                          <div
+                            className={cn(
+                              "p-2 lg:p-4 rounded-xl shadow-inner",
+                              iconBgColor,
+                              iconTextColor
+                            )}
+                          >
+                            {isIncome ? (
+                              <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" />
+                            ) : (
+                              <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 rotate-180" />
                             )}
                           </div>
+                          <div className="min-w-0">
+                            <p className="font-display font-black text-on-surface tracking-tight text-[11px] lg:text-base truncate max-w-[120px] sm:max-w-none">
+                              {tx.concept || (isIncome ? "Ingreso por servicio" : "Pago por servicio")}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
+                                {tx.date}
+                              </p>
+                              {isCash ? (
+                                <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                  *Pago en mano*
+                                </span>
+                              ) : (
+                                <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                  *Mediante web*
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p
+                            className={cn(
+                              "text-xs lg:text-xl font-display font-black",
+                              amountColor
+                            )}
+                          >
+                            {isIncome ? "+" : "-"}
+                            {Number(tx.amount || 0).toFixed(2)}€
+                          </p>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p
-                          className={cn(
-                            "text-xs lg:text-xl font-display font-black",
-                            (tx.type === "in" || tx.type === "income")
-                              ? "text-green-600"
-                              : "text-red-600",
-                          )}
-                        >
-                          {(tx.type === "in" || tx.type === "income") ? "+" : "-"}
-                          {Number(tx.amount || 0).toFixed(2)}€
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="h-full flex flex-col gap-4">
