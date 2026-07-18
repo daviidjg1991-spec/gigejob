@@ -17324,97 +17324,105 @@ const WalletManager = ({
   }>({ isOpen: false, type: null });
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
-    const qTxs = query(
-      collection(db, "users", uid, "transactions"),
-      orderBy("createdAt", "desc"),
-    );
-    const qPro = query(
-      collection(db, "bookings"),
-      where("professionalId", "==", uid),
-      where("status", "==", "completed")
-    );
-    const qClient = query(
-      collection(db, "bookings"),
-      where("clientId", "==", uid),
-      where("status", "==", "completed")
-    );
+    let unsubTxs: any;
+    let unsubPro: any;
+    let unsubClient: any;
 
-    let baseTxs: any[] = [];
-    let proBookings: any[] = [];
-    let clientBookings: any[] = [];
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      const uid = user.uid;
 
-    const updateCombined = () => {
-      const combined = [...baseTxs];
-      proBookings.forEach(b => {
-        combined.push({
-          id: b.id,
-          type: "income",
-          amount: b.totalCost || 0,
-          label: b.listingTitle || "Servicio Prestado",
-          concept: b.listingTitle || "Servicio Prestado",
-          date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
-          status: "completed",
-          paymentMethod: b.paymentMethod || "platform",
-          isBooking: true
+      const qTxs = query(
+        collection(db, "users", uid, "transactions"),
+        orderBy("createdAt", "desc"),
+      );
+      const qPro = query(
+        collection(db, "bookings"),
+        where("professionalId", "==", uid),
+        where("status", "==", "completed")
+      );
+      const qClient = query(
+        collection(db, "bookings"),
+        where("clientId", "==", uid),
+        where("status", "==", "completed")
+      );
+
+      let baseTxs: any[] = [];
+      let proBookings: any[] = [];
+      let clientBookings: any[] = [];
+
+      const updateCombined = () => {
+        const combined = [...baseTxs];
+        proBookings.forEach(b => {
+          combined.push({
+            id: b.id,
+            type: "income",
+            amount: b.totalCost || 0,
+            label: b.listingTitle || "Servicio Prestado",
+            concept: b.listingTitle || "Servicio Prestado",
+            date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
+            status: "completed",
+            paymentMethod: b.paymentMethod || "platform",
+            isBooking: true
+          });
         });
-      });
-      clientBookings.forEach(b => {
-        combined.push({
-          id: b.id,
-          type: "payment",
-          amount: b.totalCost || 0,
-          label: b.listingTitle || "Servicio Contratado",
-          concept: b.listingTitle || "Servicio Contratado",
-          date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
-          status: "completed",
-          paymentMethod: b.paymentMethod || "platform",
-          isBooking: true
+        clientBookings.forEach(b => {
+          combined.push({
+            id: b.id,
+            type: "payment",
+            amount: b.totalCost || 0,
+            label: b.listingTitle || "Servicio Contratado",
+            concept: b.listingTitle || "Servicio Contratado",
+            date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
+            status: "completed",
+            paymentMethod: b.paymentMethod || "platform",
+            isBooking: true
+          });
         });
-      });
-      
-      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setTransactions(combined);
-      
-      let total = 0;
-      combined.forEach(data => {
-        const isCashBooking = data.isBooking && data.paymentMethod !== "stripe";
-        if (!isCashBooking) {
-          if (data.type === "income" || data.type === "in") total += Number(data.amount) || 0;
-          if (data.type === "payment" || data.type === "withdrawal" || data.type === "out")
-            total -= Math.abs(Number(data.amount) || 0);
-        }
-      });
-      setBalance(total);
-    };
+        
+        combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setTransactions(combined);
+        
+        let total = 0;
+        combined.forEach(data => {
+          const isCashBooking = data.isBooking && data.paymentMethod !== "stripe";
+          if (!isCashBooking) {
+            if (data.type === "income" || data.type === "in") total += Number(data.amount) || 0;
+            if (data.type === "payment" || data.type === "withdrawal" || data.type === "out")
+              total -= Math.abs(Number(data.amount) || 0);
+          }
+        });
+        setBalance(total);
+      };
 
-    const unsubTxs = onSnapshot(qTxs, (snapshot) => {
-      baseTxs = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-          date: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString()
-        };
+      unsubTxs = onSnapshot(qTxs, (snapshot) => {
+        baseTxs = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            date: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+          };
+        });
+        updateCombined();
+      }, (error) => handleFirestoreError(error, OperationType.LIST, "transactions"));
+
+      unsubPro = onSnapshot(qPro, (snapshot) => {
+        proBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateCombined();
       });
-      updateCombined();
-    }, (error) => handleFirestoreError(error, OperationType.LIST, "transactions"));
 
-    const unsubPro = onSnapshot(qPro, (snapshot) => {
-      proBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      updateCombined();
-    });
-
-    const unsubClient = onSnapshot(qClient, (snapshot) => {
-      clientBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      updateCombined();
+      unsubClient = onSnapshot(qClient, (snapshot) => {
+        clientBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateCombined();
+      });
     });
 
     return () => {
-      unsubTxs();
-      unsubPro();
-      unsubClient();
+      unsubAuth();
+      if (unsubTxs) unsubTxs();
+      if (unsubPro) unsubPro();
+      if (unsubClient) unsubClient();
     };
   }, []);
 
