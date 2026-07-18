@@ -15773,20 +15773,20 @@ const ListingDetail = ({
                       <div className="flex justify-between items-start">
                         <div className="flex gap-4">
                           <div className="w-12 h-12 rounded-full primary-gradient flex items-center justify-center text-white font-bold overflow-hidden">
-                            {r.clientPhotoUrl ? (
+                            {r.authorPhotoUrl || r.clientPhotoUrl ? (
                               <img
-                                src={r.clientPhotoUrl}
-                                alt={r.clientName}
+                                src={r.authorPhotoUrl || r.clientPhotoUrl}
+                                alt={r.authorName || r.clientName || "Usuario"}
                                 className="w-full h-full object-cover"
                                 referrerPolicy="no-referrer"
                               />
                             ) : (
-                              (r.clientName || "?").charAt(0)
+                              (r.authorName || r.clientName || "?").charAt(0)
                             )}
                           </div>
                           <div>
                             <p className="font-bold text-on-surface">
-                              {r.clientName || "Anónimo"}
+                              {r.authorName || r.clientName || "Anónimo"}
                             </p>
                             <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
                               {r.createdAt?.seconds
@@ -16564,20 +16564,20 @@ const ProfilePage = ({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 sm:gap-4">
                               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary flex items-center justify-center text-white font-black text-xs sm:text-base overflow-hidden">
-                                {review.authorPhotoUrl || review.clientPhotoUrl ? (
+                                {review.authorPhotoUrl ? (
                                   <img
-                                    src={review.authorPhotoUrl || review.clientPhotoUrl}
-                                    alt={review.authorName || review.clientName || "Usuario"}
+                                    src={review.authorPhotoUrl}
+                                    alt={review.authorName || "Usuario"}
                                     className="w-full h-full object-cover"
                                     referrerPolicy="no-referrer"
                                   />
                                 ) : (
-                                  (review.authorName || review.clientName || "?").charAt(0)
+                                  (review.authorName || "?").charAt(0)
                                 )}
                               </div>
                               <div>
                                 <div className="font-black text-on-surface text-sm sm:text-base">
-                                  {review.authorName || review.clientName || "Anónimo"}
+                                  {review.authorName || "Anónimo"}
                                 </div>
                                 <div className="text-[8px] sm:text-[10px] text-on-surface-variant/40 uppercase font-bold tracking-widest">
                                   {review.createdAt?.seconds

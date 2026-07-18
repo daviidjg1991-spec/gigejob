@@ -346,6 +346,10 @@ export interface Review {
   id: string;
   bookingId: string;
   authorId: string;
+  authorName?: string;
+  authorPhotoUrl?: string;
+  clientName?: string;
+  clientPhotoUrl?: string;
   targetId: string;
   rating: number;
   comment: string;
