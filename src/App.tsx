@@ -9736,13 +9736,17 @@ const SettingsModal = ({
                               <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
                                 {tx.date}
                               </p>
-                              {isCash ? (
+                              {!isIncome ? (
+                                <span className="text-[8px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                  *Pago como cliente*
+                                </span>
+                              ) : isCash ? (
                                 <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                  *Pago en mano*
+                                  *Cobro en mano*
                                 </span>
                               ) : (
                                 <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                  *Mediante web*
+                                  *Cobro mediante web*
                                 </span>
                               )}
                             </div>
@@ -17660,13 +17664,17 @@ const WalletManager = ({
                             <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
                               {formatTxDate(tx.date)}
                             </p>
-                            {isCash ? (
+                            {!isIncome ? (
+                              <span className="text-[8px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Pago como cliente*
+                              </span>
+                            ) : isCash ? (
                               <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                *Pago en mano*
+                                *Cobro en mano*
                               </span>
                             ) : (
                               <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                *Mediante web*
+                                *Cobro mediante web*
                               </span>
                             )}
                           </div>
@@ -17917,13 +17925,17 @@ const WalletManager = ({
                             <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
                               {formatTxDate(tx.date)}
                             </p>
-                            {isCash ? (
+                            {!isIncome ? (
+                              <span className="text-[8px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Pago como cliente*
+                              </span>
+                            ) : isCash ? (
                               <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                *Pago en mano*
+                                *Cobro en mano*
                               </span>
                             ) : (
                               <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                                *Mediante web*
+                                *Cobro mediante web*
                               </span>
                             )}
                           </div>
