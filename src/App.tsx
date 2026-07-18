@@ -17350,7 +17350,8 @@ const WalletManager = ({
           concept: b.listingTitle || "Servicio Prestado",
           date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
           status: "completed",
-          paymentMethod: b.paymentMethod || "platform"
+          paymentMethod: b.paymentMethod || "platform",
+          isBooking: true
         });
       });
       clientBookings.forEach(b => {
@@ -17362,7 +17363,8 @@ const WalletManager = ({
           concept: b.listingTitle || "Servicio Contratado",
           date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
           status: "completed",
-          paymentMethod: b.paymentMethod || "platform"
+          paymentMethod: b.paymentMethod || "platform",
+          isBooking: true
         });
       });
       
@@ -17371,9 +17373,12 @@ const WalletManager = ({
       
       let total = 0;
       combined.forEach(data => {
-        if (data.type === "income" || data.type === "in") total += Number(data.amount) || 0;
-        if (data.type === "payment" || data.type === "withdrawal" || data.type === "out")
-          total -= Math.abs(Number(data.amount) || 0);
+        const isCashBooking = data.isBooking && data.paymentMethod !== "stripe";
+        if (!isCashBooking) {
+          if (data.type === "income" || data.type === "in") total += Number(data.amount) || 0;
+          if (data.type === "payment" || data.type === "withdrawal" || data.type === "out")
+            total -= Math.abs(Number(data.amount) || 0);
+        }
       });
       setBalance(total);
     };
@@ -17602,7 +17607,7 @@ const WalletManager = ({
               ) : (
                 transactions.slice(0, 3).map((tx, i) => {
                   const isIncome = tx.type === "in" || tx.type === "income";
-                  const isCash = tx.paymentMethod === "cash";
+                  const isCash = tx.isBooking ? tx.paymentMethod !== "stripe" : tx.paymentMethod === "cash";
 
                   let iconBgColor = "";
                   let iconTextColor = "";
@@ -17859,7 +17864,7 @@ const WalletManager = ({
               {filteredTransactions.length > 0 ? (
                 filteredTransactions.map((tx, i) => {
                   const isIncome = tx.type === "in" || tx.type === "income";
-                  const isCash = tx.paymentMethod === "cash";
+                  const isCash = tx.isBooking ? tx.paymentMethod !== "stripe" : tx.paymentMethod === "cash";
 
                   let iconBgColor = "";
                   let iconTextColor = "";
