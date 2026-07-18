@@ -12796,12 +12796,10 @@ const ListingCard = ({
                     <ShieldCheck className="w-2.5 h-2.5 text-white stroke-[3px]" />
                   </div>
                 )}
-                {(listing.author?.rating || 0) > 0 && (
-                  <div className="flex items-center gap-1 ml-1 text-amber-500 font-bold text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded-md">
-                    <Star className="w-3 h-3 fill-amber-500" />
-                    {Number(listing.author.rating).toFixed(1)}
-                  </div>
-                )}
+                <div className="flex items-center gap-1 ml-1 text-amber-500 font-bold text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded-md">
+                  <Star className="w-3 h-3 fill-amber-500" />
+                  {Number(listing.author?.rating || 0).toFixed(1)}
+                </div>
               </div>
             </div>
           </div>
