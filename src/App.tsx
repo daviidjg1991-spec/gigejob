@@ -9085,7 +9085,8 @@ const SettingsModal = ({
           concept: b.listingTitle || "Servicio Prestado",
           date: dStr.split('T')[0],
           status: "completed",
-          paymentMethod: b.paymentMethod || "platform"
+          paymentMethod: b.paymentMethod || "platform",
+          isBooking: true
         });
       });
       clientBookings.forEach(b => {
@@ -9097,7 +9098,8 @@ const SettingsModal = ({
           concept: b.listingTitle || "Servicio Contratado",
           date: dStr.split('T')[0],
           status: "completed",
-          paymentMethod: b.paymentMethod || "platform"
+          paymentMethod: b.paymentMethod || "platform",
+          isBooking: true
         });
       });
 
@@ -9684,7 +9686,7 @@ const SettingsModal = ({
                 <div className="flex flex-col gap-2 overflow-y-auto no-scrollbar pb-8">
                   {transactions.map((tx) => {
                     const isIncome = tx.type === "in" || tx.type === "income";
-                    const isCash = tx.paymentMethod === "cash";
+                    const isCash = tx.isBooking ? tx.paymentMethod !== "stripe" : tx.paymentMethod === "cash";
 
                     let iconBgColor = "";
                     let iconTextColor = "";
