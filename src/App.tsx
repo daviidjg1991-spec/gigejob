@@ -12796,6 +12796,12 @@ const ListingCard = ({
                     <ShieldCheck className="w-2.5 h-2.5 text-white stroke-[3px]" />
                   </div>
                 )}
+                {(listing.author?.rating || 0) > 0 && (
+                  <div className="flex items-center gap-1 ml-1 text-amber-500 font-bold text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded-md">
+                    <Star className="w-3 h-3 fill-amber-500" />
+                    {Number(listing.author.rating).toFixed(1)}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -15464,6 +15470,10 @@ const ListingDetail = ({
                       {listing.location}
                     </span>
                   </div>
+                  <div className="flex items-center gap-1 text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-2 py-0.5 rounded-md">
+                    <Star className="w-3.5 h-3.5 fill-amber-500" />
+                    {realRating}
+                  </div>
                   <button
                     onClick={() => onToggleFavorite(listing.id)}
                     disabled={!user}
@@ -15745,7 +15755,7 @@ const ListingDetail = ({
             )}
 
             {/* Reviews */}
-            <div className="hidden lg:block space-y-8">
+            <div className="space-y-8">
               <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
                   Reseñas
