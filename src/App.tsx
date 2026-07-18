@@ -15369,7 +15369,9 @@ const ListingDetail = ({
       ? (
           reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
         ).toFixed(1)
-      : "0.0";
+      : (listing.author?.rating || 0) > 0
+        ? Number(listing.author?.rating).toFixed(1)
+        : "0.0";
 
   const isFavorite = favorites.includes(listing.id);
 
@@ -16045,7 +16047,9 @@ const ProfilePage = ({
       ? (
           reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
         ).toFixed(1)
-      : "0.0";
+      : (profileUser?.rating || 0) > 0
+        ? Number(profileUser?.rating).toFixed(1)
+        : "0.0";
 
   const handleProfilePhotoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -22953,6 +22957,28 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
         photoUrl,
         createdAt: serverTimestamp(),
       });
+
+      // Update user and listings ratings to prevent flickering
+      const qReviews = query(collection(db, "reviews"), where("targetId", "==", targetId));
+      const reviewsSnap = await getDocs(qReviews);
+      let totalRating = 0;
+      reviewsSnap.forEach(docSnap => {
+        totalRating += docSnap.data().rating || 0;
+      });
+      const newRating = totalRating / reviewsSnap.size;
+
+      await updateDoc(doc(db, "users", targetId), {
+        rating: newRating
+      });
+
+      const qListings = query(collection(db, "listings"), where("author.id", "==", targetId));
+      const listingsSnap = await getDocs(qListings);
+      for (const listingDoc of listingsSnap.docs) {
+        await updateDoc(doc(db, "listings", listingDoc.id), {
+          "author.rating": newRating
+        });
+      }
+
       onComplete();
     } catch (err) {
       console.error("Error submitting review:", err);
