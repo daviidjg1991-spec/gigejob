@@ -391,7 +391,8 @@ import {
   PRO_PLANS,
   isSearchMatch,
   Review,
-  DEFAULT_REVIEW_MODAL_CONFIG
+  DEFAULT_REVIEW_MODAL_CONFIG,
+  ENABLE_SEARCH_PROFESSIONALS
 } from "./types";
 
 export type DynamicAppConfig = {
@@ -5373,7 +5374,7 @@ const AdminPage = ({
   const [footerConfig, setFooterConfig] = useState<FooterConfig>(
     DEFAULT_FOOTER_CONFIG,
   );
-  const [servicesSubTab, setServicesSubTab] = useState<"list" | "requests">("list");
+  const [servicesSubTab, setServicesSubTab] = useState<"list" | "requests" | "search_professionals">("list");
   const [servicesTexts, setServicesTexts] = useState({
     requestText: "",
     professionalEditText: "",
@@ -6488,6 +6489,12 @@ const AdminPage = ({
                 Listado de Servicios
               </button>
               <button
+                onClick={() => setServicesSubTab("search_professionals")}
+                className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${servicesSubTab === "search_professionals" ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+              >
+                Buscador de Profesionales
+              </button>
+              <button
                 onClick={() => setServicesSubTab("requests")}
                 className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${servicesSubTab === "requests" ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
               >
@@ -6518,8 +6525,8 @@ const AdminPage = ({
               </thead>
               <tbody className="divide-y divide-surface-container">
                 {(filterStatus === "active"
-                  ? listings.filter((l) => l.status === "active" || !l.status)
-                  : listings.filter((l) => l.status !== "deleted")
+                  ? listings.filter((l) => (l.status === "active" || !l.status) && l.type !== "search")
+                  : listings.filter((l) => l.status !== "deleted" && l.type !== "search")
                 ).map((l, i) => (
                   <React.Fragment key={l.id}>
                     <tr
@@ -6716,6 +6723,74 @@ const AdminPage = ({
                         </td>
                       </tr>
                     )}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+            </div>
+              </>
+            )}
+
+            {servicesSubTab === "search_professionals" && (
+              <>
+                <h2 className="text-xl font-bold font-display tracking-tight mb-8">
+                  Buscador de Profesionales{" "}
+                  {filterStatus === "active" ? "(Activos)" : ""}
+                </h2>
+                <div className="w-full">
+            <table className="w-full text-left whitespace-normal">
+              <thead>
+                <tr className="bg-surface-container-low/50 text-[10px] lg:text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                  <th className="px-2 lg:px-4 py-3">Nº</th>
+                  <th className="px-2 lg:px-4 py-3 hidden sm:table-cell">ID Publicación</th>
+                  <th className="px-2 lg:px-4 py-3">Buscador</th>
+                  <th className="px-2 lg:px-4 py-3">Presupuesto/Precio</th>
+                  <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Fecha Publicación</th>
+                  <th className="px-2 lg:px-4 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-container">
+                {(filterStatus === "active"
+                  ? listings.filter((l) => (l.status === "active" || !l.status) && l.type === "search")
+                  : listings.filter((l) => l.status !== "deleted" && l.type === "search")
+                ).map((l, i) => (
+                  <React.Fragment key={l.id}>
+                    <tr
+                      className="hover:bg-surface-container-low cursor-pointer"
+                      onClick={() => setSelectedService(l)}
+                    >
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{i + 1}</td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold text-primary hidden sm:table-cell">
+                        {l.id}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold truncate max-w-[120px]">
+                        {l.author?.name || "Anónimo"}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{l.price ? `${l.price}€` : '-'}</td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
+                        {l.createdAt
+                          ? new Date(
+                              l.createdAt.seconds
+                                ? l.createdAt.seconds * 1000
+                                : l.createdAt,
+                            ).toLocaleDateString()
+                          : "N/A"}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full ${l.status === "active" || !l.status ? "bg-green-500" : l.status === "inactive" ? "bg-amber-500" : "bg-red-500"}`}
+                          ></span>
+                          <span className="text-[10px] lg:text-sm font-bold uppercase tracking-wider text-on-surface-variant">
+                            {l.status === "active" || !l.status
+                              ? "Activo"
+                              : l.status === "inactive"
+                                ? "Inactivo"
+                                : "Bloqueado"}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
                   </React.Fragment>
                 ))}
               </tbody>
@@ -7087,6 +7162,19 @@ const AdminPage = ({
                         <option value="invite">Solo invitación</option>
                         <option value="closed">Cerrado</option>
                       </select>
+                    </div>
+                  </div>
+                  <div className="mt-4 bg-white p-4 rounded-xl border flex justify-between items-center">
+                    <div>
+                      <span className="font-semibold text-sm block">
+                        Buscador de Profesionales
+                      </span>
+                      <span className="text-xs text-on-surface-variant">Permite a los usuarios publicar anuncios buscando profesionales.</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${ENABLE_SEARCH_PROFESSIONALS ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {ENABLE_SEARCH_PROFESSIONALS ? 'Habilitado' : 'Deshabilitado'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -20258,7 +20346,7 @@ const CreateListing = ({
                 {error}
               </motion.div>
             )}
-            <div className="grid grid-cols-2 gap-3 p-1.5 bg-surface-container-low rounded-2xl">
+            <div className={`grid ${ENABLE_SEARCH_PROFESSIONALS ? 'grid-cols-2' : 'grid-cols-1'} gap-3 p-1.5 bg-surface-container-low rounded-2xl`}>
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, type: "offer" })}
@@ -20271,18 +20359,20 @@ const CreateListing = ({
               >
                 Ofrezco Servicio
               </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, type: "search" })}
-                className={cn(
-                  "py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all",
-                  formData.type === "search"
-                    ? "bg-surface-container-lowest text-primary shadow-sm"
-                    : "text-on-surface-variant/40",
-                )}
-              >
-                Busco Profesional
-              </button>
+              {ENABLE_SEARCH_PROFESSIONALS && (
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, type: "search" })}
+                  className={cn(
+                    "py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all",
+                    formData.type === "search"
+                      ? "bg-surface-container-lowest text-primary shadow-sm"
+                      : "text-on-surface-variant/40",
+                  )}
+                >
+                  Busco Profesional
+                </button>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

@@ -1,6 +1,10 @@
 export type ListingType = 'offer' | 'search';
 export type UserRole = 'user' | 'professional';
 
+// ADMIN CONFIGURATIONS (Hardcoded)
+export const ENABLE_SEARCH_PROFESSIONALS = true;
+
+
 export const PRO_PLANS = [
   {
     id: 'basic',
