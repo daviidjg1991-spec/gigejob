@@ -5397,6 +5397,8 @@ const AdminPage = ({
     }
   };
 
+  const [adminSearchEnabled, setAdminSearchEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
+
   useEffect(() => {
     if (!isAdminAuthReady) return;
     getDoc(doc(db, "settings", "services")).then((snap) => {
@@ -5407,6 +5409,9 @@ const AdminPage = ({
           professionalEditText: data.professionalEditText || "",
           clientAcceptText: data.clientAcceptText || "",
         });
+        if (data.enableSearchProfessionals !== undefined) {
+          setAdminSearchEnabled(data.enableSearchProfessionals);
+        }
       }
     });
   }, [isAdminAuthReady]);
@@ -6733,10 +6738,29 @@ const AdminPage = ({
 
             {servicesSubTab === "search_professionals" && (
               <>
-                <h2 className="text-xl font-bold font-display tracking-tight mb-8">
-                  Buscador de Profesionales{" "}
-                  {filterStatus === "active" ? "(Activos)" : ""}
-                </h2>
+                <div className="flex justify-between items-center mb-8">
+                  <h2 className="text-xl font-bold font-display tracking-tight">
+                    Buscador de Profesionales{" "}
+                    {filterStatus === "active" ? "(Activos)" : ""}
+                  </h2>
+                  <button
+                    onClick={async () => {
+                      const newVal = !adminSearchEnabled;
+                      setAdminSearchEnabled(newVal);
+                      try {
+                        await setDoc(doc(db, "settings", "services"), { enableSearchProfessionals: newVal }, { merge: true });
+                        alert("Configuración actualizada. Recarga la página para aplicar los cambios.");
+                      } catch(e) {
+                        console.error(e);
+                        alert("Error al actualizar");
+                        setAdminSearchEnabled(!newVal);
+                      }
+                    }}
+                    className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-xl transition-colors shadow-sm ${adminSearchEnabled ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'}`}
+                  >
+                    {adminSearchEnabled ? "Deshabilitar Publicación" : "Habilitar Publicación"}
+                  </button>
+                </div>
                 <div className="w-full">
             <table className="w-full text-left whitespace-normal">
               <thead>
@@ -7172,8 +7196,8 @@ const AdminPage = ({
                       <span className="text-xs text-on-surface-variant">Permite a los usuarios publicar anuncios buscando profesionales.</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${ENABLE_SEARCH_PROFESSIONALS ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {ENABLE_SEARCH_PROFESSIONALS ? 'Habilitado' : 'Deshabilitado'}
+                      <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${adminSearchEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {adminSearchEnabled ? 'Habilitado' : 'Deshabilitado'}
                       </span>
                     </div>
                   </div>
@@ -20346,7 +20370,7 @@ const CreateListing = ({
                 {error}
               </motion.div>
             )}
-            <div className={`grid ${ENABLE_SEARCH_PROFESSIONALS ? 'grid-cols-2' : 'grid-cols-1'} gap-3 p-1.5 bg-surface-container-low rounded-2xl`}>
+            <div className={`grid ${isSearchProfessionalsEnabled ? 'grid-cols-2' : 'grid-cols-1'} gap-3 p-1.5 bg-surface-container-low rounded-2xl`}>
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, type: "offer" })}
@@ -20359,7 +20383,7 @@ const CreateListing = ({
               >
                 Ofrezco Servicio
               </button>
-              {ENABLE_SEARCH_PROFESSIONALS && (
+              {isSearchProfessionalsEnabled && (
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, type: "search" })}
@@ -23342,6 +23366,15 @@ function App() {
       );
     }
   }, [user]);
+
+  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
+  useEffect(() => {
+    getDoc(doc(db, "settings", "services")).then((snap) => {
+      if (snap.exists() && snap.data().enableSearchProfessionals !== undefined) {
+        setIsSearchProfessionalsEnabled(snap.data().enableSearchProfessionals);
+      }
+    });
+  }, []);
 
   const [settingsModal, setSettingsModal] = useState<{
     isOpen: boolean;
