@@ -19988,6 +19988,16 @@ const CreateListing = ({
   const [isImageSourceModalOpen, setIsImageSourceModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
+  useEffect(() => {
+    getDoc(doc(db, "settings", "services")).then((snap) => {
+      if (snap.exists() && snap.data().enableSearchProfessionals !== undefined) {
+        setIsSearchProfessionalsEnabled(snap.data().enableSearchProfessionals);
+      }
+    });
+  }, []);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -23366,15 +23376,6 @@ function App() {
       );
     }
   }, [user]);
-
-  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
-  useEffect(() => {
-    getDoc(doc(db, "settings", "services")).then((snap) => {
-      if (snap.exists() && snap.data().enableSearchProfessionals !== undefined) {
-        setIsSearchProfessionalsEnabled(snap.data().enableSearchProfessionals);
-      }
-    });
-  }, []);
 
   const [settingsModal, setSettingsModal] = useState<{
     isOpen: boolean;
