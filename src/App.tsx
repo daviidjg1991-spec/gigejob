@@ -2979,10 +2979,12 @@ const AdminServiceDetailModal = ({
   serviceBookings?: any[];
 }) => {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
 
   useEffect(() => {
     if (!isOpen) {
       setSelectedDay(null);
+      setActiveTab('details');
     }
   }, [isOpen]);
 
@@ -2990,7 +2992,11 @@ const AdminServiceDetailModal = ({
 
   // Calcular el total real basado en las reservas 'completadas'. Asumimos totalAmount o totalCost de los bookings.
   // O si no simplemente la suma de los importes de los bookings de este anuncio.
-  const realTotalBilled = (serviceBookings || []).reduce(
+  const acceptedBookings = (serviceBookings || []).filter(
+    (b) => b.status === "accepted" || b.status === "completed"
+  );
+  
+  const realTotalBilled = acceptedBookings.reduce(
     (sum, b) => sum + (Number(b.totalAmount || b.totalCost || b.price) || 0),
     0,
   );
@@ -3012,7 +3018,24 @@ const AdminServiceDetailModal = ({
             <X className="w-6 h-6" />
           </button>
         </div>
-        <div className="space-y-6">
+
+        <div className="flex gap-4 mb-6 border-b pb-2">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`pb-2 transition-colors ${activeTab === 'details' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Detalles
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`pb-2 transition-colors ${activeTab === 'history' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Historial
+          </button>
+        </div>
+
+        {activeTab === 'details' ? (
+          <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <h4 className="font-bold text-sm text-gray-500">Título:</h4>
@@ -3134,6 +3157,113 @@ const AdminServiceDetailModal = ({
             </div>
           </div>
         </div>
+        ) : (
+          <div className="space-y-8">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-surface-container-low p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 mb-1">
+                  Total Solicitudes
+                </h4>
+                <p className="text-3xl font-bold text-primary">
+                  {(serviceBookings || []).length}
+                </p>
+              </div>
+              <div className="bg-surface-container-low p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 mb-1">
+                  Reservas Aceptadas
+                </h4>
+                <p className="text-3xl font-bold text-green-600">
+                  {acceptedBookings.length}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-sm text-gray-700 mb-4">
+                Historial de Reservas y Solicitudes
+              </h4>
+              {(serviceBookings || []).length > 0 ? (
+                <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2">
+                  {(serviceBookings || [])
+                    .sort((a, b) => {
+                      const dateA = a.date
+                        ? new Date(a.date).getTime()
+                        : a.createdAt?.seconds
+                          ? a.createdAt.seconds * 1000
+                          : 0;
+                      const dateB = b.date
+                        ? new Date(b.date).getTime()
+                        : b.createdAt?.seconds
+                          ? b.createdAt.seconds * 1000
+                          : 0;
+                      return dateB - dateA;
+                    })
+                    .map((b, idx) => {
+                      let statusColor = "text-on-surface-variant";
+                      let borderColor = "border-outline-variant/10";
+                      let bgColor = "bg-surface-container-lowest";
+
+                      if (b.status === "accepted" || b.status === "completed") {
+                        statusColor = "text-green-600";
+                        borderColor = "border-green-500/30";
+                        bgColor = "bg-green-50/50";
+                      } else if (b.status === "pending" || b.status === "budget_pending") {
+                        statusColor = "text-yellow-600";
+                        borderColor = "border-yellow-500/30";
+                        bgColor = "bg-yellow-50/50";
+                      } else if (b.status === "cancelled" || b.status === "rejected" || b.status === "expired") {
+                        statusColor = "text-red-600";
+                        borderColor = "border-red-500/30";
+                        bgColor = "bg-red-50/50";
+                      }
+
+                      return (
+                      <div
+                        key={b.id || idx}
+                        className={`flex justify-between items-center p-4 rounded-xl border ${borderColor} ${bgColor}`}
+                      >
+                        <div>
+                          <p className="font-bold text-sm text-on-surface">
+                            {b.date
+                              ? new Date(b.date).toLocaleDateString()
+                              : "Sin fecha"}{" "}
+                            {b.time && (
+                              <span className="text-on-surface-variant font-normal">
+                                - {b.time}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-on-surface-variant mt-1">
+                            Cliente ID:{" "}
+                            <span className="font-mono text-[10px]">
+                              {b.clientId}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-primary text-base">
+                            {Number(
+                              b.totalAmount || b.totalCost || b.price || 0,
+                            ).toFixed(2)}
+                            €
+                          </p>
+                          <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${statusColor}`}>
+                            {b.status}
+                          </p>
+                        </div>
+                      </div>
+                    )})}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-surface-container-lowest rounded-2xl border border-outline-variant/10">
+                  <p className="text-sm text-on-surface-variant italic">
+                    No hay reservas ni solicitudes para este anuncio.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -6532,7 +6662,12 @@ const AdminPage = ({
                 {(filterStatus === "active"
                   ? listings.filter((l) => (l.status === "active" || !l.status) && l.type !== "search")
                   : listings.filter((l) => l.status !== "deleted" && l.type !== "search")
-                ).map((l, i) => (
+                ).map((l, i) => {
+                  const listingTotalBilled = bookings
+                    .filter((b: any) => b.listingId === l.id && (b.status === "accepted" || b.status === "completed"))
+                    .reduce((sum: number, b: any) => sum + (Number(b.totalAmount || b.totalCost || b.price) || 0), 0);
+                  
+                  return (
                   <React.Fragment key={l.id}>
                     <tr
                       className="hover:bg-surface-container-low cursor-pointer"
@@ -6547,7 +6682,7 @@ const AdminPage = ({
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{l.price}€</td>
                       <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm hidden md:table-cell">
-                        {l.price * (l.bookingsCount || 0) || 0}€
+                        {listingTotalBilled}€
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden lg:table-cell">
                         {l.lastBooked
@@ -6640,6 +6775,7 @@ const AdminPage = ({
                                   <th className="px-4 py-3">Tiempo/Horas</th>
                                   <th className="px-4 py-3">Total</th>
                                   <th className="px-4 py-3">Estado Pago</th>
+                                  <th className="px-4 py-3">Estado Reserva</th>
                                   <th className="px-4 py-3">Fecha</th>
                                   <th className="px-4 py-3">Hora</th>
                                   <th className="px-4 py-3">Ubicación</th>
@@ -6650,11 +6786,21 @@ const AdminPage = ({
                                   .length > 0 ? (
                                   bookings
                                     .filter((b) => b.listingId === l.id)
-                                    .map((b) => (
-                                      <tr
-                                        key={b.id}
-                                        className="hover:bg-surface-container-low/50"
-                                      >
+                                    .map((b) => {
+                                      let statusColorClass = "hover:bg-surface-container-low/50";
+                                      if (b.status === "accepted" || b.status === "completed") {
+                                        statusColorClass = "bg-green-50/70 hover:bg-green-100/70 text-green-900";
+                                      } else if (b.status === "pending" || b.status === "budget_pending") {
+                                        statusColorClass = "bg-yellow-50/70 hover:bg-yellow-100/70 text-yellow-900";
+                                      } else if (b.status === "cancelled" || b.status === "rejected" || b.status === "expired") {
+                                        statusColorClass = "bg-red-50/70 hover:bg-red-100/70 text-red-900";
+                                      }
+
+                                      return (
+                                        <tr
+                                          key={b.id}
+                                          className={statusColorClass}
+                                        >
                                         <td className="px-4 py-3 align-top min-w-[120px]">
                                           <div className="font-bold truncate max-w-[120px] lg:max-w-[150px]">
                                             {b.client?.name ||
@@ -6683,6 +6829,9 @@ const AdminPage = ({
                                         <td className="px-4 py-3 capitalize align-top">
                                           {b.paymentStatus || "Pendiente"}
                                         </td>
+                                        <td className="px-4 py-3 capitalize align-top font-bold">
+                                          {b.status || "Pendiente"}
+                                        </td>
                                         <td className="px-4 py-3 align-top">
                                           {b.createdAt
                                             ? new Date(
@@ -6710,8 +6859,9 @@ const AdminPage = ({
                                             {b.location || l.address || "N/A"}
                                           </div>
                                         </td>
-                                      </tr>
-                                    ))
+                                        </tr>
+                                      );
+                                    })
                                 ) : (
                                   <tr>
                                     <td
@@ -6729,7 +6879,8 @@ const AdminPage = ({
                       </tr>
                     )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             </div>
