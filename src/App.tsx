@@ -19973,12 +19973,14 @@ const CreateListing = ({
   onAdd,
   listings = [],
   onOpenSettings,
+  isSearchProfessionalsEnabled = true,
 }: {
   user: any;
   setUser: (u: any) => void;
   onAdd: (l: JobListing) => void;
   listings?: any[];
   onOpenSettings?: (type: string) => void;
+  isSearchProfessionalsEnabled?: boolean;
 }) => {
   const { plans } = useProPlansConfig();
   const navigate = useNavigate();
@@ -19988,15 +19990,6 @@ const CreateListing = ({
   const [isImageSourceModalOpen, setIsImageSourceModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
-  useEffect(() => {
-    getDoc(doc(db, "settings", "services")).then((snap) => {
-      if (snap.exists() && snap.data().enableSearchProfessionals !== undefined) {
-        setIsSearchProfessionalsEnabled(snap.data().enableSearchProfessionals);
-      }
-    });
-  }, []);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -23377,6 +23370,15 @@ function App() {
     }
   }, [user]);
 
+  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
+  useEffect(() => {
+    getDoc(doc(db, "settings", "services")).then((snap) => {
+      if (snap.exists() && snap.data().enableSearchProfessionals !== undefined) {
+        setIsSearchProfessionalsEnabled(snap.data().enableSearchProfessionals);
+      }
+    });
+  }, []);
+
   const [settingsModal, setSettingsModal] = useState<{
     isOpen: boolean;
     type: string;
@@ -24406,7 +24408,8 @@ function App() {
               (l) =>
                 l &&
                 (!l.status || l.status === "active") &&
-                (!l.expiresAt || new Date(l.expiresAt) > new Date()),
+                (!l.expiresAt || new Date(l.expiresAt) > new Date()) &&
+                (isSearchProfessionalsEnabled ? true : l.type !== "search"),
             );
             return (
               <Routes>
@@ -24641,6 +24644,7 @@ function App() {
                       onOpenSettings={(type) =>
                         setSettingsModal({ isOpen: true, type })
                       }
+                      isSearchProfessionalsEnabled={isSearchProfessionalsEnabled}
                     />
                   }
                 />
