@@ -14,5 +14,8 @@ export default defineConfig(({ mode }) => {
         '@': process.cwd(),
       },
     },
+    build: {
+      target: 'esnext'
+    }
   };
 });
