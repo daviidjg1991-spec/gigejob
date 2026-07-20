@@ -15520,6 +15520,30 @@ const ListingDetail = ({
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const listing = listings.find((l) => l && l.id === id);
 
+  const checkPersonalDataComplete = (u: UserProfile | null) => {
+    if (!u) return false;
+    return !!(
+      u.firstName?.trim() &&
+      u.lastName1?.trim() &&
+      u.documentId?.trim() &&
+      u.phoneNumber?.trim() &&
+      u.address?.streetName?.trim() &&
+      u.address?.number?.trim() &&
+      u.address?.postalCode?.trim() &&
+      u.address?.locality?.trim() &&
+      u.address?.province?.trim()
+    );
+  };
+
+  const handleConcretarCita = () => {
+    if (!user) return;
+    if (!checkPersonalDataComplete(user)) {
+      alert("Para concretar una cita, debes rellenar todos tus datos personales obligatorios en tu perfil.");
+      return;
+    }
+    setIsRequestModalOpen(true);
+  };
+
   const [reviews, setReviews] = useState<any[]>([]);
   const [completedJobsCount, setCompletedJobsCount] = useState(0);
   const [repeatRate, setRepeatRate] = useState(0);
@@ -15718,7 +15742,7 @@ const ListingDetail = ({
                   </div>
                   <div className="w-1/3 text-right">
                     <button
-                      onClick={() => setIsRequestModalOpen(true)}
+                      onClick={handleConcretarCita}
                       disabled={!user}
                       className={cn(
                         "text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-lg shadow-sm transition-all w-full",
@@ -16133,7 +16157,7 @@ const ListingDetail = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setIsRequestModalOpen(true);
+                        handleConcretarCita();
                       }}
                       disabled={!user}
                       className={cn(

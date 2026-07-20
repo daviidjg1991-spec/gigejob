@@ -9,6 +9,10 @@ service cloud.firestore {
 
     // --- Helper Functions ---
     function isSignedIn() {
+      return request.auth != null && (request.auth.token.email_verified == true || request.auth.token.email == 'daviidjg1991@gmail.com');
+    }
+    
+    function isAuthOnly() {
       return request.auth != null;
     }
 
@@ -36,7 +40,8 @@ service cloud.firestore {
     // User profiles: Publicly readable for authenticated users, writable only by owner or admin
     match /users/{userId} {
       allow get, list: if true;
-      allow create, update: if isOwner(userId) || isAdmin();
+      allow create: if (isAuthOnly() && request.auth.uid == userId) || isAdmin();
+      allow update: if isOwner(userId) || isAdmin();
       
       match /private/{document=**} {
         allow read, write: if isOwner(userId) || isAdmin();

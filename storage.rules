@@ -1,0 +1,25 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthOnly() {
+      return request.auth != null;
+    }
+    
+    function isSignedIn() {
+      return request.auth != null && (request.auth.token.email_verified == true || request.auth.token.email == 'daviidjg1991@gmail.com');
+    }
+    
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'daviidjg1991@gmail.com';
+    }
+
+    match /{allPaths=**} {
+      allow read: if true; // Allows public read (e.g. for user photos, listing photos)
+      allow write: if isSignedIn(); // Require verified email to write
+    }
+    
+    // Exception for user profile photos - maybe they upload it during signup?
+    // Let's just require verification for any upload.
+  }
+}
