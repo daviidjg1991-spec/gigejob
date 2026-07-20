@@ -448,7 +448,7 @@ export const AppConfigProvider = ({ children }: { children: React.ReactNode }) =
   };
 
   useEffect(() => {
-    document.title = config.appTitle || `${config.logoText1}${config.logoText2} | Marketplace`;
+    document.title = config.appTitle || `${config.logoText1}${config.logoText2}.com - Encuentra profesionales cerca de ti`;
     let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
     if (!link) {
       link = document.createElement('link');

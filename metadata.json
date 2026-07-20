@@ -1,5 +1,5 @@
 {
-  "name": "Remix: JobPop",
+  "name": "GigeJob.com",
   "description": "Una plataforma estilo marketplace para ofrecer servicios profesionales y encontrar trabajadores, desde limpieza hasta montaje de muebles.",
   "requestFramePermissions": [
     "geolocation"
