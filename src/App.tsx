@@ -261,6 +261,7 @@ import {
   EmailAuthProvider,
   updatePassword,
   sendEmailVerification,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -21160,6 +21161,14 @@ const AuthPage = ({
     type: "terms" | "privacy" | "data" | null;
   }>({ isOpen: false, type: null });
 
+  const [resetPasswordModal, setResetPasswordModal] = useState({
+    isOpen: false,
+    email: "",
+    message: "",
+    error: "",
+    isLoading: false,
+  });
+
   useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
@@ -21633,6 +21642,33 @@ const AuthPage = ({
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPasswordModal.email) {
+      setResetPasswordModal((prev) => ({
+        ...prev,
+        error: "Por favor, introduce tu correo electrónico.",
+        message: "",
+      }));
+      return;
+    }
+    setResetPasswordModal((prev) => ({ ...prev, isLoading: true, error: "", message: "" }));
+    try {
+      await sendPasswordResetEmail(auth, resetPasswordModal.email);
+      setResetPasswordModal((prev) => ({
+        ...prev,
+        isLoading: false,
+        message: "Se ha enviado un correo con las instrucciones para restablecer tu contraseña.",
+      }));
+    } catch (error: any) {
+      setResetPasswordModal((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: getLocalizedFirebaseError(error),
+      }));
+    }
+  };
+
   const autoFillBilling = () => {
     setProfessionalData((prev) => ({
       ...prev,
@@ -21727,6 +21763,71 @@ const AuthPage = ({
         type={legalModal.type}
         onClose={() => setLegalModal({ isOpen: false, type: null })}
       />
+      <AnimatePresence>
+        {resetPasswordModal.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface-container-lowest rounded-[2rem] p-6 w-full max-w-sm shadow-2xl relative"
+            >
+              <button
+                onClick={() => setResetPasswordModal({ isOpen: false, email: "", message: "", error: "", isLoading: false })}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="mb-6">
+                <h3 className="font-display font-black text-on-surface text-xl mb-2">
+                  Restablece tu contraseña
+                </h3>
+                <p className="text-sm text-on-surface-variant">
+                  Introduce la dirección de email vinculada a tu cuenta
+                </p>
+              </div>
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                {resetPasswordModal.error && (
+                  <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <p>{resetPasswordModal.error}</p>
+                  </div>
+                )}
+                {resetPasswordModal.message && (
+                  <div className="p-3 bg-green-50 text-green-600 rounded-xl text-xs font-bold flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    <p>{resetPasswordModal.message}</p>
+                  </div>
+                )}
+                <div>
+                  <input
+                    required
+                    type="email"
+                    className="w-full px-4 py-3 bg-surface-container-low rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold text-sm"
+                    placeholder="ejemplo@correo.com"
+                    value={resetPasswordModal.email}
+                    onChange={(e) =>
+                      setResetPasswordModal({ ...resetPasswordModal, email: e.target.value })
+                    }
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetPasswordModal.isLoading || !!resetPasswordModal.message}
+                  className="w-full py-3 primary-gradient text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resetPasswordModal.isLoading ? "Enviando..." : "Restablecer contraseña"}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="min-h-screen bg-surface-container-lowest flex items-center justify-center p-4 py-20">
         <motion.div
           key={mode}
@@ -21806,6 +21907,15 @@ const AuthPage = ({
                       setAuthData({ ...authData, password: e.target.value })
                     }
                   />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setResetPasswordModal({ isOpen: true, email: authData.email, message: "", error: "", isLoading: false })}
+                      className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
+                    >
+                      ¿Has olvidado tu contraseña?
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="submit"
