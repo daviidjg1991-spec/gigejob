@@ -21800,7 +21800,7 @@ const AuthPage = ({
                 )}
                 {resetPasswordModal.message && (
                   <div className="p-3 bg-green-50 text-green-600 rounded-xl text-xs font-bold flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                     <p>{resetPasswordModal.message}</p>
                   </div>
                 )}
