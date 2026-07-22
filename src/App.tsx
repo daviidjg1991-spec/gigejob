@@ -20400,12 +20400,20 @@ const CreateListing = ({
             Necesitas estar identificado para publicar anuncios y conectar con
             la comunidad.
           </p>
-          <button
-            onClick={() => navigate("/perfil")}
-            className="w-full py-5 primary-gradient text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:scale-105 transition-all"
-          >
-            Ir a mi perfil
-          </button>
+          <div className="flex flex-col gap-3 w-full">
+            <button
+              onClick={() => navigate("/login", { state: { redirectTo: "/publicar" } })}
+              className="w-full py-4 primary-gradient text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:scale-105 transition-all"
+            >
+              Iniciar sesión
+            </button>
+            <button
+              onClick={() => navigate("/registro", { state: { redirectTo: "/publicar", isProfessional: true } })}
+              className="w-full py-4 bg-surface-container border-2 border-primary text-primary rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/5 transition-all"
+            >
+              Crear cuenta profesional
+            </button>
+          </div>
         </motion.div>
       </div>
     );
@@ -21190,7 +21198,7 @@ const AuthPage = ({
     lastName2: "",
     documentId: "",
     phoneNumber: "",
-    role: "" as UserRole | "",
+    role: (location.state as any)?.isProfessional ? "professional" : ("" as UserRole | ""),
     address: {
       streetType: "Calle",
       streetName: "",
@@ -21457,7 +21465,7 @@ const AuthPage = ({
 
       sessionStorage.setItem("is_first_login_session", "true");
       setUser(finalUser);
-      navigate("/");
+      navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
       console.error("Firebase: Registration error:", error);
       if (auth.currentUser && auth.currentUser.email === authData.email) {
@@ -21532,7 +21540,7 @@ const AuthPage = ({
       }
 
       setUser(finalUserData);
-      navigate("/");
+      navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
       console.error("Firebase: Login error:", error);
       setErrors({ login: getLocalizedFirebaseError(error) });
@@ -21627,7 +21635,7 @@ const AuthPage = ({
       }
 
       setUser(finalUserData);
-      navigate("/");
+      navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
       if (
         error.code === "auth/popup-closed-by-user" ||
