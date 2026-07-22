@@ -259,13 +259,28 @@ async function startServer() {
     app.use(vite.middlewares);
 
     // Fallback for SPA routing in development
+    
+const validPrefixes = [
+  '/pagina/', '/blog', '/explorar', '/admin', '/login', '/registro',
+  '/mensajes', '/mis-anuncios', '/favoritos', '/estadisticas', '/monederos',
+  '/configuracion/', '/anuncio/', '/publicar', '/perfil'
+];
+
+function isKnownRoute(url: string): boolean {
+  if (url === '/' || url.startsWith('/?')) return true;
+  const path = url.split('?')[0];
+  if (path === '/configuracion') return true;
+  return validPrefixes.some(prefix => path === prefix || path.startsWith(prefix + '/'));
+}
+
     app.use('*', async (req, res, next) => {
       try {
         const url = req.originalUrl;
         const fs = await import('fs');
         let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
         template = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+        const status = isKnownRoute(url) ? 200 : 404;
+        res.status(status).set({ 'Content-Type': 'text/html' }).end(template);
       } catch (e) {
         vite.ssrFixStacktrace(e as Error);
         next(e);
@@ -275,7 +290,8 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const status = isKnownRoute(req.originalUrl) ? 200 : 404;
+      res.status(status).sendFile(path.join(distPath, 'index.html'));
     });
   }
 

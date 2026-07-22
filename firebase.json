@@ -8,10 +8,79 @@
     ],
     "rewrites": [
       {
-        "source": "**",
+        "source": "/",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/pagina/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/blog",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/blog/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/explorar",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/admin",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/login",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/registro",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/mensajes",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/mis-anuncios",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/favoritos",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/estadisticas",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/monederos",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/configuracion/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/anuncio/**",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/publicar",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/perfil",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/perfil/**",
         "destination": "/index.html"
       }
-    ]
+    ],
+    "cleanUrls": true
   },
   "firestore": {
     "rules": "firestore.rules",
