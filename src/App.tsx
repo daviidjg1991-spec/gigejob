@@ -2613,7 +2613,7 @@ const AdminUserEditModal = ({
                                 <span className="font-bold text-sm text-on-surface">
                                   Chat ID {chat.id.slice(0, 8)}...
                                 </span>
-                                {chat.isJobpopDirect ? (
+                                {chat.isGigeJobDirect ? (
                                   <span className="px-2 py-0.5 bg-primary/10 text-primary text-[9px] uppercase font-black tracking-widest rounded-md">
                                     General
                                   </span>
@@ -5242,8 +5242,8 @@ const AdminLogosConfig = () => {
 };
 
 const AdminEmailConfig = () => {
-  const [emailSubject, setEmailSubject] = useState("Verifica tu correo en JobPop");
-  const [emailBody, setEmailBody] = useState("Hola,\n\nGracias por registrarte en JobPop. Por favor, verifica tu correo haciendo clic en el enlace a continuación:\n\n[Enlace de verificación]\n\nSi no creaste esta cuenta, puedes ignorar este mensaje.");
+  const [emailSubject, setEmailSubject] = useState("Verifica tu correo en GigeJob");
+  const [emailBody, setEmailBody] = useState("Hola,\n\nGracias por registrarte en GigeJob. Por favor, verifica tu correo haciendo clic en el enlace a continuación:\n\n[Enlace de verificación]\n\nSi no creaste esta cuenta, puedes ignorar este mensaje.");
   
   const handleSave = () => {
     alert("Para aplicar estos cambios en producción, por favor solicita a la IA que actualice el código fuente, ya que las configuraciones globales no usan base de datos (según las reglas del proyecto).");
@@ -5264,7 +5264,7 @@ const AdminEmailConfig = () => {
         <AlertTriangle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
         <div className="text-sm text-on-surface">
           <p className="font-bold mb-1">Evitar la carpeta de SPAM</p>
-          <p>Para asegurar que los correos no lleguen a SPAM, debes configurar los registros <strong>SPF, DKIM y DMARC</strong> en tu proveedor de dominio (Godaddy, Cloudflare, etc.) para el dominio de JobPop. El formato del correo por defecto de Firebase solo permite ciertas modificaciones para evitar el SPAM.</p>
+          <p>Para asegurar que los correos no lleguen a SPAM, debes configurar los registros <strong>SPF, DKIM y DMARC</strong> en tu proveedor de dominio (Godaddy, Cloudflare, etc.) para el dominio de GigeJob. El formato del correo por defecto de Firebase solo permite ciertas modificaciones para evitar el SPAM.</p>
         </div>
       </div>
 
@@ -5386,7 +5386,7 @@ const AdminReviewConfig = () => {
   
   const testUser = {
     id: "admin-test",
-    email: "admin@jobpop.com",
+    email: "admin@gigejob.com",
     username: "Admin",
     firstName: "Administrador",
     lastName1: "Prueba",
@@ -8753,7 +8753,7 @@ const AdminPage = ({
                           ...currentBlogPost,
                           id: newRef.id,
                           authorId: user?.id || "admin",
-                          authorName: user?.username || "Admin JobPop",
+                          authorName: user?.username || "Admin GigeJob",
                           createdAt: Date.now(),
                           published: currentBlogPost.published || false,
                         });
@@ -10221,7 +10221,7 @@ const SettingsModal = ({
                             </div>
                           </div>
                           <p className="text-[10px] text-on-surface-variant/20 font-medium mt-6 text-center w-full italic">
-                            Gracias por confiar en JobPop
+                            Gracias por confiar en GigeJob
                           </p>
                         </div>
                       </div>
@@ -21844,7 +21844,7 @@ const AuthPage = ({
               )}
             </div>
             <h1 className="text-3xl font-display font-black text-on-surface tracking-tight mb-2">
-              {mode === "login" ? "Bienvenido a JobPop" : "Registro de Usuario"}
+              {mode === "login" ? "Bienvenido a GigeJob" : "Registro de Usuario"}
             </h1>
             {mode === "register" && (
               <div className="flex justify-center gap-2 mt-6">
@@ -23628,7 +23628,7 @@ function App() {
 
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
-      const saved = localStorage.getItem("jobpop_user");
+      const saved = localStorage.getItem("GigeJob_user");
       if (!saved) return null;
       const parsed = JSON.parse(saved);
       if (
@@ -23640,11 +23640,11 @@ function App() {
         return parsed;
       }
       // If data is invalid, clear it to prevent further crashes
-      localStorage.removeItem("jobpop_user");
+      localStorage.removeItem("GigeJob_user");
       return null;
     } catch (e) {
       console.error("Error loading user from localStorage:", e);
-      localStorage.removeItem("jobpop_user");
+      localStorage.removeItem("GigeJob_user");
       return null;
     }
   });
@@ -23822,7 +23822,7 @@ function App() {
 
   const [listings, setListings] = useState<JobListing[]>(() => {
     try {
-      const saved = localStorage.getItem("jobpop_listings");
+      const saved = localStorage.getItem("GigeJob_listings");
       if (saved === null) return INITIAL_LISTINGS;
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
@@ -23861,7 +23861,7 @@ function App() {
 
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("jobpop_favorites");
+      const saved = localStorage.getItem("GigeJob_favorites");
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
@@ -24225,17 +24225,17 @@ function App() {
   }, [activeToast]);
 
   useEffect(() => {
-    localStorage.setItem("jobpop_listings", JSON.stringify(listings));
+    localStorage.setItem("GigeJob_listings", JSON.stringify(listings));
     console.log("Current listings count:", listings.length);
   }, [listings]);
 
   useEffect(() => {
-    localStorage.setItem("jobpop_favorites", JSON.stringify(favorites));
+    localStorage.setItem("GigeJob_favorites", JSON.stringify(favorites));
   }, [favorites]);
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem("jobpop_user", JSON.stringify(user));
+      localStorage.setItem("GigeJob_user", JSON.stringify(user));
 
       // Sync user data with their listings
       setListings((prev) => {
@@ -24283,7 +24283,7 @@ function App() {
         });
       });
     } else {
-      localStorage.removeItem("jobpop_user");
+      localStorage.removeItem("GigeJob_user");
     }
   }, [user]);
 
@@ -24365,8 +24365,8 @@ function App() {
     if (type === "message") {
       socketRef.current?.emit("send_message", {
         to: user?.email,
-        from: "system@jobpop.com",
-        senderName: "Sistema JobPop",
+        from: "system@gigejob.com",
+        senderName: "Sistema GigeJob",
         text: "¡Bienvenido! Tu cuenta ha sido configurada correctamente.",
       });
     } else {
@@ -25059,7 +25059,7 @@ function App() {
                 <div className="flex items-center gap-2">
                   <Briefcase className="w-8 h-8 text-primary" />
                   <span className="text-2xl font-bold tracking-tight text-primary">
-                    JobPop
+                    GigeJob
                   </span>
                 </div>
                 <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">

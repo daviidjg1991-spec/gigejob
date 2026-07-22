@@ -305,7 +305,7 @@ export function isSearchMatch(search: string, listing: { title?: string, descrip
 export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
   columns: [
     {
-      title: 'JobPop',
+      title: 'GigeJob',
       links: [
         { label: 'Quiénes somos', url: '#page-quienes-somos' },
         { label: 'Cómo funciona', url: '#page-como-funciona' },
@@ -313,7 +313,7 @@ export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
         { label: 'Prensa', url: '#page-prensa' },
         { label: 'Empleo', url: '#page-empleo' },
         { label: 'Sostenibilidad', url: '#page-sostenibilidad' },
-        { label: 'JobPop envíos', url: '#page-envios' },
+        { label: 'GigeJob envíos', url: '#page-envios' },
         { label: 'Blog', url: '/blog' }
       ]
     },
@@ -335,14 +335,14 @@ export const DEFAULT_FOOTER_CONFIG: FooterConfig = {
       ]
     },
     {
-      title: 'JobPop PRO',
+      title: 'GigeJob PRO',
       links: [
         { label: 'Multicategoría', url: '#page-pro-multicategoria' },
         { label: 'Coches', url: '#page-pro-coches' }
       ]
     }
   ],
-  copyrightText: '© 2013-2026 JobPop. Todos los derechos reservados',
+  copyrightText: '© 2013-2026 GigeJob. Todos los derechos reservados',
   pages: {}
 };
 
