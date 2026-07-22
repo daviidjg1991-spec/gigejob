@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /mensajes
+Disallow: /mis-anuncios
+Disallow: /monederos
+Disallow: /perfil
+
+Sitemap: https://gigejob.com/sitemap.xml
