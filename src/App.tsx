@@ -413,7 +413,7 @@ export const defaultDynamicAppConfig: DynamicAppConfig = {
   logoText2: "Job",
   faviconUrl: "/favicon.png",
   appTitle: "GigeJob: Encuentra profesiones",
-  logoImageUrl: "/logo.jpeg",
+  logoImageUrl: "/logo.png",
   homeTitle1: "Encuentra profesionales",
   homeTitle2: "cerca de ti",
   homeSubtitle: "La forma más sencilla de conectar con expertos locales.",
@@ -12576,7 +12576,7 @@ const Navbar = ({
             {/* Desktop/Tablet Logo */}
             <div className="hidden lg:flex items-center gap-8">
               <Link to="/" className="flex items-center gap-3">
-                <img src="/logo.jpeg" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
               </Link>
             </div>
 
@@ -25055,7 +25055,7 @@ function App() {
             <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
               <div className="flex flex-col gap-4 md:w-1/4">
                 <Link to="/" className="flex items-center gap-3">
-                  <img src="/logo.jpeg" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                  <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
                 </Link>
                 <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">
                   {footerConfig.copyrightText}
