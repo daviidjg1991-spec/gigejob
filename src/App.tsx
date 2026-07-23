@@ -12577,6 +12577,9 @@ const Navbar = ({
             <div className="hidden lg:flex items-center gap-8">
               <Link to="/" className="flex items-center gap-3">
                 <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
+                  {config.logoText1}<span className="text-primary">{config.logoText2}</span>
+                </span>
               </Link>
             </div>
 
@@ -25056,6 +25059,9 @@ function App() {
               <div className="flex flex-col gap-4 md:w-1/4">
                 <Link to="/" className="flex items-center gap-3">
                   <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                  <span className="text-2xl font-bold tracking-tight text-primary">
+                    {config.logoText1}{config.logoText2}
+                  </span>
                 </Link>
                 <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">
                   {footerConfig.copyrightText}
