@@ -413,7 +413,7 @@ export const defaultDynamicAppConfig: DynamicAppConfig = {
   logoText2: "Job",
   faviconUrl: "/favicon.png",
   appTitle: "GigeJob: Encuentra profesiones",
-  logoImageUrl: "",
+  logoImageUrl: "/logo.jpeg",
   homeTitle1: "Encuentra profesionales",
   homeTitle2: "cerca de ti",
   homeSubtitle: "La forma más sencilla de conectar con expertos locales.",
@@ -23603,6 +23603,7 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const { config } = useDynamicAppConfig();
 
   const [reportTarget, setReportTarget] = useState<{
     userId: string;
@@ -25064,12 +25065,20 @@ function App() {
           <footer className="bg-surface-container-lowest py-16 mt-32 border-t border-outline-variant">
             <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
               <div className="flex flex-col gap-4 md:w-1/4">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-8 h-8 text-primary" />
-                  <span className="text-2xl font-bold tracking-tight text-primary">
-                    GigeJob
-                  </span>
-                </div>
+                <Link to="/" className="flex items-center gap-3">
+                  {config.logoImageUrl ? (
+                    <img src={config.logoImageUrl} alt="App Logo" className="h-8 md:h-10 w-auto object-contain" />
+                  ) : (
+                    <>
+                      <div className="primary-gradient p-2 rounded-xl shadow-sm">
+                        <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                      </div>
+                      <span className="text-2xl font-bold tracking-tight text-on-surface">
+                        {config.logoText1}<span className="text-primary">{config.logoText2}</span>
+                      </span>
+                    </>
+                  )}
+                </Link>
                 <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">
                   {footerConfig.copyrightText}
                 </p>
