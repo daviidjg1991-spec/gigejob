@@ -129,15 +129,23 @@ export const notifyAccepted = functions.https.onRequest(
     `;
 
     try {
-      const info = await transporter.sendMail({
-        from: `"GigeJob" <${SMTP_USER}>`,
-        to: [clientEmail, professionalEmail].join(", "),
-        subject: "Servicio aceptado definitivamente",
-        html: htmlContent,
-      });
+      await Promise.all([
+        transporter.sendMail({
+          from: `"GigeJob" <${SMTP_USER}>`,
+          to: clientEmail,
+          subject: "Servicio aceptado definitivamente",
+          html: htmlContent,
+        }),
+        transporter.sendMail({
+          from: `"GigeJob" <${SMTP_USER}>`,
+          to: professionalEmail,
+          subject: "Servicio aceptado definitivamente",
+          html: htmlContent,
+        }),
+      ]);
 
-      console.log("Correo de aceptación enviado: %s", info.messageId);
-      res.status(200).json({ success: true, messageId: info.messageId });
+      console.log("Correos de aceptación enviados independientemente");
+      res.status(200).json({ success: true });
     } catch (error) {
       console.error("Error al enviar correos de aceptación:", error);
       res.status(500).json({ error: "Error sending email" });
@@ -183,15 +191,23 @@ export const notifyCancelled = functions.https.onRequest(
     `;
 
     try {
-      const info = await transporter.sendMail({
-        from: `"GigeJob" <${SMTP_USER}>`,
-        to: [clientEmail, professionalEmail].join(", "),
-        subject: "Servicio Cancelado",
-        html: htmlContent,
-      });
+      await Promise.all([
+        transporter.sendMail({
+          from: `"GigeJob" <${SMTP_USER}>`,
+          to: clientEmail,
+          subject: "Servicio Cancelado",
+          html: htmlContent,
+        }),
+        transporter.sendMail({
+          from: `"GigeJob" <${SMTP_USER}>`,
+          to: professionalEmail,
+          subject: "Servicio Cancelado",
+          html: htmlContent,
+        }),
+      ]);
 
-      console.log("Correo de cancelación enviado: %s", info.messageId);
-      res.status(200).json({ success: true, messageId: info.messageId });
+      console.log("Correos de cancelación enviados independientemente");
+      res.status(200).json({ success: true });
     } catch (error) {
       console.error("Error al enviar correos de cancelación:", error);
       res.status(500).json({ error: "Error sending email" });
