@@ -107,6 +107,7 @@ import {
   Linkedin,
   Youtube,
   Github,
+  MoreVertical,
 } from "lucide-react";
 import {
   MapContainer,
@@ -18657,6 +18658,21 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const [showProfessionalConfirm, setShowProfessionalConfirm] = useState(false);
   const [showClientConfirm, setShowClientConfirm] = useState(false);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
+  const [showCancelServiceMenu, setShowCancelServiceMenu] = useState(false);
+  const [showCancelServiceModal, setShowCancelServiceModal] = useState(false);
+  const cancelServiceMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (cancelServiceMenuRef.current && !cancelServiceMenuRef.current.contains(event.target as Node)) {
+        setShowCancelServiceMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const currentChat =
     chats.find((c: any) => c.id === selectedChatId) || specificChat;
@@ -18994,6 +19010,50 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
     }
   };
 
+  const handleConfirmCancelService = async () => {
+    if (!activeBooking || !myActualId || !otherParticipantId) return;
+
+    try {
+      // Update booking status
+      await updateDoc(doc(db, "bookings", activeBooking.id), {
+        status: "cancelled",
+        cancelledBy: myActualId,
+        cancelledAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Send cancellation email
+      const myInfo = user || participantsInfo[myActualId] || { name: "Usuario", email: "", role: "" };
+      const role = myActualId === activeBooking.clientId ? "client" : "professional";
+      
+      const clientEmail = role === "client" ? myInfo.email : otherParticipant.email;
+      const professionalEmail = role === "professional" ? myInfo.email : otherParticipant.email;
+      
+      const clientName = role === "client" ? myInfo.name : otherParticipant.name;
+      const professionalName = role === "professional" ? myInfo.name : otherParticipant.name;
+
+      if (clientEmail && professionalEmail) {
+        await fetch("/api/email/notify-cancelled", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientEmail,
+            professionalEmail,
+            clientName,
+            professionalName,
+            serviceTitle: activeBooking.serviceTitle || "Servicio",
+            cancelledByRole: role,
+          }),
+        });
+      }
+
+      setShowCancelServiceModal(false);
+      setShowCancelServiceMenu(false);
+    } catch (e) {
+      console.error("Error cancelling service:", e);
+      alert("Error al cancelar el servicio");
+    }
+  };
   const handleUpdateBookingStatus = async (
     bookingId: string,
     status: string,
@@ -19593,7 +19653,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                   >
                     <div
                       className={cn(
-                        "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center",
+                        "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center flex items-center justify-center relative",
                         activeBooking.status === "accepted"
                           ? "bg-[#005a54]/10 text-[#005a54]"
                           : activeBooking.status === "pending_client_approval" 
@@ -19601,11 +19661,38 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                           : "bg-red-500/10 text-red-500",
                       )}
                     >
-                      {activeBooking.status === "accepted"
-                        ? "Trabajo Aceptado"
-                        : activeBooking.status === "pending_client_approval"
-                        ? "Pendiente de respuesta del cliente"
-                        : "Trabajo Rechazado"}
+                      <span>
+                        {activeBooking.status === "accepted"
+                          ? "Trabajo Aceptado"
+                          : activeBooking.status === "pending_client_approval"
+                          ? "Pendiente de respuesta del cliente"
+                          : activeBooking.status === "cancelled"
+                          ? "Trabajo Cancelado"
+                          : "Trabajo Rechazado"}
+                      </span>
+                      {activeBooking.status === "accepted" && (
+                        <div className="absolute right-2" ref={cancelServiceMenuRef}>
+                          <button
+                            onClick={() => setShowCancelServiceMenu(!showCancelServiceMenu)}
+                            className="p-1 rounded-full hover:bg-black/5 transition-colors"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                          {showCancelServiceMenu && (
+                            <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-surface-container-high rounded-xl shadow-lg border border-outline-variant/20 overflow-hidden z-50">
+                              <button
+                                onClick={() => {
+                                  setShowCancelServiceMenu(false);
+                                  setShowCancelServiceModal(true);
+                                }}
+                                className="w-full text-left px-4 py-3 text-sm text-red-500 font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                              >
+                                Cancelar Servicio
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 ) : null}
@@ -19959,6 +20046,59 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         onConfirm={confirmClientAccept}
         onCancel={() => setShowClientConfirm(false)}
       />
+
+      <AnimatePresence>
+        {showCancelServiceModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface w-full max-w-sm rounded-[2rem] p-6 shadow-2xl"
+            >
+              <div className="flex justify-center mb-6">
+                <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+              </div>
+              <h2 className="text-xl font-black text-center text-on-surface mb-2 uppercase tracking-tighter">
+                ¿Cancelar Servicio?
+              </h2>
+              <p className="text-center text-sm text-on-surface-variant font-medium mb-6">
+                ¿Estás seguro de que deseas cancelar este servicio?
+              </p>
+
+              {myActualId === activeBooking?.clientId && (
+                <div className="bg-red-500/10 text-red-700 p-4 rounded-xl mb-6 text-xs font-medium">
+                  <strong>Atención Cliente:</strong> Al cancelar un servicio aceptado, 
+                  se aplicarán las políticas de cancelación. Podrían aplicarse penalizaciones o 
+                  restricciones en su cuenta dependiendo de la cercanía a la fecha del servicio.
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelServiceModal(false)}
+                  className="flex-1 py-4 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-black uppercase tracking-widest text-[10px] rounded-2xl transition-all"
+                >
+                  Volver
+                </button>
+                <button
+                  onClick={handleConfirmCancelService}
+                  className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl transition-all shadow-lg shadow-red-500/30"
+                >
+                  Sí, Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

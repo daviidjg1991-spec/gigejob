@@ -343,6 +343,42 @@ async function startServer() {
     }
   });
 
+  app.post("/api/email/notify-cancelled", async (req, res) => {
+    const { clientEmail, professionalEmail, clientName, professionalName, serviceTitle, cancelledByRole } = req.body;
+    
+    if (!clientEmail || !professionalEmail) {
+      return res.status(400).json({ error: "Missing emails" });
+    }
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h2 style="color: #ff0000;">Servicio Cancelado</h2>
+        <p>Hola,</p>
+        <p>El servicio <strong>${serviceTitle}</strong> entre ${clientName} y ${professionalName} ha sido cancelado por el ${cancelledByRole === "client" ? "cliente" : "profesional"}.</p>
+        <p>Si consideras que esto es un error o necesitas más ayuda, por favor contacta con soporte.</p>
+        <br/>
+        <p>Saludos,<br/>El equipo de GigeJob</p>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: \`"GigeJob" <\${process.env.SMTP_USER || 'no-reply@gigejob.com'}>\`,
+        to: [clientEmail, professionalEmail].join(", "),
+        subject: "Servicio Cancelado",
+        html: htmlContent,
+      });
+      console.log("Notificación de cancelación enviada: %s", info.messageId);
+      if (!process.env.SMTP_USER && info.messageId) {
+        console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error enviando correo de cancelación:", err);
+      res.status(500).json({ error: "Error enviando correo" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     // Import Vite plugins dynamically or at the top. Here we just require them.
