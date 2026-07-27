@@ -15220,7 +15220,7 @@ const JobRequestModal = ({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            clientName: user?.name || "Un cliente",
+            clientName: user?.firstName || "Un cliente",
             professionalEmail: listing.author.email,
             serviceTitle: listing.title,
             dateStr,
