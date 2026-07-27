@@ -144,3 +144,57 @@ export const notifyAccepted = functions.https.onRequest(
     }
   }
 );
+
+export const notifyCancelled = functions.https.onRequest(
+  { cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const {
+      clientEmail,
+      professionalEmail,
+      clientName,
+      professionalName,
+      serviceTitle,
+      cancelledByRole,
+    } = req.body;
+
+    if (!clientEmail || !professionalEmail) {
+      res.status(400).json({ error: "Missing emails" });
+      return;
+    }
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="text-align: center; padding: 20px 0;">
+          <h2 style="color: #ff0000; margin: 0;">Servicio Cancelado</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <p>Hola,</p>
+          <p>El servicio <strong>${serviceTitle}</strong> entre ${clientName} y ${professionalName} ha sido cancelado por el ${cancelledByRole === "client" ? "cliente" : "profesional"}.</p>
+          <p>Si consideras que esto es un error o necesitas más ayuda, por favor contacta con soporte.</p>
+          <br/>
+          <p>Saludos,<br/>El equipo de GigeJob</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: \`"GigeJob" <\${SMTP_USER}>\`,
+        to: [clientEmail, professionalEmail].join(", "),
+        subject: "Servicio Cancelado",
+        html: htmlContent,
+      });
+
+      console.log("Correo de cancelación enviado: %s", info.messageId);
+      res.status(200).json({ success: true, messageId: info.messageId });
+    } catch (error) {
+      console.error("Error al enviar correos de cancelación:", error);
+      res.status(500).json({ error: "Error sending email" });
+    }
+  }
+);

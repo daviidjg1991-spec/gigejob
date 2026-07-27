@@ -19033,7 +19033,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       const professionalName = role === "professional" ? myInfo.name : otherParticipant.name;
 
       if (clientEmail && professionalEmail) {
-        await fetch("/api/email/notify-cancelled", {
+        await fetch("https://us-central1-gigejob01.cloudfunctions.net/notifyCancelled", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
