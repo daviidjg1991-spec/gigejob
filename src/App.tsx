@@ -15216,7 +15216,7 @@ const JobRequestModal = ({
 
       // Notificar al profesional de la nueva solicitud
       try {
-        await fetch("/api/email/notify-request", {
+        await fetch("https://us-central1-gigejob01.cloudfunctions.net/notifyRequest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -19035,7 +19035,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
               const clientData = clientSnap.data();
               const proData = proSnap.data();
               
-              await fetch("/api/email/notify-accepted", {
+              await fetch("https://us-central1-gigejob01.cloudfunctions.net/notifyAccepted", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
