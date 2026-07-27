@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -10,6 +11,7 @@ import * as admin from "firebase-admin";
 import nodemailer from "nodemailer";
 
 // Configuración de nodemailer
+console.log("Configurando Nodemailer con host:", process.env.SMTP_HOST);
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.ethereal.email",
   port: parseInt(process.env.SMTP_PORT || "587"),
@@ -260,15 +262,15 @@ async function startServer() {
         </div>
         <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
           <p>Hola,</p>
-          <p>El cliente <strong>\${clientName}</strong> ha solicitado tus servicios para <strong>\${serviceTitle}</strong>.</p>
+          <p>El cliente <strong>${clientName}</strong> ha solicitado tus servicios para <strong>${serviceTitle}</strong>.</p>
           <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
-            <p><strong>Fecha:</strong> \${dateStr} a las \${startTime}</p>
-            <p><strong>Lugar:</strong> \${location}</p>
-            <p><strong>Descripción:</strong> \${description}</p>
+            <p><strong>Fecha:</strong> ${dateStr} a las ${startTime}</p>
+            <p><strong>Lugar:</strong> ${location}</p>
+            <p><strong>Descripción:</strong> ${description}</p>
           </div>
           <p>Por favor, accede a la plataforma para aceptar o rechazar la solicitud.</p>
           <div style="text-align: center; margin-top: 30px;">
-            <a href="\${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
+            <a href="${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
           </div>
         </div>
       </div>
@@ -306,18 +308,18 @@ async function startServer() {
         </div>
         <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
           <p>Hola,</p>
-          <p>Nos complace informar que el servicio <strong>\${serviceTitle}</strong> ha sido aceptado definitivamente.</p>
+          <p>Nos complace informar que el servicio <strong>${serviceTitle}</strong> ha sido aceptado definitivamente.</p>
           <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
             <h3 style="margin-top: 0; font-size: 16px;">Resumen del Servicio:</h3>
-            <p><strong>Cliente:</strong> \${clientName}</p>
-            <p><strong>Profesional:</strong> \${professionalName}</p>
-            <p><strong>Fecha y Hora:</strong> \${dateStr} a las \${startTime}</p>
-            <p><strong>Lugar:</strong> \${location}</p>
-            <p><strong>Presupuesto Acordado:</strong> \${totalCost}€</p>
+            <p><strong>Cliente:</strong> ${clientName}</p>
+            <p><strong>Profesional:</strong> ${professionalName}</p>
+            <p><strong>Fecha y Hora:</strong> ${dateStr} a las ${startTime}</p>
+            <p><strong>Lugar:</strong> ${location}</p>
+            <p><strong>Presupuesto Acordado:</strong> ${totalCost}€</p>
           </div>
           <p>¡Gracias por confiar en JobPop!</p>
           <div style="text-align: center; margin-top: 30px;">
-            <a href="\${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
+            <a href="${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
           </div>
         </div>
       </div>
