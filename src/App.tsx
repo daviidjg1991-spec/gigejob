@@ -19101,8 +19101,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                 body: JSON.stringify({
                   clientEmail: clientData.email,
                   professionalEmail: proData.email,
-                  clientName: clientData.name || "Cliente",
-                  professionalName: proData.name || "Profesional",
+                  clientName: clientData.firstName || "Cliente",
+                  professionalName: proData.firstName || "Profesional",
                   serviceTitle: bookingData.listingTitle || "Servicio",
                   dateStr: bookingData.date,
                   startTime: bookingData.time,
