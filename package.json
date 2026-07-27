@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npx esbuild server.ts --bundle --platform=node --target=node20 --format=esm --packages=external --outfile=server.mjs && node server.mjs",
+    "dev": "tsx server.ts",
     "build": "vite build && cp dist/index.html dist/404.html",
     "preview": "vite preview",
     "clean": "rm -rf dist",
