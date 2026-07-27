@@ -362,6 +362,14 @@ async function startServer() {
         middlewareMode: true,
         hmr: process.env.DISABLE_HMR !== 'true'
       },
+      build: {
+        target: 'esnext'
+      },
+      optimizeDeps: {
+        esbuildOptions: {
+          target: 'esnext'
+        }
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
