@@ -278,7 +278,7 @@ async function startServer() {
   
     try {
       const info = await transporter.sendMail({
-        from: `"JobPop" <${process.env.SMTP_USER || 'no-reply@jobpop.com'}>`,
+        from: `"GigeJob" <${process.env.SMTP_USER || 'no-reply@gigejob.com'}>`,
         to: professionalEmail,
         subject: "Nueva solicitud de servicio",
         html: htmlContent,
@@ -317,7 +317,7 @@ async function startServer() {
             <p><strong>Lugar:</strong> ${location}</p>
             <p><strong>Presupuesto Acordado:</strong> ${totalCost}€</p>
           </div>
-          <p>¡Gracias por confiar en JobPop!</p>
+          <p>¡Gracias por confiar en GigeJob!</p>
           <div style="text-align: center; margin-top: 30px;">
             <a href="${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
           </div>
@@ -327,7 +327,7 @@ async function startServer() {
   
     try {
       const info = await transporter.sendMail({
-        from: `"JobPop" <${process.env.SMTP_USER || 'no-reply@jobpop.com'}>`,
+        from: `"GigeJob" <${process.env.SMTP_USER || 'no-reply@gigejob.com'}>`,
         to: [clientEmail, professionalEmail].join(", "),
         subject: "Servicio aceptado definitivamente",
         html: htmlContent,
