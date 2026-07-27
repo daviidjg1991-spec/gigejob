@@ -15213,6 +15213,26 @@ const JobRequestModal = ({
         "JobRequestModal: Navigation triggered to:",
         `/mensajes?chatId=${conversationId}`,
       );
+
+      // Notificar al profesional de la nueva solicitud
+      try {
+        await fetch("/api/email/notify-request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientName: user?.name || "Un cliente",
+            professionalEmail: listing.author.email,
+            serviceTitle: listing.title,
+            dateStr,
+            startTime,
+            location: location,
+            description,
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to send request email", err);
+      }
+
       setTimeout(() => {
         navigate(`/mensajes?chatId=${conversationId}`);
         onClose();
@@ -19002,6 +19022,40 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         status,
         updatedAt: serverTimestamp(),
       });
+
+      if (status === "accepted") {
+        try {
+          const bookingSnap = await getDoc(doc(db, "bookings", bookingId));
+          if (bookingSnap.exists()) {
+            const bookingData = bookingSnap.data();
+            const clientSnap = await getDoc(doc(db, "users", bookingData.clientId));
+            const proSnap = await getDoc(doc(db, "users", bookingData.professionalId));
+            
+            if (clientSnap.exists() && proSnap.exists()) {
+              const clientData = clientSnap.data();
+              const proData = proSnap.data();
+              
+              await fetch("/api/email/notify-accepted", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  clientEmail: clientData.email,
+                  professionalEmail: proData.email,
+                  clientName: clientData.name || "Cliente",
+                  professionalName: proData.name || "Profesional",
+                  serviceTitle: bookingData.listingTitle || "Servicio",
+                  dateStr: bookingData.date,
+                  startTime: bookingData.time,
+                  location: Array.isArray(bookingData.location) ? bookingData.location.join(", ") : (bookingData.location || "No especificado"),
+                  totalCost: bookingData.totalCost || "A convenir"
+                })
+              });
+            }
+          }
+        } catch (emailErr) {
+          console.error("Failed to send accepted email", emailErr);
+        }
+      }
       if (selectedChatId && myActualId) {
         let textMsg = status === "accepted" ? "¡He aceptado el trabajo!" : "He rechazado la solicitud.";
         if (status === "pending_client_approval") textMsg = "He enviado una propuesta editada. Por favor, revísala.";

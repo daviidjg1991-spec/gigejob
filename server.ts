@@ -7,6 +7,17 @@ import { fileURLToPath } from "url";
 import Stripe from 'stripe';
 import cron from "node-cron";
 import * as admin from "firebase-admin";
+import nodemailer from "nodemailer";
+
+// Configuración de nodemailer
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.ethereal.email",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  auth: {
+    user: process.env.SMTP_USER || "ethereal.user@ethereal.email",
+    pass: process.env.SMTP_PASS || "etherealpass"
+  }
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -230,6 +241,102 @@ async function startServer() {
       }
     } catch (err) {
       console.error("[Async Task] Failed during background execution:", err);
+    }
+  });
+
+  // Endpoints para envío de correos
+  app.post("/api/email/notify-request", async (req, res) => {
+    const { clientName, professionalEmail, serviceTitle, dateStr, startTime, location, description } = req.body;
+    
+    if (!professionalEmail) {
+      return res.status(400).json({ error: "Missing professional email" });
+    }
+  
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="text-align: center; padding: 20px 0;">
+          <h2 style="margin: 0; color: #111;">Nueva Solicitud de Servicio</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <p>Hola,</p>
+          <p>El cliente <strong>\${clientName}</strong> ha solicitado tus servicios para <strong>\${serviceTitle}</strong>.</p>
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <p><strong>Fecha:</strong> \${dateStr} a las \${startTime}</p>
+            <p><strong>Lugar:</strong> \${location}</p>
+            <p><strong>Descripción:</strong> \${description}</p>
+          </div>
+          <p>Por favor, accede a la plataforma para aceptar o rechazar la solicitud.</p>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="\${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
+          </div>
+        </div>
+      </div>
+    `;
+  
+    try {
+      const info = await transporter.sendMail({
+        from: '"JobPop" <no-reply@jobpop.com>',
+        to: professionalEmail,
+        subject: "Nueva solicitud de servicio",
+        html: htmlContent,
+      });
+      console.log("Notificación de solicitud enviada: %s", info.messageId);
+      if (!process.env.SMTP_USER && info.messageId) {
+        console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error enviando correo de solicitud:", err);
+      res.status(500).json({ error: "Error enviando correo" });
+    }
+  });
+  
+  app.post("/api/email/notify-accepted", async (req, res) => {
+    const { clientEmail, professionalEmail, clientName, professionalName, serviceTitle, dateStr, startTime, location, totalCost } = req.body;
+  
+    if (!clientEmail || !professionalEmail) {
+      return res.status(400).json({ error: "Missing emails" });
+    }
+  
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="text-align: center; padding: 20px 0;">
+          <h2 style="margin: 0; color: #111;">¡Servicio Aceptado!</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <p>Hola,</p>
+          <p>Nos complace informar que el servicio <strong>\${serviceTitle}</strong> ha sido aceptado definitivamente.</p>
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <h3 style="margin-top: 0; font-size: 16px;">Resumen del Servicio:</h3>
+            <p><strong>Cliente:</strong> \${clientName}</p>
+            <p><strong>Profesional:</strong> \${professionalName}</p>
+            <p><strong>Fecha y Hora:</strong> \${dateStr} a las \${startTime}</p>
+            <p><strong>Lugar:</strong> \${location}</p>
+            <p><strong>Presupuesto Acordado:</strong> \${totalCost}€</p>
+          </div>
+          <p>¡Gracias por confiar en JobPop!</p>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="\${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
+          </div>
+        </div>
+      </div>
+    `;
+  
+    try {
+      const info = await transporter.sendMail({
+        from: '"JobPop" <no-reply@jobpop.com>',
+        to: [clientEmail, professionalEmail].join(", "),
+        subject: "Servicio aceptado definitivamente",
+        html: htmlContent,
+      });
+      console.log("Notificación de aceptación enviada: %s", info.messageId);
+      if (!process.env.SMTP_USER && info.messageId) {
+        console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error enviando correo de aceptación:", err);
+      res.status(500).json({ error: "Error enviando correo" });
     }
   });
 
