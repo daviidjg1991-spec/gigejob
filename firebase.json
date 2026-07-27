@@ -8,6 +8,14 @@
     ],
     "rewrites": [
       {
+        "source": "/api/email/notify-request",
+        "function": "notifyRequest"
+      },
+      {
+        "source": "/api/email/notify-accepted",
+        "function": "notifyAccepted"
+      },
+      {
         "source": "/",
         "destination": "/index.html"
       },
@@ -88,5 +96,8 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "functions": {
+    "source": "functions"
   }
 }
