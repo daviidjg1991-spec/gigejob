@@ -184,7 +184,7 @@ export const notifyCancelled = functions.https.onRequest(
 
     try {
       const info = await transporter.sendMail({
-        from: \`"GigeJob" <\${SMTP_USER}>\`,
+        from: `"GigeJob" <${SMTP_USER}>`,
         to: [clientEmail, professionalEmail].join(", "),
         subject: "Servicio Cancelado",
         html: htmlContent,
