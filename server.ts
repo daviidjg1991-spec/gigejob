@@ -13,6 +13,7 @@ import nodemailer from "nodemailer";
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.ethereal.email",
   port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: process.env.SMTP_PORT === "465", // true para 465, false para los demás
   auth: {
     user: process.env.SMTP_USER || "ethereal.user@ethereal.email",
     pass: process.env.SMTP_PASS || "etherealpass"
@@ -275,7 +276,7 @@ async function startServer() {
   
     try {
       const info = await transporter.sendMail({
-        from: '"JobPop" <no-reply@jobpop.com>',
+        from: `"JobPop" <${process.env.SMTP_USER || 'no-reply@jobpop.com'}>`,
         to: professionalEmail,
         subject: "Nueva solicitud de servicio",
         html: htmlContent,
@@ -324,7 +325,7 @@ async function startServer() {
   
     try {
       const info = await transporter.sendMail({
-        from: '"JobPop" <no-reply@jobpop.com>',
+        from: `"JobPop" <${process.env.SMTP_USER || 'no-reply@jobpop.com'}>`,
         to: [clientEmail, professionalEmail].join(", "),
         subject: "Servicio aceptado definitivamente",
         html: htmlContent,
