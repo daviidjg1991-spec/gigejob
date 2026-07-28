@@ -2,67 +2,73 @@ export type ListingType = 'offer' | 'search';
 export type UserRole = 'user' | 'professional';
 
 // ADMIN CONFIGURATIONS (Hardcoded)
-export const ENABLE_SEARCH_PROFESSIONALS = true;
+export const ENABLE_SEARCH_PROFESSIONALS = false;
 
 
 export const PRO_PLANS = [
   {
-    id: 'basic',
-    name: 'Plan Basic',
-    price: 0,
-    priceQuarterly: 0,
-    features: ['Perfil básico', '1 Reserva cada 48h'],
-    limits: {
-      maxBookingsPerDay: 1,
-      maxListingsPerAccount: 1,
-      maxConcurrentBookings: 1
-    }
+    "name": "Plan Basic",
+    "price": 0,
+    "id": "basic",
+    "priceQuarterly": 0,
+    "limits": {
+      "maxConcurrentBookings": 1,
+      "maxListingsPerAccount": 1,
+      "maxBookingsPerDay": 1
+    },
+    "features": [
+      "Perfil básico",
+      "1 Reserva cada 48h"
+    ]
   },
   {
-    id: 'medium',
-    name: 'Plan Medium',
-    price: 5,
-    priceQuarterly: 12,
-    isRecommended: true,
-    features: ['Perfil Medium', '1 Reserva cada 24h'],
-    limits: {
-      maxBookingsPerDay: 1,
-      maxListingsPerAccount: 1,
-      maxConcurrentBookings: 1
-    }
-  },
-  {
-    id: 'premium',
-    name: 'Plan Premium',
-    price: 10,
-    priceQuarterly: 24,
-    features: [
-      'Perfil Premium',
-      'Publicación solo 1 categoría',
-      'Permite reserva sin limite'
+    "priceQuarterly": 12,
+    "id": "medium",
+    "price": 5,
+    "name": "Plan Medium",
+    "features": [
+      "Perfil Medium",
+      "1 Reserva cada 24h"
     ],
-    limits: {
-      maxBookingsPerDay: 999,
-      maxListingsPerAccount: 1,
-      maxConcurrentBookings: 1
-    }
+    "limits": {
+      "maxConcurrentBookings": 1,
+      "maxListingsPerAccount": 1,
+      "maxBookingsPerDay": 1
+    },
+    "isRecommended": true
   },
   {
-    id: 'premium-pro',
-    name: 'Plan Premium Pro',
-    price: 15,
-    priceQuarterly: 36,
-    features: [
-      'Perfil Premium Pro',
-      'Publicación hasta 2 categoría',
-      'Reserva sin limite',
-      'Hasta 2 reservas misma franja horaria'
+    "limits": {
+      "maxListingsPerAccount": 1,
+      "maxConcurrentBookings": 1,
+      "maxBookingsPerDay": 999
+    },
+    "features": [
+      "Perfil Premium",
+      "Publicación solo 1 categoría",
+      "Permite reserva sin limite"
     ],
-    limits: {
-      maxBookingsPerDay: 999,
-      maxListingsPerAccount: 2,
-      maxConcurrentBookings: 2
-    }
+    "id": "premium",
+    "priceQuarterly": 24,
+    "name": "Plan Premium",
+    "price": 10
+  },
+  {
+    "limits": {
+      "maxListingsPerAccount": 2,
+      "maxConcurrentBookings": 4,
+      "maxBookingsPerDay": 999
+    },
+    "features": [
+      "Perfil Premium Pro",
+      "Publicación hasta 2 categoría",
+      "Reserva sin limite",
+      "Hasta 2 reservas misma franja horaria"
+    ],
+    "price": 15,
+    "name": "Plan Premium Pro",
+    "priceQuarterly": 36,
+    "id": "premium-pro"
   }
 ];
 
