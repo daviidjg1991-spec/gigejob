@@ -157,6 +157,7 @@ import {
   Timestamp,
   increment,
   collectionGroup,
+  arrayUnion,
 } from "firebase/firestore";
 const generateCustomId = (
   firstName: string,
@@ -943,11 +944,11 @@ const AdminUserEditModal = ({
           const qChats = query(
             collection(db, "conversations"),
             where("participants", "array-contains", user.id),
-            orderBy("lastUpdatedAt", "desc"),
           );
           const chatSnap = await getDocs(qChats);
           const chats: any[] = [];
           chatSnap.forEach((doc) => chats.push({ id: doc.id, ...doc.data() }));
+          chats.sort((a, b) => (b.lastUpdatedAt?.seconds || 0) - (a.lastUpdatedAt?.seconds || 0));
           setUserChats(chats);
         } catch (e) {
           console.error("Error fetching user chats:", e);
@@ -1068,9 +1069,9 @@ const AdminUserEditModal = ({
         >
           <div className="relative mb-6">
             <div className="flex items-center gap-4 mb-4">
-              {editedUser.profileImage ? (
+              {(editedUser.photoUrl || editedUser.photoURL || editedUser.profileImage) ? (
                 <img
-                  src={editedUser.profileImage}
+                  src={editedUser.photoUrl || editedUser.photoURL || editedUser.profileImage}
                   alt="Profile"
                   className="w-16 h-16 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={() =>
@@ -18767,6 +18768,11 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             });
           }
 
+          // Filter out conversations deleted by the current user
+          convs = convs.filter((chat: any) => {
+            return !chat.deletedBy?.includes(firebaseUser.uid);
+          });
+
           console.log(
             "MessagesPage [conversations]: Loaded count:",
             convs.length,
@@ -19028,7 +19034,9 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       return;
 
     try {
-      await deleteDoc(doc(db, "conversations", selectedChatId));
+      await updateDoc(doc(db, "conversations", selectedChatId), {
+        deletedBy: arrayUnion(myActualId)
+      });
       setSelectedChatId(null);
       navigate("/mensajes");
       setShowMenu(false);
