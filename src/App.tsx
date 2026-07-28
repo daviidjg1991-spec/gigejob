@@ -18981,34 +18981,55 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
   const activeBooking = bookings[0]; // The latest one
 
+  const parseMillis = (val: any): number => {
+    if (!val) return 0;
+    if (typeof val === "number") return val;
+    if (typeof val.toMillis === "function") return val.toMillis();
+    if (typeof val.toDate === "function") return val.toDate().getTime();
+    if (typeof val.seconds === "number") return val.seconds * 1000;
+    if (val instanceof Date) return val.getTime();
+    if (typeof val === "string") {
+      const parsed = new Date(val).getTime();
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
+
   const effectiveBookingStatus = useMemo(() => {
     if (!activeBooking) return null;
     if (activeBooking.status === "pending" || !activeBooking.status) {
       const now = Date.now();
-      const createdTime = activeBooking.createdAt?.toMillis ? activeBooking.createdAt.toMillis() : (activeBooking.createdAt || now);
+      const createdTime = parseMillis(activeBooking.createdAt) || parseMillis(currentChat?.createdAt) || parseMillis(currentChat?.lastUpdatedAt) || now;
       if (now - createdTime > 24 * 60 * 60 * 1000) {
         return "cancelled";
       }
     }
     return activeBooking.status;
-  }, [activeBooking]);
+  }, [activeBooking, currentChat]);
 
   const isChatDisabled = useMemo(() => {
-    if (!activeBooking) return false;
-    
     const now = Date.now();
-    const createdTime = activeBooking.createdAt?.toMillis ? activeBooking.createdAt.toMillis() : (activeBooking.createdAt || now);
-
     const DISABLE_DELAY_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+    // If there is no active booking associated with this chat
+    if (!activeBooking) {
+      const chatTime = parseMillis(currentChat?.createdAt) || parseMillis(currentChat?.lastUpdatedAt);
+      if (chatTime > 0 && now - chatTime > DISABLE_DELAY_MS) {
+        return true;
+      }
+      return false;
+    }
+
+    const createdTime = parseMillis(activeBooking.createdAt) || parseMillis(currentChat?.createdAt) || parseMillis(currentChat?.lastUpdatedAt) || now;
+    const updatedTime = parseMillis(activeBooking.updatedAt) || createdTime;
 
     const currentStatus = effectiveBookingStatus;
 
     if (currentStatus === "pending" || !currentStatus) {
-      if (now - createdTime > 24 * 60 * 60 * 1000) {
+      if (now - createdTime > DISABLE_DELAY_MS) {
         return true;
       }
     } else if (currentStatus === "cancelled" || currentStatus === "rejected") {
-      const updatedTime = activeBooking.updatedAt?.toMillis ? activeBooking.updatedAt.toMillis() : createdTime;
       if (now - updatedTime > DISABLE_DELAY_MS) {
         return true;
       }
@@ -19017,37 +19038,56 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
     } else if (currentStatus === "accepted") {
       try {
         if (!activeBooking.date || !activeBooking.time) {
-           const updatedTime = activeBooking.updatedAt?.toMillis ? activeBooking.updatedAt.toMillis() : createdTime;
-           if (now - updatedTime > DISABLE_DELAY_MS) return true;
-           return false;
+          if (now - updatedTime > DISABLE_DELAY_MS) return true;
+          return false;
         }
 
-        const [year, month, day] = activeBooking.date.split("-").map(Number);
-        const [hours, minutes] = activeBooking.time.split(":").map(Number);
-        if (!year || !month || !day || isNaN(hours) || isNaN(minutes)) return false;
+        let startDate: Date | null = null;
+        if (typeof activeBooking.date === "string") {
+          if (activeBooking.date.includes("-")) {
+            const parts = activeBooking.date.split("-").map(Number);
+            if (parts.length === 3) {
+              const [hours, minutes] = (activeBooking.time || "00:00").split(":").map(Number);
+              startDate = new Date(parts[0], parts[1] - 1, parts[2], hours || 0, minutes || 0);
+            }
+          } else if (activeBooking.date.includes("/")) {
+            const parts = activeBooking.date.split("/").map(Number);
+            if (parts.length === 3) {
+              const [hours, minutes] = (activeBooking.time || "00:00").split(":").map(Number);
+              startDate = new Date(parts[2], parts[1] - 1, parts[0], hours || 0, minutes || 0);
+            }
+          }
+        }
 
-        const startDate = new Date(year, month - 1, day, hours, minutes);
-        
+        if (!startDate || isNaN(startDate.getTime())) {
+          startDate = new Date(activeBooking.date);
+        }
+
+        if (!startDate || isNaN(startDate.getTime())) {
+          if (now - updatedTime > DISABLE_DELAY_MS) return true;
+          return false;
+        }
+
         let durationHours = 0;
         if (activeBooking.duration) {
-           const match = String(activeBooking.duration).match(/(\d+(\.\d+)?)/);
-           if (match) {
-              durationHours = parseFloat(match[1]);
-           }
+          const match = String(activeBooking.duration).match(/(\d+(\.\d+)?)/);
+          if (match) {
+            durationHours = parseFloat(match[1]);
+          }
         }
-        
+
         const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
-        // Automatically disabled after 24 hours for accepted
         const disableDate = new Date(endDate.getTime() + DISABLE_DELAY_MS);
-        
+
         return now > disableDate.getTime();
-      } catch(e) {
+      } catch (e) {
+        if (now - updatedTime > DISABLE_DELAY_MS) return true;
         return false;
       }
     }
-    
+
     return false;
-  }, [activeBooking, effectiveBookingStatus]);
+  }, [activeBooking, effectiveBookingStatus, currentChat]);
 
   const handleDeleteConversation = async () => {
     if (!selectedChatId) return;
