@@ -18981,23 +18981,44 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
   const activeBooking = bookings[0]; // The latest one
 
+  const effectiveBookingStatus = useMemo(() => {
+    if (!activeBooking) return null;
+    if (activeBooking.status === "pending" || !activeBooking.status) {
+      const now = Date.now();
+      const createdTime = activeBooking.createdAt?.toMillis ? activeBooking.createdAt.toMillis() : (activeBooking.createdAt || now);
+      if (now - createdTime > 24 * 60 * 60 * 1000) {
+        return "cancelled";
+      }
+    }
+    return activeBooking.status;
+  }, [activeBooking]);
+
   const isChatDisabled = useMemo(() => {
     if (!activeBooking) return false;
     
     const now = Date.now();
     const createdTime = activeBooking.createdAt?.toMillis ? activeBooking.createdAt.toMillis() : (activeBooking.createdAt || now);
 
-    if (activeBooking.status === "pending" || !activeBooking.status) {
+    const DISABLE_DELAY_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+    const currentStatus = effectiveBookingStatus;
+
+    if (currentStatus === "pending" || !currentStatus) {
       if (now - createdTime > 24 * 60 * 60 * 1000) {
         return true;
       }
-    } else if (activeBooking.status === "completed") {
+    } else if (currentStatus === "cancelled" || currentStatus === "rejected") {
+      const updatedTime = activeBooking.updatedAt?.toMillis ? activeBooking.updatedAt.toMillis() : createdTime;
+      if (now - updatedTime > DISABLE_DELAY_MS) {
+        return true;
+      }
+    } else if (currentStatus === "completed") {
       return true;
-    } else if (activeBooking.status === "accepted") {
+    } else if (currentStatus === "accepted") {
       try {
         if (!activeBooking.date || !activeBooking.time) {
            const updatedTime = activeBooking.updatedAt?.toMillis ? activeBooking.updatedAt.toMillis() : createdTime;
-           if (now - updatedTime > 24 * 60 * 60 * 1000) return true;
+           if (now - updatedTime > DISABLE_DELAY_MS) return true;
            return false;
         }
 
@@ -19016,8 +19037,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         }
         
         const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
-        // Automatically disabled after 3 hours for accepted, although it should transition to completed.
-        const disableDate = new Date(endDate.getTime() + 3 * 60 * 60 * 1000);
+        // Automatically disabled after 24 hours for accepted
+        const disableDate = new Date(endDate.getTime() + DISABLE_DELAY_MS);
         
         return now > disableDate.getTime();
       } catch(e) {
@@ -19026,7 +19047,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
     }
     
     return false;
-  }, [activeBooking]);
+  }, [activeBooking, effectiveBookingStatus]);
 
   const handleDeleteConversation = async () => {
     if (!selectedChatId) return;
@@ -19628,8 +19649,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                 </motion.div>
 
                 {activeBooking.professionalId === myActualId &&
-                (!activeBooking.status ||
-                  activeBooking.status === "pending") ? (
+                (!effectiveBookingStatus ||
+                  effectiveBookingStatus === "pending") ? (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
@@ -19659,7 +19680,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                     </button>
                   </motion.div>
                 ) : activeBooking.clientId === myActualId &&
-                  activeBooking.status === "pending_client_approval" ? (
+                  effectiveBookingStatus === "pending_client_approval" ? (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
@@ -19680,8 +19701,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                       Rechazar
                     </button>
                   </motion.div>
-                ) : activeBooking.status &&
-                  activeBooking.status !== "pending" ? (
+                ) : effectiveBookingStatus &&
+                  effectiveBookingStatus !== "pending" ? (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
@@ -19690,23 +19711,23 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                     <div
                       className={cn(
                         "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center flex items-center justify-center relative",
-                        activeBooking.status === "accepted"
+                        effectiveBookingStatus === "accepted"
                           ? "bg-[#005a54]/10 text-[#005a54]"
-                          : activeBooking.status === "pending_client_approval" 
+                          : effectiveBookingStatus === "pending_client_approval" 
                           ? "bg-surface-container-high text-on-surface"
                           : "bg-red-500/10 text-red-500",
                       )}
                     >
                       <span>
-                        {activeBooking.status === "accepted"
+                        {effectiveBookingStatus === "accepted"
                           ? "Trabajo Aceptado"
-                          : activeBooking.status === "pending_client_approval"
+                          : effectiveBookingStatus === "pending_client_approval"
                           ? "Pendiente de respuesta del cliente"
-                          : activeBooking.status === "cancelled"
+                          : effectiveBookingStatus === "cancelled"
                           ? "Trabajo Cancelado"
                           : "Trabajo Rechazado"}
                       </span>
-                      {activeBooking.status === "accepted" && (
+                      {effectiveBookingStatus === "accepted" && (
                         <div className="absolute right-2" ref={cancelServiceMenuRef}>
                           <button
                             onClick={() => setShowCancelServiceMenu(!showCancelServiceMenu)}
