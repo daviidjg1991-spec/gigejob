@@ -13593,6 +13593,8 @@ const ExplorePage = ({
         !l.author
       )
         return false;
+      if (l.status && l.status !== 'active') return false;
+      
       const matchesType = type === "all" || l.type === type;
       const matchesCategory = category === "all" || l.category === category;
       const matchesSearch = isSearchMatch(search, l);
@@ -24015,32 +24017,7 @@ function App() {
     };
   }, [user?.id]);
 
-  const [listings, setListings] = useState<JobListing[]>(() => {
-    try {
-      const saved = localStorage.getItem("GigeJob_listings");
-      if (saved === null) return INITIAL_LISTINGS;
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        // Filter out malformed listings instead of resetting everything
-        const validListings = parsed.filter(
-          (l) =>
-            l &&
-            typeof l === "object" &&
-            typeof l.id === "string" &&
-            typeof l.title === "string" &&
-            l.author &&
-            typeof l.author === "object" &&
-            typeof l.author.name === "string" &&
-            l.author.name.trim() !== "",
-        );
-        return validListings.length > 0 ? validListings : INITIAL_LISTINGS;
-      }
-      return INITIAL_LISTINGS;
-    } catch (e) {
-      console.error("Error loading listings from localStorage:", e);
-      return INITIAL_LISTINGS;
-    }
-  });
+  const [listings, setListings] = useState<JobListing[]>([]);
 
   useEffect(() => {
     const unsubListings = onSnapshot(collection(db, "listings"), (snapshot) => {
@@ -24068,27 +24045,6 @@ function App() {
   const [footerConfig, setFooterConfig] = useState<FooterConfig>(
     DEFAULT_FOOTER_CONFIG,
   );
-
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, "settings", "footer"), async (docSnap) => {
-      if (docSnap.exists() && docSnap.data().columns) {
-        let config = docSnap.data() as FooterConfig;
-
-        // Auto-migrate to add Blog if missing
-        const hasBlog = config.columns.some((c) =>
-          c.links.some((l) => l.url === "/blog"),
-        );
-        if (!hasBlog && config.columns[0]) {
-          config.columns[0].links.push({ label: "Blog", url: "/blog" });
-        }
-
-        setFooterConfig(config);
-      } else {
-        setFooterConfig(DEFAULT_FOOTER_CONFIG);
-      }
-    });
-    return () => unsub();
-  }, []);
 
   useEffect(() => {
     const handleAdminUserUpdate = (e: any) => {
@@ -24420,7 +24376,6 @@ function App() {
   }, [activeToast]);
 
   useEffect(() => {
-    localStorage.setItem("GigeJob_listings", JSON.stringify(listings));
     console.log("Current listings count:", listings.length);
   }, [listings]);
 
