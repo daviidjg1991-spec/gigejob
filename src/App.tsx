@@ -466,7 +466,14 @@ export const AppConfigProvider = ({ children }: { children: React.ReactNode }) =
 };
 
 const useProPlansConfig = () => {
-  const [plans, setPlans] = useState<any[]>(PRO_PLANS);
+  const [plans, setPlans] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem("app_pro_plans");
+      return cached ? JSON.parse(cached) : PRO_PLANS;
+    } catch {
+      return PRO_PLANS;
+    }
+  });
   const [isEnabled, setIsEnabled] = useState<boolean>(true);
 
   useEffect(() => {
@@ -474,7 +481,10 @@ const useProPlansConfig = () => {
     const unsub = onSnapshot(plansRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.plans) setPlans(data.plans);
+        if (data.plans) {
+          setPlans(data.plans);
+          localStorage.setItem("app_pro_plans", JSON.stringify(data.plans));
+        }
         if (data.isEnabled !== undefined) setIsEnabled(data.isEnabled);
       }
       // We don't write defaults to DB immediately to save writes.
@@ -5503,9 +5513,25 @@ const AdminPage = ({
   const [isSavingLegalDocs, setIsSavingLegalDocs] = useState(false);
   const [appCategories, setAppCategories] = useState([...CATEGORIES]);
   const [newCategory, setNewCategory] = useState("");
-  const [footerConfig, setFooterConfig] = useState<FooterConfig>(
-    DEFAULT_FOOTER_CONFIG,
-  );
+  const [footerConfig, setFooterConfig] = useState<FooterConfig>(() => {
+    try {
+      const cached = localStorage.getItem("app_footerConfig");
+      return cached ? JSON.parse(cached) : DEFAULT_FOOTER_CONFIG;
+    } catch {
+      return DEFAULT_FOOTER_CONFIG;
+    }
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "footer"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().columns) {
+        const config = docSnap.data() as FooterConfig;
+        setFooterConfig(config);
+        localStorage.setItem("app_footerConfig", JSON.stringify(config));
+      }
+    });
+    return () => unsub();
+  }, []);
   const [servicesSubTab, setServicesSubTab] = useState<"list" | "requests" | "search_professionals">("list");
   const [servicesTexts, setServicesTexts] = useState({
     requestText: "",
@@ -23856,13 +23882,23 @@ function App() {
     }
   }, [user]);
 
-  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState<boolean | null>(null);
+  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem("app_search_enabled");
+      return cached ? JSON.parse(cached) : ENABLE_SEARCH_PROFESSIONALS;
+    } catch {
+      return ENABLE_SEARCH_PROFESSIONALS;
+    }
+  });
   useEffect(() => {
-    getDoc(doc(db, "settings", "services")).then((snap) => {
+    const unsub = onSnapshot(doc(db, "settings", "services"), (snap) => {
       if (snap.exists() && snap.data().enableSearchProfessionals !== undefined) {
-        setIsSearchProfessionalsEnabled(snap.data().enableSearchProfessionals);
+        const val = snap.data().enableSearchProfessionals;
+        setIsSearchProfessionalsEnabled(val);
+        localStorage.setItem("app_search_enabled", JSON.stringify(val));
       }
     });
+    return () => unsub();
   }, []);
 
   const [settingsModal, setSettingsModal] = useState<{
@@ -24173,7 +24209,14 @@ function App() {
     type: "message" | "alert";
   } | null>(null);
 
-  const [globalPopupsConfig, setGlobalPopupsConfig] = useState<Record<string, any>>({});
+  const [globalPopupsConfig, setGlobalPopupsConfig] = useState<Record<string, any>>(() => {
+    try {
+      const cached = localStorage.getItem("app_popups");
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
   
   const getActivePopupConfig = () => {
     if (!globalPopupsConfig) return null;
@@ -24236,12 +24279,16 @@ function App() {
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "popups"), (docSnap) => {
       if (docSnap.exists()) {
-        setGlobalPopupsConfig(docSnap.data());
+        const data = docSnap.data();
+        setGlobalPopupsConfig(data);
+        localStorage.setItem("app_popups", JSON.stringify(data));
       } else {
         getDocFromServer(doc(db, "settings", "popup")).then((oldSnap) => {
           if (oldSnap.exists()) {
             const data = oldSnap.data();
-            setGlobalPopupsConfig({ [data.targetAudience || "all"]: data });
+            const newData = { [data.targetAudience || "all"]: data };
+            setGlobalPopupsConfig(newData);
+            localStorage.setItem("app_popups", JSON.stringify(newData));
           } else {
             setIsPopupOpen(false);
           }
