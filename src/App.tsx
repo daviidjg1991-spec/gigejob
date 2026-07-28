@@ -24078,9 +24078,25 @@ function App() {
 
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
-  const [footerConfig, setFooterConfig] = useState<FooterConfig>(
-    DEFAULT_FOOTER_CONFIG,
-  );
+  const [footerConfig, setFooterConfig] = useState<FooterConfig>(() => {
+    try {
+      const cached = localStorage.getItem("app_footerConfig");
+      return cached ? JSON.parse(cached) : DEFAULT_FOOTER_CONFIG;
+    } catch {
+      return DEFAULT_FOOTER_CONFIG;
+    }
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "footer"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().columns) {
+        const config = docSnap.data() as FooterConfig;
+        setFooterConfig(config);
+        localStorage.setItem("app_footerConfig", JSON.stringify(config));
+      }
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const handleAdminUserUpdate = (e: any) => {
