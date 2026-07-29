@@ -12384,24 +12384,6 @@ const SettingsModal = ({
             </button>
           </div>
 
-          <AnimatePresence mode="wait">
-            {activeType && window.innerWidth < 1024 && (
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="lg:hidden mb-4 px-1"
-              >
-                <div className="flex items-center gap-2 mb-0.5">
-                  <div className="h-[2px] w-5 bg-primary rounded-full" />
-                  <h2 className="text-xl font-display font-black text-on-surface tracking-tight">
-                    {menuItems.find((i) => i.id === activeType)?.label}
-                  </h2>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           <nav className="hidden lg:flex flex-col space-y-2 lg:overflow-y-auto no-scrollbar pb-2 lg:pb-0 relative z-10 scroll-smooth">
             {menuItems.map((item) => (
               <button
@@ -25257,7 +25239,7 @@ function App() {
         {/* Mobile Bottom Navigation - Hidden in chats */}
         {location.pathname.includes("/mensajes") &&
         searchParams.has("chatId") ? null : (
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-13 bg-white/95 backdrop-blur-md border-t border-outline-variant/20 flex items-center justify-around px-3 z-[100] pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
             {[
               { label: "Inicio", icon: Home, path: "/" },
               { label: "Favoritos", icon: Heart, path: "/favoritos" },
@@ -25283,7 +25265,7 @@ function App() {
               const content = (
                 <div
                   className={cn(
-                    "flex flex-col items-center gap-1 transition-all",
+                    "flex flex-col items-center gap-0.5 transition-all py-0.5",
                     (item.path && location.pathname === item.path) ||
                       item.isActive
                       ? "text-primary"
@@ -25294,20 +25276,20 @@ function App() {
                     className={cn(
                       "relative",
                       item.isCenter &&
-                        "bg-primary text-white p-2.5 rounded-full -mt-8 shadow-xl border-4 border-white",
+                        "bg-primary text-white p-2 rounded-full -mt-6 shadow-lg border-2 border-white",
                     )}
                   >
-                    <item.icon className="w-5 h-5" />
+                    <item.icon className="w-4 h-4 sm:w-5 sm:h-5" />
                     {"badge" in item && !!item.badge && item.badge > 0 && (
-                      <span className="absolute -top-1 -right-1.5 w-4 h-4 bg-green-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-white">
+                      <span className="absolute -top-1 -right-1.5 w-3.5 h-3.5 bg-green-500 text-white text-[7px] font-black rounded-full flex items-center justify-center border-2 border-white">
                         {item.badge}
                       </span>
                     )}
                   </div>
                   <span
                     className={cn(
-                      "text-[9px] font-black uppercase tracking-widest",
-                      item.isCenter && "mt-1",
+                      "text-[8px] font-black uppercase tracking-wider",
+                      item.isCenter && "mt-0.5",
                     )}
                   >
                     {item.label}
