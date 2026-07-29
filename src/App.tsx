@@ -19638,7 +19638,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
             {/* Pinned Booking Summary Bar */}
             {activeBooking && (
-              <div className="px-4 py-2.5 bg-surface-container-lowest border-b border-outline-variant/10 shrink-0 z-10">
+              <div className="px-4 py-3 bg-white dark:bg-surface-container-lowest border-b border-outline-variant/10 shrink-0 z-10 shadow-xs relative">
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -19796,7 +19796,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             )}
 
             {/* Mensajes */}
-            <div className="flex-1 overflow-y-auto py-2 px-2 space-y-4 bg-surface/30 min-h-0">
+            <div className="flex-1 overflow-y-auto pt-6 pb-6 px-3 space-y-4 bg-surface/30 min-h-0">
               <div className="w-full space-y-4">
                 {loadingSpecificChat ? (
                   <div className="flex items-center justify-center h-full opacity-20">
