@@ -878,6 +878,7 @@ const AdminUserEditModal = ({
   const [showPassword, setShowPassword] = useState(false);
   const [userTransactions, setUserTransactions] = useState<any[]>([]);
   const [userChats, setUserChats] = useState<any[]>([]);
+  const [userReviews, setUserReviews] = useState<any[]>([]);
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [legalModal, setLegalModal] = useState<{
@@ -954,8 +955,24 @@ const AdminUserEditModal = ({
           console.error("Error fetching user chats:", e);
         }
       };
+      const fetchReviews = async () => {
+        try {
+          const qReviews = query(
+            collection(db, "reviews"),
+            where("targetId", "==", user.id),
+          );
+          const reviewSnap = await getDocs(qReviews);
+          const reviews: any[] = [];
+          reviewSnap.forEach((doc) => reviews.push({ id: doc.id, ...doc.data() }));
+          reviews.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+          setUserReviews(reviews);
+        } catch (e) {
+          console.error("Error fetching user reviews:", e);
+        }
+      };
       fetchTxs();
       fetchChats();
+      fetchReviews();
     }
   }, [user]);
 
@@ -1119,6 +1136,7 @@ const AdminUserEditModal = ({
                 "transacciones",
                 "verificacion",
                 "chats",
+                "reseña",
                 "estado",
                 "info",
               ].map((tab) => (
@@ -2704,6 +2722,61 @@ const AdminUserEditModal = ({
                         </p>
                       )}
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "reseña" && (
+              <div className="space-y-4">
+                <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-widest mb-4">
+                  Reseñas del usuario
+                </h4>
+                {userReviews.length > 0 ? (
+                  <div className="space-y-3">
+                    {userReviews.map((review: any) => (
+                      <div
+                        key={review.id}
+                        className="p-4 bg-white border border-outline-variant/10 rounded-2xl shadow-sm flex flex-col gap-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-on-surface">
+                            {review.authorName || "Anónimo"} - {review.rating} ⭐
+                          </span>
+                          <span className="text-[10px] text-on-surface-variant font-bold">
+                            {review.createdAt?.seconds
+                              ? new Date(review.createdAt.seconds * 1000).toLocaleDateString()
+                              : "N/A"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant">
+                          {review.comment || "Sin comentario"}
+                        </p>
+                        <div className="flex justify-end mt-2">
+                          <button
+                            onClick={async () => {
+                              if (window.confirm("¿Seguro que quieres borrar esta reseña?")) {
+                                try {
+                                  await deleteDoc(doc(db, "reviews", review.id));
+                                  setUserReviews(userReviews.filter((r) => r.id !== review.id));
+                                } catch (e) {
+                                  console.error("Error al borrar la reseña", e);
+                                  alert("Error al borrar la reseña");
+                                }
+                              }
+                            }}
+                            className="px-3 py-1 bg-error/10 text-error hover:bg-error/20 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors"
+                          >
+                            Borrar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 border-2 border-dashed border-outline-variant/20 rounded-2xl text-center">
+                    <p className="font-bold text-on-surface-variant">
+                      No hay reseñas
+                    </p>
                   </div>
                 )}
               </div>
