@@ -12598,7 +12598,12 @@ const Navbar = ({
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-outline-variant h-14 sm:h-16">
+      <nav
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 glass-nav border-b border-outline-variant h-14 sm:h-16",
+          location.pathname.startsWith("/mensajes") && "hidden lg:flex",
+        )}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
           <div className="flex justify-between h-full items-center gap-4">
             {/* Desktop/Tablet Logo */}
@@ -24969,7 +24974,11 @@ function App() {
         </AnimatePresence>
         <main
           className={cn(
-            isDashboard ? "h-screen pt-16" : "min-h-screen pt-16 pb-16 lg:pb-0",
+            isDashboard
+              ? location.pathname.startsWith("/mensajes")
+                ? "h-screen pt-0 md:pt-16 pb-16 md:pb-0"
+                : "h-screen pt-16"
+              : "min-h-screen pt-16 pb-16 lg:pb-0",
             isDashboard && "flex flex-1 overflow-hidden",
           )}
         >
