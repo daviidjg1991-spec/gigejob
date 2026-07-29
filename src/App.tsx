@@ -16651,11 +16651,7 @@ const ProfilePage = ({
                   label: isOwnProfile ? "Mis Anuncios" : "Servicios",
                 },
                 { id: "gallery", label: "Galería" },
-                ...(isOwnProfile ? [{ id: "wallet", label: "Monedero" }] : []),
                 { id: "reviews", label: "Reseñas" },
-                ...(isOwnProfile
-                  ? [{ id: "notifications", label: "Notificaciones" }]
-                  : []),
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -16870,7 +16866,6 @@ const ProfilePage = ({
                 </div>
               )}
 
-              {activeTab === "wallet" && <WalletManager isDashboard={true} />}
 
               {activeTab === "reviews" && (
                 <div className="space-y-6 sm:space-y-10">
@@ -16944,82 +16939,7 @@ const ProfilePage = ({
                 </div>
               )}
 
-              {activeTab === "notifications" && isOwnProfile && (
-                <div className="space-y-6 sm:space-y-10">
-                  <h2 className="text-2xl sm:text-3xl font-display font-black text-on-surface tracking-tighter">
-                    Notificaciones
-                  </h2>
-                  <div className="bg-surface-container-lowest rounded-2xl sm:rounded-[3rem] p-6 sm:p-10 ambient-shadow border border-outline-variant/10 space-y-6 sm:space-y-8">
-                    <div className="space-y-4 sm:space-y-6">
-                      <p className="text-xs sm:text-sm text-on-surface-variant/60">
-                        Configura tus alertas.
-                      </p>
-                      <div className="space-y-3 sm:space-y-4">
-                        {["Email", "Push", "SMS"].map((type) => (
-                          <div
-                            key={type}
-                            className="flex items-center justify-between p-4 sm:p-6 bg-surface-container-low rounded-xl sm:rounded-[2rem]"
-                          >
-                            <div>
-                              <p className="font-black text-on-surface uppercase tracking-widest text-[9px] sm:text-[10px]">
-                                {type}
-                              </p>
-                              <p className="text-[8px] sm:text-[9px] text-on-surface-variant/40 font-bold mt-1">
-                                Avisos por {type.toLowerCase()}
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const key = type.toLowerCase() as
-                                  | "email"
-                                  | "push"
-                                  | "sms";
-                                setUser({
-                                  ...user,
-                                  settings: {
-                                    ...(user.settings || {}),
-                                    notifications: {
-                                      ...(user.settings?.notifications || {
-                                        email: true,
-                                        push: true,
-                                        sms: false,
-                                      }),
-                                      [key]:
-                                        !user.settings?.notifications?.[key],
-                                    },
-                                  },
-                                });
-                              }}
-                              className={cn(
-                                "w-10 sm:w-14 h-5 sm:h-7 rounded-full transition-colors relative",
-                                user.settings?.notifications?.[
-                                  type.toLowerCase() as "email" | "push" | "sms"
-                                ]
-                                  ? "bg-primary"
-                                  : "bg-on-surface-variant/20",
-                              )}
-                            >
-                              <div
-                                className={cn(
-                                  "absolute top-0.5 sm:top-1 w-4 sm:w-5 h-4 sm:h-5 bg-white rounded-full transition-all",
-                                  user.settings?.notifications?.[
-                                    type.toLowerCase() as
-                                      | "email"
-                                      | "push"
-                                      | "sms"
-                                  ]
-                                    ? "right-0.5 sm:right-1"
-                                    : "left-0.5 sm:left-1",
-                                )}
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         </div>
