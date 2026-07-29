@@ -19502,15 +19502,14 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         className={cn(
           "flex-1 flex flex-col h-full bg-white relative min-w-0",
           selectedChatId !== null
-            ? "fixed inset-0 z-[100] w-full h-full bg-white md:relative md:inset-auto md:z-auto md:flex md:flex-1"
+            ? "fixed inset-0 z-[100] w-full h-[100dvh] bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
             : "hidden md:flex",
         )}
       >
-        {/* <--- Changed from fixed to absolute for better positioning */}
         {selectedChatId ? (
           <>
             {/* Header del Chat */}
-            <div className="py-4 px-0 border-b border-outline-variant/10 flex items-center justify-between bg-white/80 backdrop-blur-xl z-20 sticky top-0">
+            <div className="py-3 px-4 border-b border-outline-variant/10 flex items-center justify-between bg-white shrink-0 z-20">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => {
@@ -19639,7 +19638,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
             {/* Pinned Booking Summary Bar */}
             {activeBooking && (
-              <div className="px-4 py-2 bg-white/90 backdrop-blur-md border-b border-outline-variant/10 z-10 sticky top-[69px]">
+              <div className="px-4 py-2.5 bg-surface-container-lowest border-b border-outline-variant/10 shrink-0 z-10">
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -19940,7 +19939,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
             {/* Input del Chat - Bottom flow */}
             {currentChat && (
-              <div className="py-2 px-2 bg-white border-t border-outline-variant/10">
+              <div className="p-3 bg-white border-t border-outline-variant/10 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 {isChatDisabled ? (
                   <div className="text-center text-sm text-on-surface-variant/60 py-4 font-medium flex items-center justify-center gap-2">
                     <Lock className="w-4 h-4" />
