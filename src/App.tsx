@@ -2756,7 +2756,7 @@ const AdminUserEditModal = ({
                             onClick={async () => {
                               if (window.confirm("¿Seguro que quieres borrar esta reseña?")) {
                                 try {
-                                  await deleteDoc(doc(db, "reviews", review.id));
+                                  await updateDoc(doc(db, "reviews", review.id), { deleted: true });
                                   setUserReviews(userReviews.filter((r) => r.id !== review.id));
                                 } catch (e) {
                                   console.error("Error al borrar la reseña", e);
@@ -16438,10 +16438,11 @@ const ProfilePage = ({
     return unsubscribe;
   }, [isOwnProfile ? user?.id : profileUser?.id]);
 
+  const activeReviews = reviews.filter((r) => !r.deleted);
   const realRating =
-    reviews.length > 0
+    activeReviews.length > 0
       ? (
-          reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
+          activeReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / activeReviews.length
         ).toFixed(1)
       : (profileUser?.rating || 0) > 0
         ? Number(profileUser?.rating).toFixed(1)
@@ -16946,12 +16947,16 @@ const ProfilePage = ({
                     Opiniones
                   </h2>
                   <div className="space-y-5 sm:space-y-6">
-                    {reviews.length === 0 ? (
-                      <p className="text-on-surface-variant font-medium text-sm">
-                        Aún no hay reseñas para este profesional.
-                      </p>
-                    ) : (
-                      reviews.map((review, i) => (
+                    {(() => {
+                      const visibleReviews = activeReviews.filter(r => r.comment && r.comment.trim().length > 0);
+                      if (visibleReviews.length === 0) {
+                        return (
+                          <p className="text-on-surface-variant font-medium text-sm">
+                            Aún no hay reseñas escritas para este profesional.
+                          </p>
+                        );
+                      }
+                      return visibleReviews.map((review, i) => (
                         <div
                           key={i}
                           className="bg-surface-container-lowest rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 ambient-shadow border border-outline-variant/10 space-y-4 sm:space-y-6"
@@ -17006,8 +17011,8 @@ const ProfilePage = ({
                             </div>
                           )}
                         </div>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
