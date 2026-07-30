@@ -13442,7 +13442,7 @@ const HomePage = ({
     <div className="min-h-screen bg-surface pb-20">
       <CategorySubBar />
       <div 
-        className="bg-surface-container-lowest pt-[calc(env(safe-area-inset-top,20px)+2rem)] sm:pt-12 pb-12 sm:pb-20 relative bg-cover bg-center"
+        className="bg-surface-container-lowest pt-24 sm:pt-16 pb-12 sm:pb-20 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
         {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none" />}
