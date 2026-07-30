@@ -12655,9 +12655,7 @@ const Navbar = ({
     <>
       <nav
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest h-14 sm:h-16 lg:bg-transparent lg:glass-nav lg:border-b lg:border-outline-variant",
-          location.pathname !== "/" && "hidden lg:flex",
-          location.pathname.startsWith("/mensajes") && "hidden lg:flex",
+          "fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest h-14 sm:h-16 hidden lg:flex lg:bg-transparent lg:glass-nav lg:border-b lg:border-outline-variant",
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
@@ -13448,7 +13446,7 @@ const HomePage = ({
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
         {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none z-0" />}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
           <h1
             className="text-2xl sm:text-3xl md:text-5xl font-display font-black text-on-surface mb-3 tracking-tighter leading-tight drop-shadow-sm"
           >
