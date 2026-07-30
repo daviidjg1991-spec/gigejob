@@ -12661,8 +12661,8 @@ const Navbar = ({
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
           <div className="flex justify-between h-full items-center gap-4">
-            {/* Desktop/Tablet Logo */}
-            <div className="hidden lg:flex items-center gap-8">
+            {/* Logo */}
+            <div className="flex items-center gap-8">
               <Link to="/" className="flex items-center gap-3">
                 <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
                 <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
