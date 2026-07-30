@@ -13447,14 +13447,12 @@ const HomePage = ({
       >
         {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none" />}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <motion.h1
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <h1
             className="text-2xl sm:text-3xl md:text-5xl font-display font-black text-on-surface mb-3 tracking-tighter leading-tight drop-shadow-sm"
           >
             {config.homeTitle1} <br />{" "}
             <span className="text-primary">{config.homeTitle2}</span>
-          </motion.h1>
+          </h1>
           <p className="text-on-surface-variant text-sm sm:text-base max-w-xl mx-auto mb-6 sm:mb-8 font-medium opacity-80 drop-shadow-sm">
             {config.homeSubtitle}
           </p>
@@ -24957,7 +24955,7 @@ function App() {
               ? location.pathname.startsWith("/mensajes")
                 ? "h-screen pt-0 md:pt-16 pb-16 md:pb-0"
                 : "h-screen pt-16"
-              : "min-h-screen pt-16 pb-16 lg:pb-0",
+              : "min-h-screen pt-24 lg:pt-16 pb-16 lg:pb-0",
             isDashboard && "flex flex-1 overflow-hidden",
           )}
         >
