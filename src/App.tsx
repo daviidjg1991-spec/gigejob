@@ -24996,9 +24996,13 @@ function App() {
               className="fixed top-0 left-0 right-0 bottom-16 z-[50] bg-white flex flex-col shadow-2xl overflow-hidden"
             >
               <div className="flex items-center justify-between px-6 h-16 border-b border-outline-variant shrink-0">
-                <span className="font-display font-black text-on-surface uppercase tracking-widest text-xs">
-                  Área personal
-                </span>
+                {user ? (
+                  <span className="font-display font-black text-on-surface uppercase tracking-widest text-xs">
+                    Área personal
+                  </span>
+                ) : (
+                  <span />
+                )}
                 <button
                   onClick={() => setIsMenuOpen(false)}
                   className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant"
@@ -25253,7 +25257,13 @@ function App() {
               {
                 label: "Tú",
                 icon: User,
-                onClick: () => setIsMenuOpen(!isMenuOpen),
+                onClick: () => {
+                  if (user) {
+                    setIsMenuOpen(!isMenuOpen);
+                  } else {
+                    navigate("/login");
+                  }
+                },
                 isActive: isMenuOpen,
               },
             ].map((item) => {
