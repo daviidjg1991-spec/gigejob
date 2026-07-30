@@ -24707,248 +24707,6 @@ function App() {
           setSearch={setSearch}
           onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
         />
-        <AnimatePresence>
-          {isMenuOpen && (
-            <motion.div
-              key="mobile-menu-dropdown"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed top-0 left-0 right-0 bottom-16 z-[50] bg-white flex flex-col shadow-2xl overflow-hidden"
-            >
-              <div className="flex items-center justify-between px-6 h-16 border-b border-outline-variant shrink-0">
-                <span className="font-display font-black text-on-surface uppercase tracking-widest text-xs">
-                  Área personal
-                </span>
-                <button
-                  onClick={() => setIsMenuOpen(false)}
-                  className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="overflow-y-auto no-scrollbar px-6 py-8 space-y-8 pb-12 flex-1">
-                {/* General Navigation */}
-                <div className="space-y-4">
-                  <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
-                    <span>Descubrir</span>
-                    <div className="h-[1px] flex-1 bg-outline-variant/10"></div>
-                  </div>
-                </div>
-
-                {/* Profile Section for logged in users */}
-                {user && (
-                  <div className="bg-surface-container-low rounded-[2rem] p-6 flex items-center gap-4 border border-outline-variant/10">
-                    {user.photoUrl ? (
-                      <img
-                        src={user.photoUrl}
-                        alt={user.username}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-xl shadow-sm">
-                        {(user.username || user.firstName || "?").charAt(0)}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-display font-black text-on-surface truncate">
-                        {user.username || user.firstName}
-                      </div>
-                      <div className="text-[10px] text-on-surface-variant/40 uppercase tracking-widest font-bold truncate">
-                        {user.email}
-                      </div>
-                      <Link
-                        to="/perfil"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="inline-block mt-2 text-[9px] font-black uppercase tracking-widest text-primary hover:underline"
-                      >
-                        Ver perfil público
-                      </Link>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-6">
-                  <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
-                    <span>Tu Gestión</span>
-                    <div className="h-[1px] flex-1 bg-outline-variant/10"></div>
-                  </div>
-                  {user ? (
-                    <div className="grid grid-cols-1 gap-3">
-                      <div className="flex flex-col gap-3">
-                        <Link
-                          to="/favoritos"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center relative">
-                            <Heart className="w-5 h-5 text-primary" />
-                            {favorites.length > 0 && (
-                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Favoritos
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Tus anuncios guardados
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-                        <Link
-                          to="/mensajes"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group relative"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center relative">
-                            <MessageSquare className="w-5 h-5 text-primary" />
-                            {unreadMessagesCount !== undefined &&
-                              unreadMessagesCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
-                              )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Mensajes
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Chat y conversaciones
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-                        <button
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            setIsCalendarModalOpen(true);
-                          }}
-                          className="flex items-center gap-4 p-4 w-full bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group relative text-left"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                            <Calendar className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Calendario
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Planificación de trabajo
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </button>
-
-                        <Link
-                          to="/mis-anuncios"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                            <Briefcase className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Mis Anuncios
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Gestionar tus publicaciones
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-                        <Link
-                          to="/monederos"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                            <Wallet className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Monedero
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Pagos y saldo
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-
-
-                        <button
-                          onClick={() => {
-                            document.dispatchEvent(
-                              new Event("openLanguageModal"),
-                            );
-                            setIsMenuOpen(false);
-                          }}
-                          className="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group mt-2"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                              <Globe className="w-5 h-5 text-primary" />
-                            </div>
-                            <div className="flex-1 text-left">
-                              <p className="font-black uppercase tracking-widest text-[10px]">
-                                Idioma
-                              </p>
-                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                                Cambiar el idioma de la app
-                              </p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </button>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setSettingsModal({ isOpen: true, type: "" });
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full flex items-center justify-between px-6 py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 mt-4"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Settings className="w-4 h-4" />
-                          <span>Configuración de cuenta</span>
-                        </div>
-                        <ChevronRight className="w-3 h-3 opacity-50" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3">
-                      <Link
-                        to="/login"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="flex items-center justify-center gap-4 px-6 py-5 bg-primary text-white rounded-3xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
-                      >
-                        <User className="w-5 h-5" />
-                        Iniciar Sesión
-                      </Link>
-                      <Link
-                        to="/registro"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="flex items-center justify-center gap-4 px-6 py-5 bg-surface-container-low rounded-3xl text-on-surface font-black text-xs uppercase tracking-widest border border-outline-variant/10 transition-all"
-                      >
-                        <PlusCircle className="w-5 h-5 text-primary" />
-                        Crear Cuenta
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
         <main
           className={cn(
             isDashboard
@@ -25227,6 +24985,248 @@ function App() {
             );
           })()}
         </main>
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              key="mobile-menu-dropdown"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="fixed top-0 left-0 right-0 bottom-16 z-[50] bg-white flex flex-col shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-6 h-16 border-b border-outline-variant shrink-0">
+                <span className="font-display font-black text-on-surface uppercase tracking-widest text-xs">
+                  Área personal
+                </span>
+                <button
+                  onClick={() => setIsMenuOpen(false)}
+                  className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="overflow-y-auto no-scrollbar px-6 py-8 space-y-8 pb-12 flex-1">
+                {/* General Navigation */}
+                <div className="space-y-4">
+                  <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
+                    <span>Descubrir</span>
+                    <div className="h-[1px] flex-1 bg-outline-variant/10"></div>
+                  </div>
+                </div>
+
+                {/* Profile Section for logged in users */}
+                {user && (
+                  <div className="bg-surface-container-low rounded-[2rem] p-6 flex items-center gap-4 border border-outline-variant/10">
+                    {user.photoUrl ? (
+                      <img
+                        src={user.photoUrl}
+                        alt={user.username}
+                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-xl shadow-sm">
+                        {(user.username || user.firstName || "?").charAt(0)}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-display font-black text-on-surface truncate">
+                        {user.username || user.firstName}
+                      </div>
+                      <div className="text-[10px] text-on-surface-variant/40 uppercase tracking-widest font-bold truncate">
+                        {user.email}
+                      </div>
+                      <Link
+                        to="/perfil"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="inline-block mt-2 text-[9px] font-black uppercase tracking-widest text-primary hover:underline"
+                      >
+                        Ver perfil público
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-6">
+                  <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
+                    <span>Tu Gestión</span>
+                    <div className="h-[1px] flex-1 bg-outline-variant/10"></div>
+                  </div>
+                  {user ? (
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="flex flex-col gap-3">
+                        <Link
+                          to="/favoritos"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
+                        >
+                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center relative">
+                            <Heart className="w-5 h-5 text-primary" />
+                            {favorites.length > 0 && (
+                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-black uppercase tracking-widest text-[10px]">
+                              Favoritos
+                            </p>
+                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                              Tus anuncios guardados
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </Link>
+
+                        <Link
+                          to="/mensajes"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group relative"
+                        >
+                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center relative">
+                            <MessageSquare className="w-5 h-5 text-primary" />
+                            {unreadMessagesCount !== undefined &&
+                              unreadMessagesCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
+                              )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-black uppercase tracking-widest text-[10px]">
+                              Mensajes
+                            </p>
+                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                              Chat y conversaciones
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </Link>
+
+                        <button
+                          onClick={() => {
+                            setIsMenuOpen(false);
+                            setIsCalendarModalOpen(true);
+                          }}
+                          className="flex items-center gap-4 p-4 w-full bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group relative text-left"
+                        >
+                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
+                            <Calendar className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-black uppercase tracking-widest text-[10px]">
+                              Calendario
+                            </p>
+                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                              Planificación de trabajo
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </button>
+
+                        <Link
+                          to="/mis-anuncios"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
+                        >
+                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
+                            <Briefcase className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-black uppercase tracking-widest text-[10px]">
+                              Mis Anuncios
+                            </p>
+                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                              Gestionar tus publicaciones
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </Link>
+
+                        <Link
+                          to="/monederos"
+                          onClick={() => setIsMenuOpen(false)}
+                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
+                        >
+                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
+                            <Wallet className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-black uppercase tracking-widest text-[10px]">
+                              Monedero
+                            </p>
+                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                              Pagos y saldo
+                            </p>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </Link>
+
+
+
+                        <button
+                          onClick={() => {
+                            document.dispatchEvent(
+                              new Event("openLanguageModal"),
+                            );
+                            setIsMenuOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group mt-2"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
+                              <Globe className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="flex-1 text-left">
+                              <p className="font-black uppercase tracking-widest text-[10px]">
+                                Idioma
+                              </p>
+                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                                Cambiar el idioma de la app
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          setSettingsModal({ isOpen: true, type: "" });
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full flex items-center justify-between px-6 py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 mt-4"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Settings className="w-4 h-4" />
+                          <span>Configuración de cuenta</span>
+                        </div>
+                        <ChevronRight className="w-3 h-3 opacity-50" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3">
+                      <Link
+                        to="/login"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center justify-center gap-4 px-6 py-5 bg-primary text-white rounded-3xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
+                      >
+                        <User className="w-5 h-5" />
+                        Iniciar Sesión
+                      </Link>
+                      <Link
+                        to="/registro"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="flex items-center justify-center gap-4 px-6 py-5 bg-surface-container-low rounded-3xl text-on-surface font-black text-xs uppercase tracking-widest border border-outline-variant/10 transition-all"
+                      >
+                        <PlusCircle className="w-5 h-5 text-primary" />
+                        Crear Cuenta
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Modals */}
         <AnimatePresence></AnimatePresence>
