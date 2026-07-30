@@ -12655,7 +12655,8 @@ const Navbar = ({
     <>
       <nav
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 glass-nav border-b border-outline-variant h-14 sm:h-16 hidden lg:block",
+          "fixed top-0 left-0 right-0 z-50 glass-nav border-b border-outline-variant h-14 sm:h-16",
+          location.pathname.startsWith("/mensajes") && "hidden lg:flex",
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
@@ -12671,7 +12672,7 @@ const Navbar = ({
             </div>
 
             {/* Mobile Search Bar (Top) */}
-            <div className="flex lg:hidden flex-1 items-center gap-3">
+            <div className="hidden">
               <div className="flex-1 flex items-center bg-surface-container-low rounded-full px-4 py-2 border border-outline-variant/10 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
                 <Search className="text-on-surface-variant/30 w-4 h-4 mr-2" />
                 <input
@@ -24956,8 +24957,8 @@ function App() {
             isDashboard
               ? location.pathname.startsWith("/mensajes")
                 ? "h-screen pt-0 md:pt-16 pb-16 md:pb-0"
-                : "h-screen pt-0 lg:pt-16"
-              : "min-h-screen pt-0 lg:pt-16 pb-16 lg:pb-0",
+                : "h-screen pt-16"
+              : "min-h-screen pt-16 pb-16 lg:pb-0",
             isDashboard && "flex flex-1 overflow-hidden",
           )}
         >
