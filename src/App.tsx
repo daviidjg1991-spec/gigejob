@@ -13442,7 +13442,7 @@ const HomePage = ({
     <div className="min-h-screen bg-surface pb-20">
       <CategorySubBar />
       <div 
-        className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-20 relative bg-cover bg-center"
+        className="bg-surface-container-lowest pt-[calc(env(safe-area-inset-top,20px)+2rem)] sm:pt-12 pb-12 sm:pb-20 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
         {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none" />}
@@ -24955,7 +24955,7 @@ function App() {
               ? location.pathname.startsWith("/mensajes")
                 ? "h-screen pt-0 md:pt-16 pb-16 md:pb-0"
                 : "h-screen pt-16"
-              : "min-h-screen pt-24 lg:pt-16 pb-16 lg:pb-0",
+              : "min-h-screen pt-0 lg:pt-16 pb-16 lg:pb-0",
             isDashboard && "flex flex-1 overflow-hidden",
           )}
         >
