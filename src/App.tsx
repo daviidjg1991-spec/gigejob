@@ -12655,7 +12655,8 @@ const Navbar = ({
     <>
       <nav
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 glass-nav border-b border-outline-variant h-14 sm:h-16 hidden lg:block",
+          "fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest h-14 sm:h-16 lg:bg-transparent lg:glass-nav lg:border-b lg:border-outline-variant",
+          location.pathname.startsWith("/mensajes") && "hidden lg:flex",
         )}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
@@ -13442,11 +13443,11 @@ const HomePage = ({
     <div className="min-h-screen bg-surface pb-20">
       <CategorySubBar />
       <div 
-        className="bg-surface-container-lowest pt-24 sm:pt-16 pb-12 sm:pb-20 relative bg-cover bg-center"
+        className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-20 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
-        {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none" />}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+        {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none z-0" />}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-50">
           <h1
             className="text-2xl sm:text-3xl md:text-5xl font-display font-black text-on-surface mb-3 tracking-tighter leading-tight drop-shadow-sm"
           >
@@ -24954,8 +24955,8 @@ function App() {
             isDashboard
               ? location.pathname.startsWith("/mensajes")
                 ? "h-screen pt-0 md:pt-16 pb-16 md:pb-0"
-                : "h-screen pt-16"
-              : "min-h-screen pt-0 lg:pt-16 pb-16 lg:pb-0",
+                : "h-screen pt-14 sm:pt-16"
+              : "min-h-screen pt-14 sm:pt-16 pb-16 lg:pb-0",
             isDashboard && "flex flex-1 overflow-hidden",
           )}
         >
