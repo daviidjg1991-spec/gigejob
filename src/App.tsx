@@ -13548,7 +13548,7 @@ const HomePage = ({
           </div>
         )}
       </div>
-    </div>
+    </PullToRefresh>
   );
 };
 
@@ -14070,7 +14070,7 @@ const ExplorePage = ({
           </div>
         )}
       </div>
-    </PullToRefresh>
+    </div>
   );
 };
 
