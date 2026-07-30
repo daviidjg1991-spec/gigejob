@@ -25,6 +25,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { createPortal } from "react-dom";
+import PullToRefresh from "react-simple-pull-to-refresh";
 import {
   Home,
   Search,
@@ -13438,9 +13439,14 @@ const HomePage = ({
     { name: "Informática", icon: Laptop, color: "bg-primary/5 text-primary" },
   ];
 
+  const handleRefresh = async () => {
+    window.location.reload();
+  };
+
   return (
-    <div className="min-h-screen bg-surface pb-20">
-      <CategorySubBar />
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="min-h-screen bg-surface pb-20">
+        <CategorySubBar />
       <div 
         className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-20 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
@@ -14064,7 +14070,7 @@ const ExplorePage = ({
           </div>
         )}
       </div>
-    </div>
+    </PullToRefresh>
   );
 };
 
