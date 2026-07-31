@@ -109,6 +109,7 @@ import {
   Youtube,
   Github,
   MoreVertical,
+  Info,
 } from "lucide-react";
 import {
   MapContainer,
@@ -23891,6 +23892,7 @@ function App() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { config } = useDynamicAppConfig();
@@ -24216,6 +24218,12 @@ function App() {
       return DEFAULT_FOOTER_CONFIG;
     }
   });
+
+  useEffect(() => {
+    const handleOpenInfo = () => setIsInfoModalOpen(true);
+    document.addEventListener("openInfoModal", handleOpenInfo);
+    return () => document.removeEventListener("openInfoModal", handleOpenInfo);
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "footer"), (docSnap) => {
@@ -24773,6 +24781,116 @@ function App() {
           onClose={() => setReportTarget(null)}
           onSubmit={handleReportUserAction}
         />
+        <AnimatePresence>
+          {isInfoModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-surface-container-lowest rounded-[2rem] p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl space-y-8"
+              >
+                <div className="flex justify-between items-center sticky top-0 bg-surface-container-lowest py-2 z-10 border-b border-outline-variant/10">
+                  <h3 className="font-display font-black text-on-surface text-xl">
+                    Información
+                  </h3>
+                  <button
+                    onClick={() => setIsInfoModalOpen(false)}
+                    className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="flex flex-col gap-8">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                      <span className="text-xl font-display font-bold tracking-tight text-on-surface">
+                        {config.logoText1}<span className="text-primary">{config.logoText2}</span>
+                      </span>
+                    </div>
+                    <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed">
+                      {footerConfig.copyrightText}
+                    </p>
+                    {footerConfig.socialLinks && footerConfig.socialLinks.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3 mt-4">
+                        {footerConfig.socialLinks.map((social, idx) => {
+                          const Icon =
+                            social.platform === "facebook" ? Facebook :
+                            social.platform === "twitter" ? Twitter :
+                            social.platform === "instagram" ? Instagram :
+                            social.platform === "linkedin" ? Linkedin :
+                            social.platform === "youtube" ? Youtube :
+                            social.platform === "github" ? Github : Globe;
+                          const href = social.url.startsWith("http") ? social.url : `https://${social.url}`;
+                          return (
+                            <a
+                              key={idx}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 bg-surface-container rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                            >
+                              <Icon className="w-5 h-5" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+                    {footerConfig.columns.map((col, idx) => (
+                      <div key={idx} className="flex flex-col gap-4">
+                        <h4 className="font-bold text-on-surface">{col.title}</h4>
+                        <div className="flex flex-col gap-3 text-sm font-medium text-on-surface-variant/70">
+                          {col.links.map((link, lidx) => {
+                            const url = link.url || "";
+                            const isExternal =
+                              url.startsWith("http") || url.startsWith("mailto:") || url.startsWith("tel:") ||
+                              (url.includes(".") && !url.startsWith("/") && !url.startsWith("#page-"));
+                            if (isExternal) {
+                              const href =
+                                url.startsWith("http") || url.startsWith("mailto:") || url.startsWith("tel:")
+                                  ? url
+                                  : `https://${url}`;
+                              return (
+                                <a key={lidx} href={href} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
+                                  {link.label}
+                                </a>
+                              );
+                            }
+                            if (url.startsWith("/") && !url.startsWith("/pagina/")) {
+                              return (
+                                <Link key={lidx} to={url} onClick={() => setIsInfoModalOpen(false)} className="hover:text-primary transition-colors text-left">
+                                  {link.label}
+                                </Link>
+                              );
+                            }
+                            const normalizedUrl = url.startsWith("#page-")
+                              ? url : url.startsWith("/pagina/")
+                              ? `#page-${url.replace("/pagina/", "")}` : `#page-${url}`;
+                            const slug = normalizedUrl.replace("#page-", "").replace("/pagina/", "");
+                            return (
+                              <Link key={lidx} to={`/pagina/${encodeURIComponent(slug)}`} onClick={() => setIsInfoModalOpen(false)} className="hover:text-primary transition-colors text-left">
+                                {link.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <Navbar
           user={user}
           setUser={setUser}
@@ -25270,6 +25388,31 @@ function App() {
                           </div>
                           <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
                         </button>
+
+                        <button
+                          onClick={() => {
+                            document.dispatchEvent(
+                              new Event("openInfoModal"),
+                            );
+                            setIsMenuOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group mt-2"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
+                              <Info className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="flex-1 text-left">
+                              <p className="font-black uppercase tracking-widest text-[10px]">
+                                Información
+                              </p>
+                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                                Más sobre nosotros, legal y enlaces
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </button>
                       </div>
 
                       <button
@@ -25408,9 +25551,9 @@ function App() {
           </div>
         )}
 
-        {/* Footer - Hidden on Dashboard */}
+        {/* Footer - Hidden on Dashboard and Mobile Apps (moved to Info modal) */}
         {!isDashboard && (
-          <footer className="bg-surface-container-lowest py-16 mt-32 border-t border-outline-variant">
+          <footer className="bg-surface-container-lowest py-16 mt-32 border-t border-outline-variant hidden lg:block">
             <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
               <div className="flex flex-col gap-4 md:w-1/4">
                 <Link to="/" className="flex items-center gap-3">
