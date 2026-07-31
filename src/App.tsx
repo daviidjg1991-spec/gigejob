@@ -13451,8 +13451,11 @@ const HomePage = ({
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="min-h-screen bg-surface pb-20">
         <CategorySubBar />
+      {/* Barra blanca superior fija (Frontera) */}
+      <div className="fixed top-0 left-0 right-0 h-16 bg-white z-[60] shadow-sm lg:hidden border-b border-outline-variant/10" />
+
       <div 
-        className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-16 relative bg-cover bg-center"
+        className="bg-surface-container-lowest pt-[5.5rem] sm:pt-28 pb-12 sm:pb-16 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
         {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none z-0" />}
@@ -13469,7 +13472,7 @@ const HomePage = ({
         </div>
       </div>
 
-      <div className="sticky top-[env(safe-area-inset-top)] z-50 bg-surface/90 backdrop-blur-md pb-4 pt-4 px-4 sm:px-6 lg:px-8 border-b border-outline-variant/10 shadow-sm">
+      <div className="sticky top-16 z-50 bg-surface/90 backdrop-blur-md pb-4 pt-4 px-4 sm:px-6 lg:px-8 border-b border-outline-variant/10 shadow-sm">
         <div className="max-w-3xl mx-auto w-full">
           <div className="relative flex items-center bg-surface-container-lowest rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
             <Search className="ml-3 sm:ml-5 text-on-surface-variant/30 w-4 h-4 sm:w-5 sm:h-5" />
@@ -25722,10 +25725,7 @@ export default function Root() {
     <Router>
       <ErrorBoundary>
         <AppConfigProvider>
-          <div className="fixed top-0 inset-x-0 h-[env(safe-area-inset-top)] bg-white z-[9999]" />
-          <div className="pt-[env(safe-area-inset-top)]">
-            <App />
-          </div>
+          <App />
         </AppConfigProvider>
       </ErrorBoundary>
     </Router>
