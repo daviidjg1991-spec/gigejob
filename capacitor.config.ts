@@ -5,12 +5,19 @@ const config: CapacitorConfig = {
   appName: 'Gigejob',
   webDir: 'dist',
   server: {
+    hostname: 'localhost',
+    iosScheme: 'https',
+    androidScheme: 'https',
     allowNavigation: ['gigejob.com', '*.gigejob.com']
   },
   ios: {
     contentInset: 'always'
   },
   plugins: {
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ["google.com"]
+    },
     SplashScreen: {
       launchShowDuration: 3000,
       launchAutoHide: false,
@@ -23,8 +30,9 @@ const config: CapacitorConfig = {
       splashImmersive: true,
     },
     StatusBar: {
-      overlaysWebView: true,
-      style: 'DARK'
+      overlaysWebView: false,
+      style: 'DARK',
+      backgroundColor: '#ffffff'
     }
   }
 };

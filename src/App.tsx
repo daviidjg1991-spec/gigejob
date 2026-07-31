@@ -238,6 +238,7 @@ const generateBookingCode = async (
 };
 
 import { db, auth, storage } from "./lib/firebase";
+import { Capacitor } from '@capacitor/core';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
@@ -257,6 +258,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signInWithCredential,
   GoogleAuthProvider,
   FacebookAuthProvider,
   updateEmail,
@@ -13448,7 +13452,7 @@ const HomePage = ({
       <div className="min-h-screen bg-surface pb-20">
         <CategorySubBar />
       <div 
-        className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-20 relative bg-cover bg-center"
+        className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-16 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
         {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none z-0" />}
@@ -13459,32 +13463,34 @@ const HomePage = ({
             {config.homeTitle1} <br />{" "}
             <span className="text-primary">{config.homeTitle2}</span>
           </h1>
-          <p className="text-on-surface-variant text-sm sm:text-base max-w-xl mx-auto mb-6 sm:mb-8 font-medium opacity-80 drop-shadow-sm">
+          <p className="text-on-surface-variant text-sm sm:text-base max-w-xl mx-auto font-medium opacity-80 drop-shadow-sm">
             {config.homeSubtitle}
           </p>
+        </div>
+      </div>
 
-          <div className="max-w-3xl mx-auto w-full">
-            <div className="relative flex items-center bg-surface-container-lowest rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
-              <Search className="ml-3 sm:ml-5 text-on-surface-variant/30 w-4 h-4 sm:w-5 sm:h-5" />
-              <input
-                type="text"
-                placeholder="Busca un profesional cerca de ti"
-                className="flex-1 px-3 sm:px-4 py-3 bg-transparent border-none outline-none text-sm sm:text-base font-medium placeholder:text-on-surface-variant/20"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    navigate(`/explorar?q=${search}`);
-                  }
-                }}
-              />
-              <button
-                onClick={() => navigate(`/explorar?q=${search}`)}
-                className="bg-primary text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-black uppercase tracking-widest text-[9px] sm:text-[10px] hover:scale-105 transition-all shadow-lg"
-              >
-                Buscar
-              </button>
-            </div>
+      <div className="sticky top-[env(safe-area-inset-top)] z-50 bg-surface/90 backdrop-blur-md pb-4 pt-4 px-4 sm:px-6 lg:px-8 border-b border-outline-variant/10 shadow-sm">
+        <div className="max-w-3xl mx-auto w-full">
+          <div className="relative flex items-center bg-surface-container-lowest rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
+            <Search className="ml-3 sm:ml-5 text-on-surface-variant/30 w-4 h-4 sm:w-5 sm:h-5" />
+            <input
+              type="text"
+              placeholder="Busca un profesional cerca de ti"
+              className="flex-1 px-3 sm:px-4 py-3 bg-transparent border-none outline-none text-sm sm:text-base font-medium placeholder:text-on-surface-variant/20"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  navigate(`/explorar?q=${search}`);
+                }
+              }}
+            />
+            <button
+              onClick={() => navigate(`/explorar?q=${search}`)}
+              className="bg-primary text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-black uppercase tracking-widest text-[9px] sm:text-[10px] hover:scale-105 transition-all shadow-lg"
+            >
+              Buscar
+            </button>
           </div>
         </div>
       </div>
@@ -13548,6 +13554,7 @@ const HomePage = ({
           </div>
         )}
       </div>
+    </div>
     </PullToRefresh>
   );
 };
@@ -21825,8 +21832,20 @@ const AuthPage = ({
           ? new GoogleAuthProvider()
           : new FacebookAuthProvider();
 
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      let user;
+      if (Capacitor.isNativePlatform() && providerName === "google") {
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+        const authResult = await FirebaseAuthentication.signInWithGoogle();
+        const credential = GoogleAuthProvider.credential(authResult.credential?.idToken);
+        const result = await signInWithCredential(auth, credential);
+        user = result.user;
+      } else if (Capacitor.isNativePlatform() && providerName === "facebook") {
+        await signInWithRedirect(auth, provider);
+        return;
+      } else {
+        const result = await signInWithPopup(auth, provider);
+        user = result.user;
+      }
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
       let finalUserData: UserProfile;
@@ -21907,6 +21926,7 @@ const AuthPage = ({
       setUser(finalUserData);
       navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
+      alert("Error en inicio de sesión: " + (error.message || error.code || JSON.stringify(error)));
       if (
         error.code === "auth/popup-closed-by-user" ||
         error.code === "auth/cancelled-popup-request"
@@ -24040,6 +24060,60 @@ function App() {
     }
   }, [user, searchParams, setSearchParams]);
 
+  // Handle redirect result for native platforms
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          const user = result.user;
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (!userDoc.exists()) {
+             const finalUserData: UserProfile = {
+                id: user.uid,
+                username:
+                  user.displayName ||
+                  user.email?.split("@")[0] ||
+                  `user_${user.uid.slice(0, 5)}`,
+                email: user.email || "",
+                role: "user",
+                firstName: user.displayName?.split(" ")[0] || "Usuario",
+                lastName1: user.displayName?.split(" ").slice(1).join(" ") || "",
+                lastName2: "",
+                documentId: "",
+                phoneNumber: user.phoneNumber || "",
+                address: {
+                  streetType: "Calle",
+                  streetName: "",
+                  number: "",
+                  postalCode: "",
+                  locality: "",
+                  province: "",
+                },
+                photoUrl:
+                  user.photoURL ||
+                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+                settings: {
+                  smartSuggestions: true,
+                  locationRadius: 15,
+                  notifications: { email: true, push: true, sms: false },
+                },
+                createdAt: serverTimestamp() as any,
+              };
+             sessionStorage.setItem("is_first_login_session", "true");
+             await setDoc(doc(db, "users", user.uid), finalUserData, { merge: true });
+             setUser(finalUserData);
+          }
+        }
+      } catch (error) {
+        console.error("Firebase Redirect Login error:", error);
+      }
+    };
+    if (Capacitor.isNativePlatform()) {
+      handleRedirectResult();
+    }
+  }, []);
+
   // Ensure Firebase Auth is initialized and sync with user state
   useEffect(() => {
     let unsubsDoc: (() => void) | undefined;
@@ -25648,7 +25722,10 @@ export default function Root() {
     <Router>
       <ErrorBoundary>
         <AppConfigProvider>
-          <App />
+          <div className="fixed top-0 inset-x-0 h-[env(safe-area-inset-top)] bg-white z-[9999]" />
+          <div className="pt-[env(safe-area-inset-top)]">
+            <App />
+          </div>
         </AppConfigProvider>
       </ErrorBoundary>
     </Router>
