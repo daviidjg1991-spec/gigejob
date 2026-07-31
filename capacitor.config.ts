@@ -3,6 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.gigejob.app',
   appName: 'Gigejob',
+  backgroundColor: '#ffffff',
   webDir: 'dist',
   server: {
     hostname: 'localhost',
