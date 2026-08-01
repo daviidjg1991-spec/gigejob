@@ -11028,11 +11028,11 @@ const SettingsView = ({
                           <input
                             className={cn(
                               "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
-                              hasAttemptedSave && !user.professionalInfo?.billing.name?.trim()
+                              hasAttemptedSave && !user.professionalInfo?.billing?.name?.trim()
                                 ? "border-red-500 ring-1 ring-red-500"
                                 : "border border-outline-variant/10"
                             )}
-                            value={user.professionalInfo?.billing.name || ""}
+                            value={user.professionalInfo?.billing?.name || ""}
                             placeholder="Razón Social Completa *"
                             onChange={(e) => {
                               if (!user) return;
@@ -11047,7 +11047,7 @@ const SettingsView = ({
                                 professionalInfo: {
                                   ...currentInfo,
                                   billing: {
-                                    ...currentInfo.billing,
+                                    ...(currentInfo.billing || EMPTY_BILLING),
                                     name: e.target.value,
                                   },
                                 },
@@ -11064,12 +11064,12 @@ const SettingsView = ({
                             <input
                               className={cn(
                                 "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
-                                hasAttemptedSave && !user.professionalInfo?.billing.documentId?.trim()
+                                hasAttemptedSave && !user.professionalInfo?.billing?.documentId?.trim()
                                   ? "border-red-500 ring-1 ring-red-500"
                                   : "border border-outline-variant/10"
                               )}
                               value={
-                                user.professionalInfo?.billing.documentId || ""
+                                user.professionalInfo?.billing?.documentId || ""
                               }
                               placeholder="B-12345678 *"
                               onChange={(e) => {
@@ -11085,7 +11085,7 @@ const SettingsView = ({
                                   professionalInfo: {
                                     ...currentInfo,
                                     billing: {
-                                      ...currentInfo.billing,
+                                      ...(currentInfo.billing || EMPTY_BILLING),
                                       documentId: e.target.value,
                                     },
                                   },
@@ -11100,11 +11100,11 @@ const SettingsView = ({
                             <input
                               className={cn(
                                 "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
-                                hasAttemptedSave && !user.professionalInfo?.billing.phone?.trim()
+                                hasAttemptedSave && !user.professionalInfo?.billing?.phone?.trim()
                                   ? "border-red-500 ring-1 ring-red-500"
                                   : "border border-outline-variant/10"
                               )}
-                              value={user.professionalInfo?.billing.phone || ""}
+                              value={user.professionalInfo?.billing?.phone || ""}
                               placeholder="+34 600 000 000 *"
                               onChange={(e) => {
                                 if (!user) return;
@@ -11166,7 +11166,7 @@ const SettingsView = ({
                               <select
                                 className="w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.streetType || "Calle"
                                 }
                                 onChange={(e) => {
@@ -11202,13 +11202,13 @@ const SettingsView = ({
                               <input
                                 className={cn(
                                   "w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
-                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.streetName?.trim()
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.streetName?.trim()
                                     ? "border-red-500 ring-1 ring-red-500"
                                     : "border border-outline-variant/10"
                                 )}
                                 placeholder="Nombre de la vía *"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.streetName || ""
                                 }
                                 onChange={(e) => {
@@ -11239,12 +11239,12 @@ const SettingsView = ({
                                 placeholder="Nº *"
                                 className={cn(
                                   "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
-                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.number?.trim()
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.number?.trim()
                                     ? "border-red-500 ring-1 ring-red-500"
                                     : "border border-outline-variant/10"
                                 )}
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.number || ""
                                 }
                                 onChange={(e) => {
@@ -11273,7 +11273,7 @@ const SettingsView = ({
                                 placeholder="Bloque"
                                 className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.block || ""
                                 }
                                 onChange={(e) => {
@@ -11302,7 +11302,7 @@ const SettingsView = ({
                                 placeholder="Planta"
                                 className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.floor || ""
                                 }
                                 onChange={(e) => {
@@ -11331,7 +11331,7 @@ const SettingsView = ({
                                 placeholder="Puerta"
                                 className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.door || ""
                                 }
                                 onChange={(e) => {
@@ -11362,12 +11362,12 @@ const SettingsView = ({
                                 placeholder="CP *"
                                 className={cn(
                                   "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
-                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.postalCode?.trim()
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.postalCode?.trim()
                                     ? "border-red-500 ring-1 ring-red-500"
                                     : "border border-outline-variant/10"
                                 )}
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.postalCode || ""
                                 }
                                 onChange={(e) => {
@@ -11396,12 +11396,12 @@ const SettingsView = ({
                                 placeholder="Localidad *"
                                 className={cn(
                                   "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
-                                  hasAttemptedSave && !user.professionalInfo?.billing.address?.locality?.trim()
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.locality?.trim()
                                     ? "border-red-500 ring-1 ring-red-500"
                                     : "border border-outline-variant/10"
                                 )}
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.locality || ""
                                 }
                                 onChange={(e) => {
@@ -11431,12 +11431,12 @@ const SettingsView = ({
                               placeholder="Provincia *"
                               className={cn(
                                 "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
-                                hasAttemptedSave && !user.professionalInfo?.billing.address?.province?.trim()
+                                hasAttemptedSave && !user.professionalInfo?.billing?.address?.province?.trim()
                                   ? "border-red-500 ring-1 ring-red-500"
                                   : "border border-outline-variant/10"
                               )}
                               value={
-                                user.professionalInfo?.billing.address
+                                user.professionalInfo?.billing?.address
                                   ?.province || ""
                               }
                               onChange={(e) => {
