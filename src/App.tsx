@@ -9389,9 +9389,12 @@ const SettingsView = ({
       ? null
       : initialType || "general",
   );
-  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(globalUser);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setUser(globalUser);
+  }, [globalUser]);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [generalTab, setGeneralTab] = useState<
     | "personal"
@@ -9923,6 +9926,26 @@ const SettingsView = ({
   ];
 
   const renderContent = () => {
+    if (!user) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 text-center h-full">
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary">
+            <User className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-on-surface mb-2">Inicia sesión para ver tu configuración</h3>
+          <p className="text-xs text-on-surface-variant/60 max-w-xs mb-6">
+            Debes iniciar sesión con tu cuenta para acceder a la gestión de tu perfil.
+          </p>
+          <Link
+            to="/login"
+            className="px-6 py-3 primary-gradient text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg"
+          >
+            Iniciar Sesión
+          </Link>
+        </div>
+      );
+    }
+
     if (!activeType) {
       return (
         <div className="flex flex-col h-full pb-4 px-1">
