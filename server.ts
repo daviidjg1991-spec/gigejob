@@ -363,7 +363,7 @@ async function startServer() {
 
     try {
       const info = await transporter.sendMail({
-        from: \`"GigeJob" <\${process.env.SMTP_USER || 'no-reply@gigejob.com'}>\`,
+        from: `"GigeJob" <${process.env.SMTP_USER || 'no-reply@gigejob.com'}>`,
         to: [clientEmail, professionalEmail].join(", "),
         subject: "Servicio Cancelado",
         html: htmlContent,

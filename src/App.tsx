@@ -9401,6 +9401,7 @@ const SettingsView = ({
       : initialType || "general",
   );
   const [user, setUser] = useState<UserProfile | null>(globalUser);
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
