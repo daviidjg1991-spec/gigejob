@@ -12,7 +12,7 @@ const config: CapacitorConfig = {
     allowNavigation: ['gigejob.com', '*.gigejob.com']
   },
   ios: {
-    contentInset: 'always'
+    scrollEnabled: false
   },
   plugins: {
     FirebaseAuthentication: {

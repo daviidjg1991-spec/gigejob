@@ -25,7 +25,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { createPortal } from "react-dom";
-import PullToRefresh from "react-simple-pull-to-refresh";
+
 import {
   Home,
   Search,
@@ -9373,21 +9373,17 @@ const EMPTY_BILLING: BillingInfo = {
   address: EMPTY_ADDRESS,
 };
 
-const SettingsModal = ({
-  isOpen,
-  onClose,
-  type: initialType,
+const SettingsView = ({
   user: globalUser,
   setUser: setGlobalUser,
   onSimulateNotification,
 }: {
-  isOpen: boolean;
-  onClose: () => void;
-  type: string;
   user: UserProfile | null;
   setUser: (u: UserProfile | null) => void;
   onSimulateNotification?: (type: "message" | "alert") => void;
 }) => {
+  const [searchParams] = useSearchParams();
+  const initialType = searchParams.get("tab") || "general";
   const [activeType, setActiveType] = useState<string | null>(
     typeof window !== "undefined" && window.innerWidth < 1024
       ? null
@@ -9917,7 +9913,7 @@ const SettingsModal = ({
   }, [user?.professionalInfo?.workLocation, generalTab]);
 
 
-  if (!isOpen) return null;
+
 
   const menuItems = [
     { id: "general", label: "Configuración General", icon: Settings },
@@ -9976,7 +9972,6 @@ const SettingsModal = ({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: menuItems.length * 0.05 }}
               onClick={async () => {
-                onClose();
                 try {
                   await auth.signOut();
                   setGlobalUser(null);
@@ -12399,20 +12394,8 @@ const SettingsModal = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center lg:p-4 bg-black/60 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 100 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="w-full max-w-4xl bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] lg:h-[700px] h-[100dvh] max-h-[100dvh] lg:max-h-full lg:h-auto lg:ambient-shadow relative overflow-hidden flex flex-col lg:flex-row shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Sidebar / Mobile Header */}
+    <div className="w-full h-full min-h-[calc(100vh-5rem)] lg:min-h-0 bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col lg:flex-row">
+      {/* Sidebar / Mobile Header */}
         <div className="lg:w-72 w-full bg-white lg:bg-surface-container-low border-b lg:border-b-0 lg:border-r border-outline-variant/10 lg:p-10 p-5 flex flex-col shrink-0 relative transition-all duration-300">
           <div className="flex items-center justify-between lg:mb-12 mb-0 lg:px-0 px-1 shrink-0 relative z-20">
             <div className="flex items-center gap-3">
@@ -12449,18 +12432,12 @@ const SettingsModal = ({
                       <Settings className="w-4 h-4 text-white" />
                     </div>
                     <span className="text-xl lg:text-2xl font-display font-black tracking-tight text-on-surface">
-                      Configuración
+                      Área Personal
                     </span>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-            <button
-              onClick={onClose}
-              className="lg:p-2 p-2.5 bg-surface-container-low lg:bg-transparent rounded-full text-on-surface-variant/20 hover:text-primary transition-all active:scale-95 lg:hidden"
-            >
-              <X className="w-6 h-6" />
-            </button>
           </div>
 
           <nav className="hidden lg:flex flex-col space-y-2 lg:overflow-y-auto no-scrollbar pb-2 lg:pb-0 relative z-10 scroll-smooth">
@@ -12501,12 +12478,6 @@ const SettingsModal = ({
             )}
           </AnimatePresence>
 
-          <button
-            onClick={onClose}
-            className="hidden lg:block absolute top-10 right-10 p-3 hover:bg-surface-container-low rounded-full transition-colors text-on-surface-variant/20 hover:text-on-surface"
-          >
-            <X className="w-6 h-6" />
-          </button>
           <AnimatePresence mode="wait" initial={false}>
               <motion.div
               key={activeType || "menu"}
@@ -12525,7 +12496,6 @@ const SettingsModal = ({
             </motion.div>
           </AnimatePresence>
         </div>
-      </motion.div>
     </div>
   );
 };
@@ -12661,10 +12631,10 @@ const Navbar = ({
     <>
       <nav
         className={cn(
-          "fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest h-14 sm:h-16 hidden lg:flex lg:bg-transparent lg:glass-nav lg:border-b lg:border-outline-variant",
+          "fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest h-14 sm:h-16 hidden lg:flex lg:bg-white lg:border-b lg:border-outline-variant",
         )}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-full">
           <div className="flex justify-between h-full items-center gap-4">
             {/* Desktop/Tablet Logo */}
             <div className="hidden lg:flex items-center gap-8">
@@ -13449,11 +13419,11 @@ const HomePage = ({
   };
 
   return (
-    <PullToRefresh onRefresh={handleRefresh}>
-      <div className="min-h-screen bg-surface pb-20">
+    <>
+      <div className="min-h-screen bg-surface pb-36 md:pb-20">
         <CategorySubBar />
       <div 
-        className="bg-surface-container-lowest pt-[calc(env(safe-area-inset-top)+2rem)] sm:pt-[calc(env(safe-area-inset-top)+4rem)] pb-12 sm:pb-16 relative bg-cover bg-center"
+        className="bg-surface-container-lowest pt-8 sm:pt-16 pb-12 sm:pb-16 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
         {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none z-0" />}
@@ -13470,9 +13440,16 @@ const HomePage = ({
         </div>
       </div>
 
-      <div className="sticky top-[env(safe-area-inset-top)] lg:top-16 z-50 bg-surface/90 backdrop-blur-md pb-4 pt-4 px-4 sm:px-6 lg:px-8 border-b border-outline-variant/10 shadow-sm">
-        <div className="max-w-3xl mx-auto w-full">
-          <div className="relative flex items-center bg-surface-container-lowest rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
+      <div className="sticky top-0 lg:top-16 z-40 lg:z-50 bg-white/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 lg:pb-4 lg:pt-4 border-b border-outline-variant/10 shadow-sm">
+        <div className="max-w-3xl mx-auto w-full flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => navigate('/explorar')}
+            className="flex-shrink-0 flex items-center justify-center p-3 sm:p-4 rounded-full bg-surface text-on-surface-variant hover:text-primary hover:bg-surface-container-low border border-outline-variant/20 shadow-sm transition-all"
+            aria-label="Filtros"
+          >
+            <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+          <div className="relative flex-1 flex items-center bg-surface rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
             <Search className="ml-3 sm:ml-5 text-on-surface-variant/30 w-4 h-4 sm:w-5 sm:h-5" />
             <input
               type="text"
@@ -13498,7 +13475,7 @@ const HomePage = ({
 
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div className="flex justify-start items-center mb-8 border-b border-outline-variant/10 pb-6">
+        <div className="hidden lg:flex justify-start items-center mb-8 border-b border-outline-variant/10 pb-6">
           <div className="flex p-1 bg-surface-container-low rounded-xl">
             {[
               { id: "all", label: "Todos" },
@@ -13555,8 +13532,9 @@ const HomePage = ({
           </div>
         )}
       </div>
+      <div className="h-20 shrink-0 w-full lg:hidden block" aria-hidden="true" />
     </div>
-    </PullToRefresh>
+    </>
   );
 };
 
@@ -17177,7 +17155,7 @@ const DashboardLayout = ({
         onOpenSettings={onOpenSettings}
         unreadMessagesCount={unreadMessagesCount}
       />
-      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar">
+      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-32 lg:pb-0">
         {children}
       </main>
     </div>
@@ -17194,7 +17172,7 @@ const FavoritesPage = ({
   onToggleFavorite: (id: string) => void;
 }) => {
   return (
-    <div className="p-0 h-full overflow-y-auto no-scrollbar">
+    <div className="px-4 sm:px-6 lg:px-8 py-8">
       <div className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8 sm:mb-12">
           <div>
@@ -19408,7 +19386,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar">
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-[calc(4rem+env(safe-area-inset-bottom))]">
           {chats.length === 0 ? (
             <div className="p-10 text-center space-y-4 opacity-20">
               <MessageSquare className="w-8 h-8 mx-auto mb-2" />
@@ -23570,6 +23548,10 @@ const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
+    const mainContainer = document.getElementById('main-scroll-container');
+    if (mainContainer) {
+      mainContainer.scrollTo(0, 0);
+    }
   }, [pathname]);
   return null;
 };
@@ -23979,10 +23961,10 @@ function App() {
     return () => unsub();
   }, []);
 
-  const [settingsModal, setSettingsModal] = useState<{
-    isOpen: boolean;
-    type: string;
-  }>({ isOpen: false, type: "" });
+
+
+
+
 
   const { pendingBooking, setPendingBooking } = useReviewPrompt(user);
 
@@ -24757,7 +24739,7 @@ function App() {
       <div
         className={cn(
           "font-sans text-gray-900 antialiased selection:bg-blue-100 selection:text-blue-900",
-          isDashboard && "h-screen overflow-hidden flex flex-col",
+          "h-[100dvh] w-full overflow-hidden flex flex-col",
         )}
       >
         <ScrollToTop />
@@ -24768,14 +24750,7 @@ function App() {
             onComplete={() => setPendingBooking(null)} 
           />
         )}
-        <SettingsModal
-          isOpen={settingsModal.isOpen}
-          onClose={() => setSettingsModal({ ...settingsModal, isOpen: false })}
-          type={settingsModal.type}
-          user={user}
-          setUser={setUser}
-          onSimulateNotification={simulateNotification}
-        />
+
         <ReportModal
           isOpen={!!reportTarget}
           onClose={() => setReportTarget(null)}
@@ -24891,13 +24866,18 @@ function App() {
             </motion.div>
           )}
         </AnimatePresence>
+        
+        {/* Límite/Frontera superior para la barra de estado en iOS/Android */}
+        <div className="fixed top-0 inset-x-0 h-[env(safe-area-inset-top)] bg-surface-container-lowest z-[9999] block lg:hidden" />
+        
+
         <Navbar
           user={user}
           setUser={setUser}
           favoritesCount={favorites.length}
           notifications={notifications}
           setNotifications={setNotifications}
-          onOpenSettings={(type) => setSettingsModal({ isOpen: true, type })}
+          onOpenSettings={(type) => navigate(`/tu${type ? `?tab=${type}` : ''}`)}
           unreadMessagesCount={unreadMessagesCount}
           isMenuOpen={isMenuOpen}
           setIsMenuOpen={setIsMenuOpen}
@@ -24906,13 +24886,14 @@ function App() {
           onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
         />
         <main
+          id="main-scroll-container"
           className={cn(
+            "flex flex-col flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth",
             isDashboard
               ? location.pathname.startsWith("/mensajes")
-                ? "h-screen pt-0 md:pt-16 pb-16 md:pb-0"
-                : "h-screen pt-0 lg:pt-16"
-              : "min-h-screen pt-0 lg:pt-16 pb-16 lg:pb-0",
-            isDashboard && "flex flex-1 overflow-hidden",
+                ? "pt-[env(safe-area-inset-top)] md:pt-16 pb-0"
+                : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-0"
+              : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-0"
           )}
         >
           {(() => {
@@ -24924,7 +24905,8 @@ function App() {
                 (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
             );
             return (
-              <Routes>
+              <>
+                <Routes>
                 <Route
                   path="/pagina/:slug"
                   element={
@@ -24997,13 +24979,19 @@ function App() {
 
                 {/* Dashboard Routes */}
                 <Route
+                  path="/tu"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
                   path="/mensajes"
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <MessagesPage user={user} />
                     </DashboardLayout>
@@ -25014,9 +25002,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <HomePage
                         listings={(listings || []).filter(
@@ -25042,9 +25028,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <FavoritesPage
                         listings={activeListings.filter((l) =>
@@ -25061,9 +25045,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <StatsPage user={user} listings={listings} />
                     </DashboardLayout>
@@ -25074,9 +25056,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <WalletManager isDashboard={true} />
                     </DashboardLayout>
@@ -25089,9 +25069,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <SettingsSubPage
                         title="Sugerencias Inteligentes"
@@ -25105,9 +25083,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <SettingsSubPage
                         title="Verificaciones y Seguridad"
@@ -25121,9 +25097,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     >
                       <SettingsSubPage
                         title="Notificaciones"
@@ -25153,9 +25127,7 @@ function App() {
                       setUser={setUser}
                       onAdd={addListing}
                       listings={listings}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                       isSearchProfessionalsEnabled={isSearchProfessionalsEnabled}
                     />
                   }
@@ -25170,9 +25142,7 @@ function App() {
                       favorites={favorites}
                       onToggleFavorite={toggleFavorite}
                       onReactivate={reactivateListing}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     />
                   }
                 />
@@ -25180,6 +25150,10 @@ function App() {
                 {/* Catch-all route */}
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
+                {!location.pathname.startsWith("/mensajes") && (
+                  <div className="lg:hidden shrink-0 w-full pointer-events-none" style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }} aria-hidden="true" />
+                )}
+              </>
             );
           })()}
         </main>
@@ -25193,22 +25167,7 @@ function App() {
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="fixed top-0 left-0 right-0 bottom-16 z-[50] bg-white flex flex-col shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between px-6 h-16 border-b border-outline-variant shrink-0">
-                {user ? (
-                  <span className="font-display font-black text-on-surface uppercase tracking-widest text-xs">
-                    Área personal
-                  </span>
-                ) : (
-                  <span />
-                )}
-                <button
-                  onClick={() => setIsMenuOpen(false)}
-                  className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="overflow-y-auto no-scrollbar px-6 py-8 space-y-8 pb-12 flex-1">
+              <div className="overflow-y-auto no-scrollbar px-6 py-8 space-y-8 pb-12 flex-1 pt-6">
                 {/* General Navigation */}
                 <div className="space-y-4">
                   <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
@@ -25417,7 +25376,7 @@ function App() {
 
                       <button
                         onClick={() => {
-                          setSettingsModal({ isOpen: true, type: "" });
+                          navigate("/tu");
                           setIsMenuOpen(false);
                         }}
                         className="w-full flex items-center justify-between px-6 py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 mt-4"
@@ -25487,7 +25446,7 @@ function App() {
                     navigate("/login");
                   }
                 },
-                isActive: isMenuOpen,
+                isActive: isMenuOpen || location.pathname === "/tu",
               },
             ].map((item) => {
               const content = (
@@ -25865,8 +25824,6 @@ export default function Root() {
     <Router>
       <ErrorBoundary>
         <AppConfigProvider>
-          {/* Global white status bar background for iOS with overlaysWebView: true */}
-          <div className="fixed top-0 inset-x-0 h-[env(safe-area-inset-top)] bg-white z-[9999]" />
           <App />
         </AppConfigProvider>
       </ErrorBoundary>
