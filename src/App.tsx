@@ -12551,29 +12551,102 @@ const SettingsOptions = ({
 
 const CategoriesBar = () => {
   const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (isOpen) {
+      timeoutRef.current = setTimeout(() => {
+        setIsOpen(false);
+      }, 3000);
+    }
+  };
 
   const popularCategories = [
     "Limpieza",
     "Montaje de muebles",
     "Electricidad",
-    "Clases particulares",
-    "Cuidado de personas",
-    "Informática",
   ];
 
   return (
     <div className="hidden lg:block bg-surface-container-lowest border-b border-outline-variant">
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-3">
-          {popularCategories.map((cat) => (
+        <div className="flex items-center gap-6 py-3">
+          <div
+            className="relative"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
             <button
-              key={cat}
-              onClick={() => navigate(`/explorar?category=${encodeURIComponent(cat)}`)}
-              className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant/50 hover:text-primary transition-colors whitespace-nowrap"
+              onClick={() => setIsOpen(!isOpen)}
+              className={cn(
+                "flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-colors",
+                isOpen
+                  ? "text-primary"
+                  : "text-on-surface-variant/60 hover:text-primary",
+              )}
             >
-              {cat}
+              <Menu className="w-3.5 h-3.5" />
+              Todas las categorías
+              <ChevronDown
+                className={cn(
+                  "w-3 h-3 transition-transform",
+                  isOpen && "rotate-180",
+                )}
+              />
             </button>
-          ))}
+
+            <AnimatePresence>
+              {isOpen && (
+                <motion.div
+                  key="categories-dropdown"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                  className="absolute top-full left-0 mt-2 w-64 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant p-3 z-50"
+                >
+                  <div className="grid grid-cols-1 gap-1">
+                    {CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => {
+                          navigate(`/explorar?category=${encodeURIComponent(cat)}`);
+                          setIsOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-surface-container-low rounded-xl text-xs font-bold text-on-surface-variant hover:text-primary transition-all flex items-center justify-between group"
+                      >
+                        {cat}
+                        <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="h-3 w-[1px] bg-outline-variant"></div>
+
+          <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
+            {popularCategories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => navigate(`/explorar?category=${encodeURIComponent(cat)}`)}
+                className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant/50 hover:text-primary transition-colors whitespace-nowrap"
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -12667,7 +12740,7 @@ const Navbar = ({
       >
         <div className="w-full px-4 sm:px-6 lg:px-8 h-full">
           <div className="flex justify-between h-full items-center gap-4">
-            {/* Desktop/Tablet Logo + Menu */}
+            {/* Desktop/Tablet Logo */}
             <div className="hidden lg:flex items-center gap-8 shrink-0">
               <Link to="/" className="flex items-center gap-3">
                 <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
@@ -12675,63 +12748,6 @@ const Navbar = ({
                   {config.logoText1}<span className="text-primary">{config.logoText2}</span>
                 </span>
               </Link>
-
-              {/* Menú de categorías */}
-              <div
-                className="relative"
-                onMouseEnter={clearDropdownTimeout}
-                onMouseLeave={startDropdownTimeout}
-              >
-                <button
-                  onClick={() => toggleDropdown("categories")}
-                  className={cn(
-                    "flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors",
-                    activeDropdown === "categories"
-                      ? "text-primary"
-                      : "text-on-surface-variant/60 hover:text-primary",
-                  )}
-                >
-                  <Menu className="w-3.5 h-3.5" />
-                  Todas las categorías
-                  <ChevronDown
-                    className={cn(
-                      "w-3 h-3 transition-transform",
-                      activeDropdown === "categories" && "rotate-180",
-                    )}
-                  />
-                </button>
-
-                <AnimatePresence>
-                  {activeDropdown === "categories" && (
-                    <motion.div
-                      key="categories-dropdown"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      onMouseEnter={clearDropdownTimeout}
-                      onMouseLeave={startDropdownTimeout}
-                      className="absolute top-full left-0 mt-2 w-64 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant p-3 z-50"
-                    >
-                      <div className="grid grid-cols-1 gap-1">
-                        {CATEGORIES.map((cat) => (
-                          <button
-                            key={cat}
-                            onClick={() => {
-                              navigate(`/explorar?category=${cat}`);
-                              setActiveDropdown(null);
-                              clearDropdownTimeout();
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-surface-container-low rounded-xl text-xs font-bold text-on-surface-variant hover:text-primary transition-all flex items-center justify-between group"
-                          >
-                            {cat}
-                            <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
             </div>
 
             {/* Web Search Bar (Navbar) */}
