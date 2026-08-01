@@ -9703,20 +9703,18 @@ const SettingsView = ({
   };
 
   useEffect(() => {
-    if (isOpen) {
-      if (globalUser) {
-        setUser(JSON.parse(JSON.stringify(globalUser)));
-      }
-      setShowSaveToast(false);
+    if (globalUser) {
+      setUser(JSON.parse(JSON.stringify(globalUser)));
+    }
+    setShowSaveToast(false);
 
-      // On mobile, default to the menu unless we have a specific sub-page that isn't 'general'
-      if (typeof window !== "undefined" && window.innerWidth < 1024) {
-        if (!initialType || initialType === "general") {
-          setActiveType(null);
-        }
+    // On mobile, default to the menu unless we have a specific sub-page that isn't 'general'
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      if (!initialType || initialType === "general") {
+        setActiveType(null);
       }
     }
-  }, [isOpen, initialType]); // only run when modal opens or type changes
+  }, [globalUser, initialType]);
 
   const handleSave = async () => {
     if (!user) return;
