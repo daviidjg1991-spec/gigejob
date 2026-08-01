@@ -583,11 +583,16 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             <h2 className="text-3xl font-display font-black text-on-surface mb-4 tracking-tight">
               ¡Vaya! Algo salió mal
             </h2>
-            <p className="text-on-surface-variant/60 mb-10 font-medium leading-relaxed break-words">
+            <p className="text-on-surface-variant/60 mb-4 font-medium leading-relaxed break-words">
               {error
                 ? error.message
                 : "Hemos detectado un error inesperado al renderizar los datos. No te preocupes, tus datos están a salvo. Pulsa el botón para reiniciar la aplicación."}
             </p>
+            {error && error.stack && (
+              <pre className="text-left text-[10px] bg-black/5 p-4 rounded-xl mb-6 overflow-x-auto max-h-40 text-red-600 font-mono">
+                {error.stack}
+              </pre>
+            )}
             <button
               onClick={() => {
                 localStorage.clear();
@@ -9382,11 +9387,17 @@ const SettingsView = ({
   setUser: (u: UserProfile | null) => void;
   onSimulateNotification?: (type: "message" | "alert") => void;
 }) => {
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const initialType = searchParams.get("tab") || "general";
+  
+  const pathSegment = location.pathname.startsWith("/configuracion/")
+    ? location.pathname.replace("/configuracion/", "")
+    : "";
+  const initialType = searchParams.get("tab") || pathSegment || "general";
+
   const [activeType, setActiveType] = useState<string | null>(
     typeof window !== "undefined" && window.innerWidth < 1024
-      ? null
+      ? (pathSegment ? (["personal", "profesional", "disponibilidad", "verificacion"].includes(pathSegment) ? "general" : pathSegment) : null)
       : initialType || "general",
   );
   const [user, setUser] = useState<UserProfile | null>(globalUser);
@@ -25104,44 +25115,58 @@ function App() {
 
                 {/* Configuración Sub-routes */}
                 <Route
-                  path="/configuracion/sugerencias"
+                  path="/configuracion"
                   element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
-                    >
-                      <SettingsSubPage
-                        title="Sugerencias Inteligentes"
-                        description="Optimiza tu perfil con IA."
-                      />
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/personal"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/profesional"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/disponibilidad"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/facturacion"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
                 />
                 <Route
                   path="/configuracion/seguridad"
                   element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
-                    >
-                      <SettingsSubPage
-                        title="Verificaciones y Seguridad"
-                        description="Protege tu cuenta."
-                      />
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
                 />
                 <Route
                   path="/configuracion/notificaciones"
                   element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
-                    >
-                      <SettingsSubPage
-                        title="Notificaciones"
-                        description="Gestiona tus alertas."
-                      />
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                      <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
                 />
