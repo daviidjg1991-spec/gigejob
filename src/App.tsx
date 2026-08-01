@@ -12552,11 +12552,20 @@ const SettingsOptions = ({
 const CategoriesBar = () => {
   const navigate = useNavigate();
 
+  const popularCategories = [
+    "Limpieza",
+    "Montaje de muebles",
+    "Electricidad",
+    "Clases particulares",
+    "Cuidado de personas",
+    "Informática",
+  ];
+
   return (
     <div className="hidden lg:block bg-surface-container-lowest border-b border-outline-variant">
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-3">
-          {CATEGORIES.map((cat) => (
+          {popularCategories.map((cat) => (
             <button
               key={cat}
               onClick={() => navigate(`/explorar?category=${encodeURIComponent(cat)}`)}
