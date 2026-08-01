@@ -12549,6 +12549,28 @@ const SettingsOptions = ({
   );
 };
 
+const CategoriesBar = () => {
+  const navigate = useNavigate();
+
+  return (
+    <div className="hidden lg:block bg-surface-container-lowest border-b border-outline-variant">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar py-3">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => navigate(`/explorar?category=${encodeURIComponent(cat)}`)}
+              className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant/50 hover:text-primary transition-colors whitespace-nowrap"
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Navbar = ({
   favoritesCount,
   notifications,
@@ -24864,6 +24886,7 @@ function App() {
               : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-0"
           )}
         >
+          {!isDashboard && <CategoriesBar />}
           {(() => {
             const activeListings = listings.filter(
               (l) =>
