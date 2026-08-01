@@ -25172,6 +25172,138 @@ function App() {
               </>
             );
           })()}
+
+          {/* Footer - Hidden on Dashboard and Mobile Apps (moved to Info modal) */}
+          {!isDashboard && (
+            <footer className="bg-surface-container-lowest py-16 border-t border-outline-variant hidden lg:block shrink-0 mt-auto">
+              <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
+                <div className="flex flex-col gap-4 md:w-1/4">
+                  <Link to="/" className="flex items-center gap-3">
+                    <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                    <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
+                      {config.logoText1}<span className="text-primary">{config.logoText2}</span>
+                    </span>
+                  </Link>
+                  <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">
+                    {footerConfig.copyrightText}
+                  </p>
+
+                  {footerConfig.socialLinks &&
+                    footerConfig.socialLinks.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3 mt-4">
+                        {footerConfig.socialLinks.map((social, idx) => {
+                          const Icon =
+                            social.platform === "facebook"
+                              ? Facebook
+                              : social.platform === "twitter"
+                                ? Twitter
+                                : social.platform === "instagram"
+                                  ? Instagram
+                                  : social.platform === "linkedin"
+                                    ? Linkedin
+                                    : social.platform === "youtube"
+                                      ? Youtube
+                                      : social.platform === "github"
+                                        ? Github
+                                        : Globe;
+
+                          const href = social.url.startsWith("http")
+                            ? social.url
+                            : `https://${social.url}`;
+                          return (
+                            <a
+                              key={idx}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 bg-surface-container rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                            >
+                              <Icon className="w-5 h-5" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 md:flex-1 gap-8">
+                  {footerConfig.columns.map((col, idx) => (
+                    <div key={idx} className="flex flex-col gap-6">
+                      <h4 className="font-bold text-on-surface">{col.title}</h4>
+                      <div className="flex flex-col gap-4 text-sm font-medium text-on-surface-variant/70">
+                        {col.links.map((link, lidx) => {
+                          const url = link.url || "";
+                          const isExternal =
+                            url.startsWith("http") ||
+                            url.startsWith("mailto:") ||
+                            url.startsWith("tel:") ||
+                            (url.includes(".") &&
+                              !url.startsWith("/") &&
+                              !url.startsWith("#page-"));
+
+                          if (isExternal) {
+                            const href =
+                              url.startsWith("http") ||
+                              url.startsWith("mailto:") ||
+                              url.startsWith("tel:")
+                                ? url
+                                : `https://${url}`;
+                            return (
+                              <a
+                                key={lidx}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-primary transition-colors"
+                              >
+                                {link.label}
+                              </a>
+                            );
+                          }
+
+                          // Internal full routes (like /explorar)
+                          if (
+                            url.startsWith("/") &&
+                            !url.startsWith("/pagina/")
+                          ) {
+                            return (
+                              <Link
+                                key={lidx}
+                                to={url}
+                                className="hover:text-primary transition-colors text-left"
+                              >
+                                {link.label}
+                              </Link>
+                            );
+                          }
+
+                          // Static Pages
+                          const normalizedUrl = url.startsWith("#page-")
+                            ? url
+                            : url.startsWith("/pagina/")
+                              ? `#page-${url.replace("/pagina/", "")}`
+                              : `#page-${url}`;
+                          const slug = normalizedUrl
+                            .replace("#page-", "")
+                            .replace("/pagina/", "");
+
+                          return (
+                            <Link
+                              key={lidx}
+                              to={`/pagina/${encodeURIComponent(slug)}`}
+                              className="hover:text-primary transition-colors text-left"
+                            >
+                              {link.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </footer>
+          )}
         </main>
         <AnimatePresence>
           {isMenuOpen && (
@@ -25526,136 +25658,99 @@ function App() {
           </div>
         )}
 
-        {/* Footer - Hidden on Dashboard and Mobile Apps (moved to Info modal) */}
-        {!isDashboard && (
-          <footer className="bg-surface-container-lowest py-16 border-t border-outline-variant hidden lg:block">
-            <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
-              <div className="flex flex-col gap-4 md:w-1/4">
-                <Link to="/" className="flex items-center gap-3">
-                  <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
-                  <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
-                    {config.logoText1}<span className="text-primary">{config.logoText2}</span>
-                  </span>
-                </Link>
-                <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">
-                  {footerConfig.copyrightText}
-                </p>
 
-                {footerConfig.socialLinks &&
-                  footerConfig.socialLinks.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-3 mt-4">
-                      {footerConfig.socialLinks.map((social, idx) => {
-                        const Icon =
-                          social.platform === "facebook"
-                            ? Facebook
-                            : social.platform === "twitter"
-                              ? Twitter
-                              : social.platform === "instagram"
-                                ? Instagram
-                                : social.platform === "linkedin"
-                                  ? Linkedin
-                                  : social.platform === "youtube"
-                                    ? Youtube
-                                    : social.platform === "github"
-                                      ? Github
-                                      : Globe;
 
-                        const href = social.url.startsWith("http")
-                          ? social.url
-                          : `https://${social.url}`;
-                        return (
-                          <a
-                            key={idx}
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 bg-surface-container rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                          >
-                            <Icon className="w-5 h-5" />
-                          </a>
-                        );
-                      })}
-                    </div>
+        {/* Mobile Bottom Navigation - Hidden in chats and web view */}
+        {(location.pathname.includes("/mensajes") &&
+        searchParams.has("chatId")) || !Capacitor.isNativePlatform() ? null : (
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0">
+            {[
+              { label: "Inicio", icon: Home, path: "/" },
+              { label: "Favoritos", icon: Heart, path: "/favoritos" },
+              {
+                label: "Publicar",
+                icon: PlusCircle,
+                path: "/publicar",
+                isCenter: true,
+              },
+              {
+                label: "Buzón",
+                icon: MessageSquare,
+                path: "/mensajes",
+                badge: unreadMessagesCount,
+              },
+              {
+                label: "Tú",
+                icon: User,
+                onClick: () => {
+                  if (user) {
+                    setIsMenuOpen(!isMenuOpen);
+                  } else {
+                    navigate("/login");
+                  }
+                },
+                isActive: isMenuOpen || location.pathname === "/tu",
+              },
+            ].map((item) => {
+              const content = (
+                <div
+                  className={cn(
+                    "flex flex-col items-center gap-1 transition-all",
+                    (item.path && location.pathname === item.path) ||
+                      item.isActive
+                      ? "text-primary"
+                      : "text-on-surface-variant/40",
                   )}
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 md:flex-1 gap-8">
-                {footerConfig.columns.map((col, idx) => (
-                  <div key={idx} className="flex flex-col gap-6">
-                    <h4 className="font-bold text-on-surface">{col.title}</h4>
-                    <div className="flex flex-col gap-4 text-sm font-medium text-on-surface-variant/70">
-                      {col.links.map((link, lidx) => {
-                        const url = link.url || "";
-                        const isExternal =
-                          url.startsWith("http") ||
-                          url.startsWith("mailto:") ||
-                          url.startsWith("tel:") ||
-                          (url.includes(".") &&
-                            !url.startsWith("/") &&
-                            !url.startsWith("#page-"));
-
-                        if (isExternal) {
-                          const href =
-                            url.startsWith("http") ||
-                            url.startsWith("mailto:") ||
-                            url.startsWith("tel:")
-                              ? url
-                              : `https://${url}`;
-                          return (
-                            <a
-                              key={lidx}
-                              href={href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:text-primary transition-colors"
-                            >
-                              {link.label}
-                            </a>
-                          );
-                        }
-
-                        // Internal full routes (like /explorar)
-                        if (
-                          url.startsWith("/") &&
-                          !url.startsWith("/pagina/")
-                        ) {
-                          return (
-                            <Link
-                              key={lidx}
-                              to={url}
-                              className="hover:text-primary transition-colors text-left"
-                            >
-                              {link.label}
-                            </Link>
-                          );
-                        }
-
-                        // Static Pages
-                        const normalizedUrl = url.startsWith("#page-")
-                          ? url
-                          : url.startsWith("/pagina/")
-                            ? `#page-${url.replace("/pagina/", "")}`
-                            : `#page-${url}`;
-                        const slug = normalizedUrl
-                          .replace("#page-", "")
-                          .replace("/pagina/", "");
-
-                        return (
-                          <Link
-                            key={lidx}
-                            to={`/pagina/${encodeURIComponent(slug)}`}
-                            className="hover:text-primary transition-colors text-left"
-                          >
-                            {link.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
+                >
+                  <div
+                    className={cn(
+                      "relative",
+                      item.isCenter &&
+                        "bg-primary text-white p-2.5 rounded-full -mt-8 shadow-xl border-4 border-white",
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {"badge" in item && !!item.badge && item.badge > 0 && (
+                      <span className="absolute -top-1 -right-1.5 w-4 h-4 bg-green-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-white">
+                        {item.badge}
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-          </footer>
+                  <span
+                    className={cn(
+                      "text-[9px] font-black uppercase tracking-widest",
+                      item.isCenter && "mt-1",
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </div>
+              );
+
+              if (item.path) {
+                return (
+                  <Link
+                    key={item.label}
+                    to={item.path}
+                    onClick={(e) => {
+                      if (item.label === "Inicio") {
+                        e.preventDefault();
+                        window.location.href = "/";
+                      }
+                    }}
+                  >
+                    {content}
+                  </Link>
+                );
+              }
+
+              return (
+                <button key={item.label} onClick={item.onClick}>
+                  {content}
+                </button>
+              );
+            })}
+          </div>
         )}
         <AnimatePresence>
           {activeToast && (
