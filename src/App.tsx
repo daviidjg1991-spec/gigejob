@@ -24925,7 +24925,7 @@ function App() {
           favoritesCount={favorites.length}
           notifications={notifications}
           setNotifications={setNotifications}
-          onOpenSettings={(type) => navigate(`/tu${type ? `?tab=${type}` : ''}`)}
+          onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
           unreadMessagesCount={unreadMessagesCount}
           isMenuOpen={isMenuOpen}
           setIsMenuOpen={setIsMenuOpen}
@@ -25030,7 +25030,7 @@ function App() {
                 <Route
                   path="/tu"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
@@ -25040,7 +25040,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
                     >
                       <MessagesPage user={user} />
                     </DashboardLayout>
@@ -25051,7 +25051,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
                     >
                       <HomePage
                         listings={(listings || []).filter(
@@ -25077,7 +25077,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
                     >
                       <FavoritesPage
                         listings={activeListings.filter((l) =>
@@ -25094,7 +25094,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
                     >
                       <StatsPage user={user} listings={listings} />
                     </DashboardLayout>
@@ -25105,7 +25105,7 @@ function App() {
                   element={
                     <DashboardLayout
                       unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
                     >
                       <WalletManager isDashboard={true} />
                     </DashboardLayout>
@@ -25116,7 +25116,7 @@ function App() {
                 <Route
                   path="/configuracion"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
@@ -25124,7 +25124,7 @@ function App() {
                 <Route
                   path="/configuracion/personal"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
@@ -25132,7 +25132,7 @@ function App() {
                 <Route
                   path="/configuracion/profesional"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
@@ -25140,7 +25140,7 @@ function App() {
                 <Route
                   path="/configuracion/disponibilidad"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
@@ -25148,7 +25148,7 @@ function App() {
                 <Route
                   path="/configuracion/facturacion"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
@@ -25156,7 +25156,7 @@ function App() {
                 <Route
                   path="/configuracion/seguridad"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
@@ -25164,7 +25164,7 @@ function App() {
                 <Route
                   path="/configuracion/notificaciones"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}>
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
                       <SettingsView user={user} setUser={setUser} />
                     </DashboardLayout>
                   }
