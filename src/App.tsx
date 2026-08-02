@@ -18710,6 +18710,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   );
   const [showMenu, setShowMenu] = useState(false);
   const { openReportModal } = React.useContext(ReportContext);
+  const [showSummary, setShowSummary] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
   const touchStartYRef = useRef<number | null>(null);
 
