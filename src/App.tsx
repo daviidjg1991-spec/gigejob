@@ -9539,12 +9539,12 @@ const SettingsView = ({
     const unsubPro = onSnapshot(qPro, (snapshot) => {
       proBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       updateCombined();
-    });
+    }, (error) => console.error("Error fetching pro bookings", error));
 
     const unsubClient = onSnapshot(qClient, (snapshot) => {
       clientBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       updateCombined();
-    });
+    }, (error) => console.error("Error fetching client bookings", error));
 
     return () => {
       unsubTxs();
