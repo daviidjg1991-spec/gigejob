@@ -24897,9 +24897,9 @@ function App() {
             "flex flex-col flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth",
             isDashboard
               ? location.pathname.startsWith("/mensajes")
-                ? "pt-[env(safe-area-inset-top)] md:pt-16 pb-0"
-                : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-0"
-              : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-0"
+                ? "pt-[env(safe-area-inset-top)] md:pt-16 pb-16 lg:pb-0"
+                : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-16 lg:pb-0"
+              : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-16 lg:pb-0"
           )}
         >
           {!isDashboard && <CategoriesBar />}
@@ -25570,104 +25570,8 @@ function App() {
         {/* Modals */}
         <AnimatePresence></AnimatePresence>
 
-        {/* Mobile Bottom Navigation - Hidden in chats and web view */}
-        {(location.pathname.includes("/mensajes") &&
-        searchParams.has("chatId")) || !Capacitor.isNativePlatform() ? null : (
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0">
-            {[
-              { label: "Inicio", icon: Home, path: "/" },
-              { label: "Favoritos", icon: Heart, path: "/favoritos" },
-              {
-                label: "Publicar",
-                icon: PlusCircle,
-                path: "/publicar",
-                isCenter: true,
-              },
-              {
-                label: "Buzón",
-                icon: MessageSquare,
-                path: "/mensajes",
-                badge: unreadMessagesCount,
-              },
-              {
-                label: "Tú",
-                icon: User,
-                onClick: () => {
-                  if (user) {
-                    setIsMenuOpen(!isMenuOpen);
-                  } else {
-                    navigate("/login");
-                  }
-                },
-                isActive: isMenuOpen || location.pathname === "/tu",
-              },
-            ].map((item) => {
-              const content = (
-                <div
-                  className={cn(
-                    "flex flex-col items-center gap-1 transition-all",
-                    (item.path && location.pathname === item.path) ||
-                      item.isActive
-                      ? "text-primary"
-                      : "text-on-surface-variant/40",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "relative",
-                      item.isCenter &&
-                        "bg-primary text-white p-2.5 rounded-full -mt-8 shadow-xl border-4 border-white",
-                    )}
-                  >
-                    <item.icon className="w-5 h-5" />
-                    {"badge" in item && !!item.badge && item.badge > 0 && (
-                      <span className="absolute -top-1 -right-1.5 w-4 h-4 bg-green-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-white">
-                        {item.badge}
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      "text-[9px] font-black uppercase tracking-widest",
-                      item.isCenter && "mt-1",
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                </div>
-              );
-
-              if (item.path) {
-                return (
-                  <Link
-                    key={item.label}
-                    to={item.path}
-                    onClick={(e) => {
-                      if (item.label === "Inicio") {
-                        e.preventDefault();
-                        window.location.href = "/";
-                      }
-                    }}
-                  >
-                    {content}
-                  </Link>
-                );
-              }
-
-              return (
-                <button key={item.label} onClick={item.onClick}>
-                  {content}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-
-
-        {/* Mobile Bottom Navigation - Hidden in chats and web view */}
-        {(location.pathname.includes("/mensajes") &&
-        searchParams.has("chatId")) || !Capacitor.isNativePlatform() ? null : (
+        {/* Mobile Bottom Navigation - Visible on mobile viewports (lg:hidden) */}
+        {location.pathname.includes("/mensajes") && searchParams.has("chatId") ? null : (
           <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0">
             {[
               { label: "Inicio", icon: Home, path: "/" },
