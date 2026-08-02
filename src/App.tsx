@@ -25529,7 +25529,7 @@ function App() {
 
                       <button
                         onClick={() => {
-                          navigate("/tu");
+                          navigate("/configuracion");
                           setIsMenuOpen(false);
                         }}
                         className="w-full flex items-center justify-between px-6 py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 mt-4"
