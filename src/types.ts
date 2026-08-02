@@ -1,5 +1,5 @@
 export type ListingType = 'offer' | 'search';
-export type UserRole = 'user' | 'professional';
+export type UserRole = 'user' | 'professional' | 'admin';
 
 // ADMIN CONFIGURATIONS (Hardcoded)
 export const ENABLE_SEARCH_PROFESSIONALS = false;
@@ -153,6 +153,7 @@ export interface UserProfile {
       sms: boolean;
     };
   };
+  createdAt?: any;
   accountStatus?: 'active' | 'suspended' | 'banned';
   suspendedUntil?: any;
   banReason?: string;

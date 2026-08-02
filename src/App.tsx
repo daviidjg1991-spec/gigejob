@@ -23855,8 +23855,8 @@ const useReviewPrompt = (user: UserProfile | null) => {
         const [snapClient, snapPro] = await Promise.all([getDocs(qClient), getDocs(qPro)]);
         const bookings = [...snapClient.docs, ...snapPro.docs].map(d => ({ id: d.id, ...d.data() }));
 
-        for (const b of bookings) {
-          const durationStr = typeof b.duration === 'string' ? b.duration.replace(/\\D/g, '') : "1";
+        for (const b of bookings as any[]) {
+          const durationStr = typeof b.duration === 'string' ? b.duration.replace(/\D/g, '') : "1";
           const durationHours = parseInt(durationStr) || 1;
           
           let startDateTime = new Date(`${b.date}T${b.time}`);
