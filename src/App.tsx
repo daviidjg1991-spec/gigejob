@@ -26,6 +26,7 @@ import {
 } from "react-router-dom";
 import { createPortal } from "react-dom";
 
+import { Capacitor } from "@capacitor/core";
 import {
   Home,
   Search,
@@ -9947,6 +9948,29 @@ const SettingsView = ({
     }
   }, [user?.professionalInfo?.workLocation, generalTab]);
 
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const diffX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const diffY = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
+    if (diffX > 70 && diffY < 50) {
+      if (generalTab) {
+        setGeneralTab(null);
+      } else if (activeType) {
+        setActiveType(null);
+      }
+    }
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
+
 
 
 
@@ -17209,7 +17233,10 @@ const DashboardLayout = ({
         onOpenSettings={onOpenSettings}
         unreadMessagesCount={unreadMessagesCount}
       />
-      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
+      <main className={cn(
+        "flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar lg:pb-0",
+        Capacitor.isNativePlatform() ? "pb-[calc(4rem+env(safe-area-inset-bottom))]" : "pb-0"
+      )}>
         {children}
       </main>
     </div>
