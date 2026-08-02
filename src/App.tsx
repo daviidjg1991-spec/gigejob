@@ -17053,13 +17053,6 @@ const DashboardSidebar = ({
   return (
     <div className="hidden lg:flex w-80 bg-surface-container-lowest border-r border-outline-variant/10 flex-col h-full overflow-y-auto no-scrollbar shrink-0 z-[60]">
       <div className="p-6">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="primary-gradient p-1.5 rounded-lg shadow-sm shrink-0">
-            <Briefcase className="w-5 h-5 text-white" />
-          </div>
-          {/* Sidebar title removed */}
-        </div>
-
         <nav className="space-y-1">
           {menuItems.map((item) => (
             <button
