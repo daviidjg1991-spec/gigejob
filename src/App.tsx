@@ -9395,10 +9395,19 @@ const SettingsView = ({
     : "";
   const initialType = searchParams.get("tab") || pathSegment || "general";
 
+  const mapPathToType = (path: string) => {
+    if (path === "seguridad") return "security";
+    if (path === "notificaciones") return "notifications";
+    if (path === "facturacion") return "billing";
+    if (path === "personal") return "general";
+    if (["profesional", "disponibilidad", "verificacion"].includes(path)) return "general";
+    return path;
+  };
+
   const [activeType, setActiveType] = useState<string | null>(
     typeof window !== "undefined" && window.innerWidth < 1024
-      ? (pathSegment ? (["personal", "profesional", "disponibilidad", "verificacion"].includes(pathSegment) ? "general" : pathSegment) : null)
-      : initialType || "general",
+      ? (pathSegment ? mapPathToType(pathSegment) : null)
+      : mapPathToType(initialType) || "general",
   );
   const [user, setUser] = useState<UserProfile | null>(globalUser);
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
@@ -9840,41 +9849,41 @@ const SettingsView = ({
 
   useEffect(() => {
     if (initialType) {
-      // On mobile, we prefer showing the main settings menu (null)
-      // instead of default 'general' sub-page when opening.
-      if (
-        typeof window !== "undefined" &&
-        window.innerWidth < 1024 &&
-        initialType === "general"
-      ) {
-        setActiveType(null);
-      } else {
-        setActiveType(initialType);
-      }
-
       if (
         initialType === "personal" ||
+        initialType === "general"
+      ) {
+        setActiveType("general");
+        setGeneralTab(null);
+      } else if (
         initialType === "profesional" ||
         initialType === "disponibilidad" ||
         initialType === "verificacion"
       ) {
         setActiveType("general");
         setGeneralTab(
-          initialType === "personal"
-            ? "personal"
-            : initialType === "profesional"
-              ? "professional"
-              : initialType === "disponibilidad"
-                ? "availability"
-                : "verification",
+          initialType === "profesional"
+            ? "professional"
+            : initialType === "disponibilidad"
+              ? "availability"
+              : "verification",
         );
-      } else if (initialType === "facturacion") {
+      } else if (initialType === "facturacion" || initialType === "billing") {
         setActiveType("billing");
-      } else if (
-        initialType === "general" &&
-        (typeof window === "undefined" || window.innerWidth >= 1024)
-      ) {
-        setGeneralTab(null);
+      } else if (initialType === "seguridad" || initialType === "security") {
+        setActiveType("security");
+      } else if (initialType === "notificaciones" || initialType === "notifications") {
+        setActiveType("notifications");
+      } else {
+        if (
+          typeof window !== "undefined" &&
+          window.innerWidth < 1024 &&
+          initialType === "general"
+        ) {
+          setActiveType(null);
+        } else {
+          setActiveType(initialType);
+        }
       }
     }
   }, [initialType]);
