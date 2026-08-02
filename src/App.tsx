@@ -12524,7 +12524,7 @@ const SettingsView = ({
     <div className="w-full h-full bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col">
 
         {/* Content */}
-        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-6 lg:pb-16">
+        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-24 lg:pb-16">
           <div className="lg:hidden h-px w-full bg-outline-variant/10" />
           <AnimatePresence>
             {showSaveToast && (
@@ -25665,7 +25665,7 @@ function App() {
         <AnimatePresence></AnimatePresence>
 
         {/* Mobile Bottom Navigation - Visible on mobile viewports (lg:hidden) */}
-        {(location.pathname.includes("/mensajes") && searchParams.has("chatId")) || location.pathname.includes("/configuracion") ? null : (
+        {location.pathname.includes("/mensajes") && searchParams.has("chatId") ? null : (
           <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0">
             {[
               { label: "Inicio", icon: Home, path: "/" },
