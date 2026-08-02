@@ -9938,7 +9938,7 @@ const SettingsView = ({
 
 
   const menuItems = [
-    { id: "general", label: "Configuración General", icon: Settings },
+    { id: "general", label: "Área Personal", icon: Settings },
     { id: "billing", label: "Facturación", icon: Wallet },
     { id: "security", label: "Seguridad", icon: Lock },
     { id: "notifications", label: "Notificaciones", icon: Bell },
@@ -10672,7 +10672,7 @@ const SettingsView = ({
               <>
                 <div className="space-y-2">
                   <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
-                    Configuración General
+                    Área Personal
                   </h3>
                   <p className="text-sm text-on-surface-variant/60">
                     Gestiona tu documentación y datos profesionales.
