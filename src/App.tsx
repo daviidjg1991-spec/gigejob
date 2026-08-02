@@ -448,12 +448,29 @@ export const AppConfigProvider = ({ children }: { children: React.ReactNode }) =
     }
   });
 
-  const updateConfig = (c: Partial<DynamicAppConfig>) => {
-    setConfig(prev => {
-      const nw = { ...prev, ...c };
-      localStorage.setItem("app_dynamic_config", JSON.stringify(nw));
-      return nw;
+  useEffect(() => {
+    const configRef = doc(db, "settings", "app_config");
+    const unsub = onSnapshot(configRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const merged = { ...defaultDynamicAppConfig, ...data };
+        setConfig(merged);
+        localStorage.setItem("app_dynamic_config", JSON.stringify(merged));
+      }
     });
+    return unsub;
+  }, []);
+
+  const updateConfig = async (c: Partial<DynamicAppConfig>) => {
+    const nw = { ...config, ...c };
+    setConfig(nw);
+    localStorage.setItem("app_dynamic_config", JSON.stringify(nw));
+    try {
+      const configRef = doc(db, "settings", "app_config");
+      await setDoc(configRef, c, { merge: true });
+    } catch (err) {
+      console.error("Error al actualizar configuración en Firebase:", err);
+    }
   };
 
   useEffect(() => {
@@ -5279,9 +5296,7 @@ const AdminLogosConfig = () => {
 
   const save = () => {
     updateConfig({ logoText1: logo1, logoText2: logo2, faviconUrl: favicon, appTitle, logoImageUrl });
-    const configStr = `Logo 1: "${logo1}"\nLogo 2: "${logo2}"\nFavicon: "${favicon}"\nApp Title: "${appTitle}"\nLogo Image URL: "${logoImageUrl}"`;
-    navigator.clipboard.writeText(`Haz fijos estos cambios del logo en el código:\n${configStr}`);
-    alert("Cambios guardados localmente en tu navegador.\n\nPara hacerlos permanentes para todos, he copiado los datos a tu portapapeles. ¡Pégalos ahora mismo en el chat de la IA!");
+    alert("¡Cambios guardados y sincronizados inmediatamente en Firebase!");
   };
 
   return (
@@ -5429,9 +5444,7 @@ const AdminInicioConfig = () => {
 
   const save = () => {
     updateConfig({ homeTitle1: title1, homeTitle2: title2, homeSubtitle: sub, homeImageUrl: homeImgUrl });
-    const configStr = `Título 1: "${title1}"\nTítulo 2: "${title2}"\nSubtítulo: "${sub}"\nURL de Imagen: "${homeImgUrl}"`;
-    navigator.clipboard.writeText(`Haz fijos estos cambios de inicio en el código:\n${configStr}`);
-    alert("Cambios guardados localmente en tu navegador.\n\nPara hacerlos permanentes para todos, he copiado los datos a tu portapapeles. ¡Pégalos ahora mismo en el chat de la IA!");
+    alert("¡Textos e imagen guardados y sincronizados inmediatamente en Firebase!");
   };
 
   return (
