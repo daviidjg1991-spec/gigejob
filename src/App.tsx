@@ -17233,10 +17233,7 @@ const DashboardLayout = ({
         onOpenSettings={onOpenSettings}
         unreadMessagesCount={unreadMessagesCount}
       />
-      <main className={cn(
-        "flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar lg:pb-0",
-        Capacitor.isNativePlatform() ? "pb-[calc(4rem+env(safe-area-inset-bottom))]" : "pb-0"
-      )}>
+      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-0">
         {children}
       </main>
     </div>
