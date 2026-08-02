@@ -17064,7 +17064,10 @@ const DashboardSidebar = ({
           {menuItems.map((item) => (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                setIsSettingsOpen(false);
+                navigate(item.path);
+              }}
               className={cn(
                 "w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap overflow-hidden",
                 location.pathname === item.path
@@ -17084,38 +17087,52 @@ const DashboardSidebar = ({
 
           <div className="pt-4 space-y-1">
             <button
-              onClick={() => navigate("/configuracion")}
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
               className={cn(
-                "w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap overflow-hidden",
+                "w-full flex items-center justify-between px-6 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap overflow-hidden",
                 isSettingsPath
                   ? "text-primary bg-primary/5 font-extrabold"
                   : "text-on-surface-variant/60 hover:bg-surface-container-low hover:text-primary",
               )}
             >
-              <Settings className="w-5 h-5 shrink-0" />
-              <span className="truncate">Configuración</span>
+              <div className="flex items-center gap-4">
+                <Settings className="w-5 h-5 shrink-0" />
+                <span className="truncate">Configuración</span>
+              </div>
+              <ChevronDown
+                className={cn(
+                  "w-4 h-4 shrink-0 transition-transform duration-200",
+                  isSettingsOpen && "rotate-180",
+                )}
+              />
             </button>
 
-            <div className="ml-4 pl-4 border-l-2 border-outline-variant/10 space-y-1">
-              {settingsItems.map((item) => {
-                const isActive = location.pathname === item.path || (item.path === "/configuracion/personal" && (location.pathname === "/configuracion" || location.pathname === "/configuracion/general"));
-                return (
-                  <button
-                    key={item.path}
-                    onClick={() => navigate(item.path)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap overflow-hidden",
-                      isActive
-                        ? "text-primary bg-primary/5 font-bold"
-                        : "text-on-surface-variant/60 hover:text-primary hover:bg-surface-container-low",
-                    )}
-                  >
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            {isSettingsOpen && (
+              <div className="ml-4 pl-4 border-l-2 border-outline-variant/10 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                {settingsItems.map((item) => {
+                  const isActive =
+                    location.pathname === item.path ||
+                    (item.path === "/configuracion/personal" &&
+                      (location.pathname === "/configuracion" ||
+                        location.pathname === "/configuracion/general"));
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => navigate(item.path)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap overflow-hidden",
+                        isActive
+                          ? "text-primary bg-primary/5 font-bold"
+                          : "text-on-surface-variant/60 hover:text-primary hover:bg-surface-container-low",
+                      )}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </nav>
       </div>
