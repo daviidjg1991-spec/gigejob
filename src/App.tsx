@@ -9427,8 +9427,20 @@ const SettingsView = ({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setUser(globalUser);
-  }, [globalUser]);
+    if (globalUser && (!user || user.id !== globalUser.id)) {
+      setUser(JSON.parse(JSON.stringify(globalUser)));
+    }
+  }, [globalUser?.id]);
+
+  useEffect(() => {
+    setShowSaveToast(false);
+    // On mobile, default to the menu unless we have a specific sub-page that isn't 'general'
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      if (!initialType || initialType === "general") {
+        setActiveType(null);
+      }
+    }
+  }, [initialType]);
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [generalTab, setGeneralTab] = useState<
     | "personal"
@@ -9725,19 +9737,7 @@ const SettingsView = ({
     }
   };
 
-  useEffect(() => {
-    if (globalUser) {
-      setUser(JSON.parse(JSON.stringify(globalUser)));
-    }
-    setShowSaveToast(false);
 
-    // On mobile, default to the menu unless we have a specific sub-page that isn't 'general'
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      if (!initialType || initialType === "general") {
-        setActiveType(null);
-      }
-    }
-  }, [globalUser, initialType]);
 
   const handleSave = async () => {
     if (!user) return;
