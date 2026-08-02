@@ -17090,21 +17090,11 @@ const DashboardSidebar = ({
   ];
 
   const settingsItems = [
-    { icon: User, label: "Datos personales", path: "/configuracion/personal" },
-    {
-      icon: Briefcase,
-      label: "Datos profesionales",
-      path: "/configuracion/profesional",
-    },
-    {
-      icon: Clock,
-      label: "Disponibilidad y mapa",
-      path: "/configuracion/disponibilidad",
-    },
+    { icon: User, label: "Area personal", path: "/configuracion/personal" },
     { icon: Wallet, label: "Facturación", path: "/configuracion/facturacion" },
     {
-      icon: ShieldCheck,
-      label: "Verificaciones y seguridad",
+      icon: Lock,
+      label: "Seguridad",
       path: "/configuracion/seguridad",
     },
     {
@@ -17150,11 +17140,11 @@ const DashboardSidebar = ({
 
           <div className="pt-4 space-y-1">
             <button
-              onClick={() => onOpenSettings?.("personal")}
+              onClick={() => navigate("/configuracion")}
               className={cn(
                 "w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap overflow-hidden",
                 isSettingsPath
-                  ? "text-primary bg-primary/5"
+                  ? "text-primary bg-primary/5 font-extrabold"
                   : "text-on-surface-variant/60 hover:bg-surface-container-low hover:text-primary",
               )}
             >
@@ -17162,25 +17152,26 @@ const DashboardSidebar = ({
               <span className="truncate">Configuración</span>
             </button>
 
-            {isSettingsPath && (
-              <div className="ml-4 pl-4 border-l-2 border-outline-variant/10 space-y-1">
-                {settingsItems.map((item) => (
+            <div className="ml-4 pl-4 border-l-2 border-outline-variant/10 space-y-1">
+              {settingsItems.map((item) => {
+                const isActive = location.pathname === item.path || (item.path === "/configuracion/personal" && (location.pathname === "/configuracion" || location.pathname === "/configuracion/general"));
+                return (
                   <button
                     key={item.path}
                     onClick={() => navigate(item.path)}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap overflow-hidden",
-                      location.pathname === item.path
-                        ? "text-primary bg-primary/5"
-                        : "text-on-surface-variant/40 hover:text-primary hover:bg-surface-container-low",
+                      isActive
+                        ? "text-primary bg-primary/5 font-bold"
+                        : "text-on-surface-variant/60 hover:text-primary hover:bg-surface-container-low",
                     )}
                   >
                     <item.icon className="w-4 h-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
                   </button>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
         </nav>
       </div>
