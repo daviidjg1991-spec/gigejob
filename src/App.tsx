@@ -10063,15 +10063,27 @@ const SettingsView = ({
     switch (activeType) {
       case "billing":
         return (
-          <div className="space-y-6 lg:space-y-8 h-full flex flex-col">
+          <div 
+            className="space-y-6 lg:space-y-8 h-full flex flex-col"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             <div className="flex flex-col gap-4">
-              <div className="space-y-1">
-                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight whitespace-nowrap">
-                  Facturación
-                </h3>
-                <p className="text-[10px] lg:text-sm text-on-surface-variant/40 whitespace-nowrap">
-                  Tus movimientos financieros.
-                </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveType(null)}
+                  className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="space-y-1">
+                  <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight whitespace-nowrap">
+                    Facturación
+                  </h3>
+                  <p className="text-[10px] lg:text-sm text-on-surface-variant/40 whitespace-nowrap">
+                    Tus movimientos financieros.
+                  </p>
+                </div>
               </div>
               <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner w-full lg:w-fit">
                 <button
@@ -10391,15 +10403,27 @@ const SettingsView = ({
         );
       case "security":
         return (
-          <div className="space-y-6 lg:space-y-8 h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
+          <div 
+            className="space-y-6 lg:space-y-8 h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             <div className="flex flex-col gap-4">
-              <div className="space-y-1">
-                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight truncate whitespace-nowrap">
-                  Verificaciones y Seguridad
-                </h3>
-                <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
-                  Gestiona tu acceso.
-                </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveType(null)}
+                  className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="space-y-1">
+                  <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight truncate whitespace-nowrap">
+                    Verificaciones y Seguridad
+                  </h3>
+                  <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
+                    Gestiona tu acceso.
+                  </p>
+                </div>
               </div>
               <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner overflow-x-auto no-scrollbar w-fit">
                 <button
@@ -10582,14 +10606,26 @@ const SettingsView = ({
         );
       case "notifications":
         return (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h3 className="text-xl font-display font-black text-on-surface tracking-tight">
-                Notificaciones
-              </h3>
-              <p className="text-[10px] text-on-surface-variant/60 font-medium">
-                Gestiona tus preferencias.
-              </p>
+          <div 
+            className="space-y-4"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveType(null)}
+                className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="space-y-1">
+                <h3 className="text-xl font-display font-black text-on-surface tracking-tight">
+                  Notificaciones
+                </h3>
+                <p className="text-[10px] text-on-surface-variant/60 font-medium">
+                  Gestiona tus preferencias.
+                </p>
+              </div>
             </div>
             <div className="flex flex-col gap-2">
               {["Email", "Push", "SMS"].map((type) => {
@@ -10680,16 +10716,28 @@ const SettingsView = ({
 
       case "general":
         return (
-          <div className="space-y-6">
+          <div 
+            className="space-y-6"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             {!generalTab ? (
               <>
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
-                    Área Personal
-                  </h3>
-                  <p className="text-sm text-on-surface-variant/60">
-                    Gestiona tu documentación y datos profesionales.
-                  </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setActiveType(null)}
+                    className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
+                      Área Personal
+                    </h3>
+                    <p className="text-sm text-on-surface-variant/60">
+                      Gestiona tu documentación y datos profesionales.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -10753,13 +10801,13 @@ const SettingsView = ({
                 </div>
               </>
             ) : (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-8 lg:pt-16 pb-24 lg:pb-0">
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-2 lg:pt-16 pb-4 lg:pb-0">
                 {/* Back Button */}
                 <button
                   onClick={() => setGeneralTab(null)}
-                  className="hidden lg:block absolute -top-2 -left-2 lg:-left-16 lg:top-0 p-3 hover:bg-surface-container-low rounded-2xl text-on-surface-variant/40 hover:text-on-surface transition-all"
+                  className="flex items-center gap-2 mb-4 p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant text-xs font-bold transition-all"
                 >
-                  <ArrowLeft className="w-6 h-6" />
+                  <ArrowLeft className="w-5 h-5" /> Volver a Área Personal
                 </button>
                 {user && generalTab === "personal" && (
                   <div className="space-y-3 lg:space-y-4 w-full">
@@ -12449,10 +12497,10 @@ const SettingsView = ({
   };
 
   return (
-    <div className="w-full h-full min-h-[calc(100vh-5rem)] lg:min-h-0 bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col">
+    <div className="w-full h-full bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col">
 
         {/* Content */}
-        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-24 lg:pb-16">
+        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-6 lg:pb-16">
           <div className="lg:hidden h-px w-full bg-outline-variant/10" />
           <AnimatePresence>
             {showSaveToast && (
@@ -12480,7 +12528,7 @@ const SettingsView = ({
                 damping: 30,
                 opacity: { duration: 0.2 },
               }}
-              className="h-full p-4 lg:p-0 pb-16 lg:pb-0"
+              className="h-full p-4 lg:p-0 pb-4 lg:pb-0"
             >
               {renderContent()}
             </motion.div>
@@ -17161,7 +17209,7 @@ const DashboardLayout = ({
         onOpenSettings={onOpenSettings}
         unreadMessagesCount={unreadMessagesCount}
       />
-      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-32 lg:pb-0">
+      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
         {children}
       </main>
     </div>
@@ -18635,8 +18683,27 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   );
   const [showMenu, setShowMenu] = useState(false);
   const { openReportModal } = React.useContext(ReportContext);
-  const menuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [showSummary, setShowSummary] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const diffX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const diffY = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
+    if (diffX > 70 && diffY < 50) {
+      if (selectedChatId) {
+        setSelectedChatId(null);
+        navigate("/mensajes");
+      }
+    }
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
 
   const clearMenuTimeout = () => {
     if (menuTimeoutRef.current) {
@@ -19485,11 +19552,13 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             ? "fixed inset-0 z-[100] w-full h-[100dvh] bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
             : "hidden md:flex",
         )}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         {selectedChatId ? (
           <>
             {/* Header del Chat */}
-            <div className="py-3 px-4 border-b border-outline-variant/10 flex items-center justify-between bg-white shrink-0 z-20">
+            <div className="py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] px-4 border-b border-outline-variant/10 flex items-center justify-between bg-white shrink-0 z-20">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => {
