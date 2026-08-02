@@ -12436,72 +12436,7 @@ const SettingsView = ({
   };
 
   return (
-    <div className="w-full h-full min-h-[calc(100vh-5rem)] lg:min-h-0 bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col lg:flex-row">
-      {/* Sidebar / Mobile Header */}
-        <div className="lg:w-72 w-full bg-white lg:bg-surface-container-low border-b lg:border-b-0 lg:border-r border-outline-variant/10 lg:p-10 p-5 flex flex-col shrink-0 relative transition-all duration-300">
-          <div className="flex items-center justify-between lg:mb-12 mb-0 lg:px-0 px-1 shrink-0 relative z-20">
-            <div className="flex items-center gap-3">
-              <AnimatePresence mode="wait">
-                {activeType && window.innerWidth < 1024 ? (
-                  <motion.button
-                    key="back-button"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    onClick={() => {
-                      if (activeType === "general" && generalTab !== null) {
-                        setGeneralTab(null);
-                      } else {
-                        setActiveType(null);
-                      }
-                    }}
-                    className="lg:hidden p-2.5 bg-primary/10 rounded-2xl text-primary transition-all active:scale-90 flex items-center gap-2 group"
-                  >
-                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                      Volver
-                    </span>
-                  </motion.button>
-                ) : (
-                  <motion.div
-                    key="settings-title"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    className="flex items-center gap-2.5"
-                  >
-                    <div className="primary-gradient p-2 rounded-xl shadow-lg shadow-primary/20">
-                      <Settings className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-xl lg:text-2xl font-display font-black tracking-tight text-on-surface">
-                      Área Personal
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          <nav className="hidden lg:flex flex-col space-y-2 lg:overflow-y-auto no-scrollbar pb-2 lg:pb-0 relative z-10 scroll-smooth">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveType(item.id)}
-                className={cn(
-                  "flex items-center gap-2 lg:gap-4 px-5 lg:px-6 py-3 lg:py-4 rounded-2xl text-[10px] lg:text-sm font-black uppercase tracking-widest lg:normal-case lg:font-bold transition-all whitespace-nowrap",
-                  activeType === item.id
-                    ? "bg-primary text-white shadow-xl shadow-primary/20"
-                    : "bg-white lg:bg-transparent text-on-surface-variant/60 hover:bg-surface-container-high hover:text-primary border border-outline-variant/10 lg:border-transparent lg:shadow-none",
-                )}
-              >
-                <item.icon className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" />
-                {item.label}
-              </button>
-            ))}
-          </nav>
-
-          {/* Removed redundant "Cerrar" button */}
-        </div>
+    <div className="w-full h-full min-h-[calc(100vh-5rem)] lg:min-h-0 bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col">
 
         {/* Content */}
         <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-24 lg:pb-16">
