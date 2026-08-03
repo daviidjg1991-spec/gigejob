@@ -25200,9 +25200,9 @@ function App() {
             );
           })()}
 
-          {/* Footer - Hidden on Dashboard and Publish page */}
+          {/* Footer - Hidden on Dashboard, Publish page, and on Mobile/Tablet web view (hidden lg:block) */}
           {!isDashboard && !location.pathname.startsWith("/publicar") && (
-            <footer className="bg-surface-container-lowest py-16 border-t border-outline-variant shrink-0 mt-auto relative z-10">
+            <footer className="hidden lg:block bg-surface-container-lowest py-16 border-t border-outline-variant shrink-0 mt-auto relative z-10">
               <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
                 <div className="flex flex-col gap-4 md:w-1/4">
                   <Link to="/" className="flex items-center gap-3">
@@ -25614,11 +25614,7 @@ function App() {
                 label: "Tú",
                 icon: User,
                 onClick: () => {
-                  if (user) {
-                    setIsMenuOpen(!isMenuOpen);
-                  } else {
-                    navigate("/login");
-                  }
+                  setIsMenuOpen(!isMenuOpen);
                 },
                 isActive: isMenuOpen || location.pathname === "/tu",
               },
