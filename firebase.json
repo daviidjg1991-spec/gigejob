@@ -16,9 +16,14 @@
         "function": "notifyAccepted"
       },
       {
+        "source": "/api/create-checkout-session",
+        "function": "createCheckoutSession"
+      },
+      {
         "source": "/",
         "destination": "/index.html"
       },
+
       {
         "source": "/pagina/**",
         "destination": "/index.html"
