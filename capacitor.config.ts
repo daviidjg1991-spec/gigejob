@@ -33,7 +33,11 @@ const config: CapacitorConfig = {
     StatusBar: {
       overlaysWebView: true,
       style: 'DARK'
+    },
+    Stripe: {
+      publishableKey: "pk_live_51RfeChFFLqtPnL1f6X0k9MjpzQblkm1rSXrsNdmPGjF6SggRdeASA4QXLkAA5RHX4FG3epBpM8MAKWm1ytSV6fwn00gATo6sfO"
     }
+
   }
 };
 
