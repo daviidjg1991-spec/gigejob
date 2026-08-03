@@ -25192,13 +25192,10 @@ function App() {
                     />
                   }
                 />
-
                 {/* Catch-all route */}
                 <Route path="*" element={<NotFoundPage />} />
+
               </Routes>
-                {!location.pathname.startsWith("/mensajes") && (
-                  <div className="lg:hidden shrink-0 w-full pointer-events-none" style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }} aria-hidden="true" />
-                )}
               </>
             );
           })()}
