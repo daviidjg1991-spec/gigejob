@@ -9448,6 +9448,67 @@ const SettingsView = ({
       }
     }
   }, [initialType]);
+
+  useEffect(() => {
+    const checkoutStatus = searchParams.get("checkout");
+    const planIdParam = searchParams.get("plan_id");
+    if (checkoutStatus === "success" && planIdParam && user?.id) {
+      const updatePlanAfterCheckout = async () => {
+        const now = new Date();
+        const endDate = new Date(now);
+        endDate.setMonth(endDate.getMonth() + 1);
+
+        const currentPlan = user.professionalInfo?.plan;
+        let newHistory = user.professionalInfo?.planHistory || [];
+        if (currentPlan && currentPlan !== "basic") {
+          const prevPlanName = proPlans.find((p: any) => p.id === currentPlan)?.name || currentPlan;
+          newHistory = [
+            ...newHistory,
+            {
+              planId: currentPlan,
+              planName: prevPlanName,
+              startDate: user.professionalInfo?.planStartDate || now.toISOString().split("T")[0],
+              endDate: now.toISOString().split("T")[0],
+            }
+          ];
+        }
+
+        const updatedProfInfo = {
+          ...(user.professionalInfo || {}),
+          plan: planIdParam,
+          planStartDate: now.toISOString().split("T")[0],
+          planEndDate: endDate.toISOString().split("T")[0],
+          planHistory: newHistory,
+        };
+
+        const updatedUser = {
+          ...user,
+          professionalInfo: updatedProfInfo
+        };
+
+        setUser(updatedUser);
+        if (setGlobalUser) setGlobalUser(updatedUser);
+
+        try {
+          await updateDoc(doc(db, "users", user.id), {
+            professionalInfo: updatedProfInfo
+          });
+          alert("¡Enhorabuena! Tu pago se ha procesado con éxito y tu plan ha sido activado.");
+        } catch (e) {
+          console.error("Error al actualizar plan tras pago:", e);
+        }
+
+        // Limpiar parámetros de la URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      };
+
+      updatePlanAfterCheckout();
+    } else if (checkoutStatus === "canceled") {
+      alert("Proceso de pago cancelado.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [searchParams, user?.id]);
+
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [generalTab, setGeneralTab] = useState<
     | "personal"
