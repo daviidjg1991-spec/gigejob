@@ -15156,25 +15156,7 @@ const JobRequestModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      if (user?.address) {
-        setLocation(
-          [
-            user.address.streetType,
-            user.address.streetName,
-            user.address.number,
-            user.address.block ? `Blq. ${user.address.block}` : "",
-            user.address.floor ? `Pl. ${user.address.floor}` : "",
-            user.address.door ? `Pta. ${user.address.door}` : "",
-            user.address.locality,
-            user.address.province,
-            user.address.postalCode,
-          ]
-            .filter(Boolean)
-            .join(", "),
-        );
-      } else {
-        setLocation("");
-      }
+      setLocation("");
       setSelectedDate(null);
       setStartTime("");
       setDuration(1);
@@ -15188,7 +15170,7 @@ const JobRequestModal = ({
 
   const handleInitialConfirm = () => {
     setErrorText(null);
-    if (!selectedDate || !location || !description || !startTime) {
+    if (!selectedDate || !location.trim() || !description || !startTime) {
       setErrorText("Por favor, rellena todos los campos del servicio.");
       return;
     }
@@ -15203,7 +15185,7 @@ const JobRequestModal = ({
   const handleConfirm = async () => {
     setShowConfirmModal(false);
     setErrorText(null);
-    if (!selectedDate || !location || !description || !startTime) {
+    if (!selectedDate || !location.trim() || !description || !startTime) {
       setErrorText("Por favor, rellena todos los campos del servicio.");
       return;
     }
@@ -15411,7 +15393,7 @@ const JobRequestModal = ({
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-on-surface tracking-tight">
-                Solicitud de Servicio
+                Concretar una Cita
               </h2>
               <p className="text-[9px] sm:text-[10px] text-on-surface-variant/40 font-black uppercase tracking-widest mt-0.5 truncate max-w-[200px] sm:max-w-none">
                 para: {listing.title}
