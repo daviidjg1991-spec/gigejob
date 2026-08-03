@@ -16248,7 +16248,7 @@ const ListingDetail = ({
 
           {/* Right Column: Sidebar */}
           <aside className="hidden lg:col-span-4 lg:block space-y-8">
-            <div className="sticky top-32 space-y-8">
+            <div className="space-y-8">
               <div className="bg-surface-container-lowest rounded-[2.5rem] p-8 sm:p-10 ambient-shadow border border-outline-variant/10">
                 <div
                   className="flex flex-col items-center text-center mb-10 cursor-pointer group"
