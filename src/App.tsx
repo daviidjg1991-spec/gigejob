@@ -21848,7 +21848,9 @@ const AuthPage = ({
           ? new GoogleAuthProvider()
           : new FacebookAuthProvider();
 
-      let user;
+      // Check if running on mobile browser (iOS / Android web)
+      const isMobileWeb = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
       if (Capacitor.isNativePlatform() && providerName === "google") {
         const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
         const authResult = await FirebaseAuthentication.signInWithGoogle();
@@ -21858,20 +21860,17 @@ const AuthPage = ({
       } else if (Capacitor.isNativePlatform() && providerName === "facebook") {
         await signInWithRedirect(auth, provider);
         return;
+      } else if (isMobileWeb) {
+        // On mobile web view, popup windows are restricted or throw domain/popup errors; use redirect
+        await signInWithRedirect(auth, provider);
+        return;
       } else {
         try {
           const result = await signInWithPopup(auth, provider);
           user = result.user;
         } catch (popupErr: any) {
-          if (
-            popupErr?.code === "auth/unauthorized-domain" ||
-            popupErr?.message?.includes("unauthorized-domain") ||
-            popupErr?.code === "auth/popup-blocked"
-          ) {
-            await signInWithRedirect(auth, provider);
-            return;
-          }
-          throw popupErr;
+          await signInWithRedirect(auth, provider);
+          return;
         }
       }
 
