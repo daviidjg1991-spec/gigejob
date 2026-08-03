@@ -13552,28 +13552,7 @@ const HomePage = ({
 
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div className="hidden lg:flex justify-start items-center mb-8 border-b border-outline-variant/10 pb-6">
-          <div className="flex p-1 bg-surface-container-low rounded-xl">
-            {[
-              { id: "all", label: "Todos" },
-              { id: "offer", label: "Servicios" },
-              { id: "search", label: "Ofertas" },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id as any)}
-                className={cn(
-                  "px-5 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all",
-                  activeTab === t.id
-                    ? "bg-surface-container-lowest text-primary shadow-sm"
-                    : "text-on-surface-variant/40 hover:text-on-surface-variant",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         {/* Results Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
