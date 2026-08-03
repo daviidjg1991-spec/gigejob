@@ -15810,7 +15810,7 @@ const ListingDetail = ({
     displayGallery?.filter((p) => p.category === listing.category) || [];
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="w-full bg-surface">
       {/* Hero Header */}
       <div className="bg-surface-container-lowest border-b border-outline-variant">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
