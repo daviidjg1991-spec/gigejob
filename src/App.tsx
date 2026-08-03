@@ -20892,38 +20892,7 @@ const CreateListing = ({
                 {error}
               </motion.div>
             )}
-            {isSearchProfessionalsEnabled === null ? (
-              <div className="h-[60px] bg-surface-container-low rounded-2xl animate-pulse"></div>
-            ) : (
-              <div className={`grid ${isSearchProfessionalsEnabled ? 'grid-cols-2' : 'grid-cols-1'} gap-3 p-1.5 bg-surface-container-low rounded-2xl`}>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, type: "offer" })}
-                  className={cn(
-                    "py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all",
-                    formData.type === "offer"
-                      ? "bg-surface-container-lowest text-primary shadow-sm"
-                      : "text-on-surface-variant/40",
-                  )}
-                >
-                  Ofrezco Servicio
-                </button>
-                {isSearchProfessionalsEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => setFormData({ ...formData, type: "search" })}
-                    className={cn(
-                      "py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all",
-                      formData.type === "search"
-                        ? "bg-surface-container-lowest text-primary shadow-sm"
-                        : "text-on-surface-variant/40",
-                    )}
-                  >
-                    Busco Profesional
-                  </button>
-                )}
-              </div>
-            )}
+
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-2">
