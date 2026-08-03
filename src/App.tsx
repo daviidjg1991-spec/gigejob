@@ -162,6 +162,8 @@ import {
   collectionGroup,
   arrayUnion,
 } from "firebase/firestore";
+import { processStripePayment } from "./services/stripeService";
+
 const generateCustomId = (
   firstName: string,
   registrationDate: Date,
