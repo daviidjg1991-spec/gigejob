@@ -15810,7 +15810,7 @@ const ListingDetail = ({
     displayGallery?.filter((p) => p.category === listing.category) || [];
 
   return (
-    <div className="min-h-screen bg-surface pb-32">
+    <div className="min-h-screen bg-surface">
       {/* Hero Header */}
       <div className="bg-surface-container-lowest border-b border-outline-variant">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -15996,7 +15996,7 @@ const ListingDetail = ({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           {/* Left Column */}
           <div className="lg:col-span-8 space-y-12">
@@ -25204,7 +25204,7 @@ function App() {
 
           {/* Footer - Hidden on Dashboard and Publish page */}
           {!isDashboard && !location.pathname.startsWith("/publicar") && (
-            <footer className="bg-surface-container-lowest py-16 border-t border-outline-variant shrink-0 mt-auto">
+            <footer className="bg-surface-container-lowest py-16 border-t border-outline-variant shrink-0 mt-auto relative z-10">
               <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
                 <div className="flex flex-col gap-4 md:w-1/4">
                   <Link to="/" className="flex items-center gap-3">
