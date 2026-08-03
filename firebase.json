@@ -15,10 +15,7 @@
         "source": "/api/email/notify-accepted",
         "function": "notifyAccepted"
       },
-      {
-        "source": "/api/create-checkout-session",
-        "function": "createCheckoutSession"
-      },
+
       {
         "source": "/",
         "destination": "/index.html"
