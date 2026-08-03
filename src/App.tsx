@@ -21859,8 +21859,20 @@ const AuthPage = ({
         await signInWithRedirect(auth, provider);
         return;
       } else {
-        const result = await signInWithPopup(auth, provider);
-        user = result.user;
+        try {
+          const result = await signInWithPopup(auth, provider);
+          user = result.user;
+        } catch (popupErr: any) {
+          if (
+            popupErr?.code === "auth/unauthorized-domain" ||
+            popupErr?.message?.includes("unauthorized-domain") ||
+            popupErr?.code === "auth/popup-blocked"
+          ) {
+            await signInWithRedirect(auth, provider);
+            return;
+          }
+          throw popupErr;
+        }
       }
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
