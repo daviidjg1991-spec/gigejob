@@ -1,5 +1,7 @@
 import * as functions from "firebase-functions/v2";
 import * as nodemailer from "nodemailer";
+import Stripe from "stripe";
+
 
 // Leer la contraseña desde el entorno o Secret Manager
 const SMTP_USER = process.env.SMTP_USER || "info@gigejob.com";
@@ -214,3 +216,60 @@ export const notifyCancelled = functions.https.onRequest(
     }
   }
 );
+
+export const createCheckoutSession = functions.https.onRequest(
+  { cors: true },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    try {
+      const { planId, planName, price, cycle, userId } = req.body || {};
+      if (!planId || !price) {
+        res.status(400).json({ error: "Faltan datos requeridos del plan" });
+        return;
+      }
+
+      const stripeKey = process.env.STRIPE_SECRET_KEY || "";
+      const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" as any });
+      const origin = req.headers.origin || "https://gigejob.com";
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "eur",
+              product_data: {
+                name: planName || "Plan Pro",
+              },
+              unit_amount: Math.round(price * 100),
+              recurring: {
+                interval: "month",
+                interval_count: cycle === "quarterly" ? 3 : 1,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "subscription",
+        success_url: `${origin}?checkout=success&plan_id=${planId}`,
+        cancel_url: `${origin}?checkout=canceled`,
+        client_reference_id: userId,
+        metadata: {
+          planId,
+          cycle,
+          userId,
+        },
+      });
+
+      res.status(200).json({ url: session.url });
+    } catch (err: any) {
+      console.error("Error creating checkout session in Firebase Function:", err);
+      res.status(500).json({ error: err.message || "Error interno del servidor de pagos" });
+    }
+  }
+);
+

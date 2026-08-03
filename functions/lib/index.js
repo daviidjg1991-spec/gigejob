@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v2";
 import * as nodemailer from "nodemailer";
+import Stripe from "stripe";
 // Leer la contraseña desde el entorno o Secret Manager
 const SMTP_USER = process.env.SMTP_USER || "info@gigejob.com";
 const SMTP_PASS = process.env.SMTP_PASS || "";
@@ -94,18 +95,122 @@ export const notifyAccepted = functions.https.onRequest({ cors: true }, async (r
       </div>
     `;
     try {
-        const info = await transporter.sendMail({
-            from: `"GigeJob" <${SMTP_USER}>`,
-            to: [clientEmail, professionalEmail].join(", "),
-            subject: "Servicio aceptado definitivamente",
-            html: htmlContent,
-        });
-        console.log("Correo de aceptación enviado: %s", info.messageId);
-        res.status(200).json({ success: true, messageId: info.messageId });
+        await Promise.all([
+            transporter.sendMail({
+                from: `"GigeJob" <${SMTP_USER}>`,
+                to: clientEmail,
+                subject: "Servicio aceptado definitivamente",
+                html: htmlContent,
+            }),
+            transporter.sendMail({
+                from: `"GigeJob" <${SMTP_USER}>`,
+                to: professionalEmail,
+                subject: "Servicio aceptado definitivamente",
+                html: htmlContent,
+            }),
+        ]);
+        console.log("Correos de aceptación enviados independientemente");
+        res.status(200).json({ success: true });
     }
     catch (error) {
         console.error("Error al enviar correos de aceptación:", error);
         res.status(500).json({ error: "Error sending email" });
+    }
+});
+export const notifyCancelled = functions.https.onRequest({ cors: true }, async (req, res) => {
+    if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+    }
+    const { clientEmail, professionalEmail, clientName, professionalName, serviceTitle, cancelledByRole, } = req.body;
+    if (!clientEmail || !professionalEmail) {
+        res.status(400).json({ error: "Missing emails" });
+        return;
+    }
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="text-align: center; padding: 20px 0;">
+          <h2 style="color: #ff0000; margin: 0;">Servicio Cancelado</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <p>Hola,</p>
+          <p>El servicio <strong>${serviceTitle}</strong> entre ${clientName} y ${professionalName} ha sido cancelado por el ${cancelledByRole === "client" ? "cliente" : "profesional"}.</p>
+          <p>Si consideras que esto es un error o necesitas más ayuda, por favor contacta con soporte.</p>
+          <br/>
+          <p>Saludos,<br/>El equipo de GigeJob</p>
+        </div>
+      </div>
+    `;
+    try {
+        await Promise.all([
+            transporter.sendMail({
+                from: `"GigeJob" <${SMTP_USER}>`,
+                to: clientEmail,
+                subject: "Servicio Cancelado",
+                html: htmlContent,
+            }),
+            transporter.sendMail({
+                from: `"GigeJob" <${SMTP_USER}>`,
+                to: professionalEmail,
+                subject: "Servicio Cancelado",
+                html: htmlContent,
+            }),
+        ]);
+        console.log("Correos de cancelación enviados independientemente");
+        res.status(200).json({ success: true });
+    }
+    catch (error) {
+        console.error("Error al enviar correos de cancelación:", error);
+        res.status(500).json({ error: "Error sending email" });
+    }
+});
+export const createCheckoutSession = functions.https.onRequest({ cors: true }, async (req, res) => {
+    if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+    }
+    try {
+        const { planId, planName, price, cycle, userId } = req.body || {};
+        if (!planId || !price) {
+            res.status(400).json({ error: "Faltan datos requeridos del plan" });
+            return;
+        }
+        const stripeKey = process.env.STRIPE_SECRET_KEY || "";
+        const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+        const origin = req.headers.origin || "https://gigejob.com";
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ["card"],
+            line_items: [
+                {
+                    price_data: {
+                        currency: "eur",
+                        product_data: {
+                            name: planName || "Plan Pro",
+                        },
+                        unit_amount: Math.round(price * 100),
+                        recurring: {
+                            interval: "month",
+                            interval_count: cycle === "quarterly" ? 3 : 1,
+                        },
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: "subscription",
+            success_url: `${origin}?checkout=success&plan_id=${planId}`,
+            cancel_url: `${origin}?checkout=canceled`,
+            client_reference_id: userId,
+            metadata: {
+                planId,
+                cycle,
+                userId,
+            },
+        });
+        res.status(200).json({ url: session.url });
+    }
+    catch (err) {
+        console.error("Error creating checkout session in Firebase Function:", err);
+        res.status(500).json({ error: err.message || "Error interno del servidor de pagos" });
     }
 });
 //# sourceMappingURL=index.js.map
