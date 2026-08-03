@@ -50,7 +50,14 @@ export async function processStripePayment({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planId, planName, price, cycle, userId })
       });
-      const data = await res.json();
+      const contentType = res.headers.get("content-type");
+      let data: any = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        return { success: false, error: `El servidor Node.js backend no devolvió JSON (${res.status}): ${text.substring(0, 80)}...` };
+      }
       if (data.url) {
         window.location.href = data.url;
         return { success: true };
@@ -58,6 +65,7 @@ export async function processStripePayment({
         return { success: false, error: data.error || "Error al iniciar el proceso de pago" };
       }
     }
+
   } catch (err: any) {
     return { success: false, error: err.message || "Error inesperado al procesar el pago" };
   }

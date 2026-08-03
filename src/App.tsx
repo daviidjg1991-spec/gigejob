@@ -12132,7 +12132,15 @@ const SettingsView = ({
                                             userId: user.id
                                           })
                                         });
-                                        const data = await res.json();
+                                        const contentType = res.headers.get("content-type");
+                                        let data: any = {};
+                                        if (contentType && contentType.includes("application/json")) {
+                                          data = await res.json();
+                                        } else {
+                                          const text = await res.text();
+                                          throw new Error(`El servidor devolvió una respuesta inesperada (${res.status}): ${text.substring(0, 100)}...`);
+                                        }
+
                                         if (data.url) {
                                           window.location.href = data.url;
                                         } else {
