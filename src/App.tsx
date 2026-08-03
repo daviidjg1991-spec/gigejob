@@ -12111,66 +12111,36 @@ const SettingsView = ({
                                   } else if (!isCurrent) {
                                     const now = new Date();
                                     const cycle = plan.id === "basic" ? "monthly" : (isQuarterlyView ? "quarterly" : "monthly");
-                                    const endDate = new Date(now);
-                                    if (cycle === "quarterly") {
-                                      endDate.setMonth(endDate.getMonth() + 3);
-                                    } else {
-                                      endDate.setMonth(endDate.getMonth() + 1);
-                                    }
-
+                                    
                                     if (plan.id !== "basic") {
                                       const displayPrice = isQuarterlyView ? plan.priceQuarterly : plan.price;
-                                      try {
-                                        const res = await fetch("/api/create-checkout-session", {
-                                          method: "POST",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({
-                                            planId: plan.id,
-                                            planName: plan.name,
-                                            price: displayPrice,
-                                            cycle: cycle,
-                                            userId: user.id
-                                          })
-                                        });
-                                        const contentType = res.headers.get("content-type");
-                                        let data: any = {};
-                                        if (contentType && contentType.includes("application/json")) {
-                                          data = await res.json();
-                                        } else {
-                                          const text = await res.text();
-                                          throw new Error(`El servidor devolvió una respuesta inesperada (${res.status}): ${text.substring(0, 100)}...`);
-                                        }
-
-                                        if (data.url) {
-                                          window.location.href = data.url;
-                                        } else {
-                                          throw new Error(data.error || "Error al crear sesión de pago");
-                                        }
-                                      } catch (err: any) {
-                                        console.error("Checkout error:", err);
-                                        if (err.message === "Failed to fetch") {
-                                          alert("Error de conexión. Es posible que el servidor se esté reiniciando. Por favor, inténtalo de nuevo en unos segundos.");
-                                        } else {
-                                          alert("Error al iniciar el proceso de pago: " + (err.message || ""));
-                                        }
-                                      }
+                                      await processStripePayment({
+                                        planId: plan.id,
+                                        planName: plan.name,
+                                        price: displayPrice,
+                                        cycle: cycle,
+                                        userId: user.id
+                                      });
                                       return;
                                     }
-                                    
+
+                                    const endDate = new Date(now);
+                                    endDate.setMonth(endDate.getMonth() + 1);
+
                                     let newHistory = user?.professionalInfo?.planHistory || [];
                                     if (user?.professionalInfo?.plan && user?.professionalInfo?.plan !== "basic") {
-                                        const prevPlanName = proPlans.find((p: any) => p.id === user.professionalInfo?.plan)?.name || user.professionalInfo.plan;
-                                        newHistory = [
-                                            ...newHistory,
-                                            {
-                                                planId: user.professionalInfo.plan,
-                                                planName: prevPlanName,
-                                                startDate: user.professionalInfo.planStartDate || now.toISOString().split("T")[0],
-                                                endDate: now.toISOString().split("T")[0],
-                                                status: 'expired',
-                                                paymentMethod: user.professionalInfo.planPaymentMethod || "Ninguno"
-                                            }
-                                        ];
+                                      const prevPlanName = proPlans.find((p: any) => p.id === user.professionalInfo?.plan)?.name || user.professionalInfo.plan;
+                                      newHistory = [
+                                        ...newHistory,
+                                        {
+                                          planId: user.professionalInfo.plan,
+                                          planName: prevPlanName,
+                                          startDate: user.professionalInfo.planStartDate || now.toISOString().split("T")[0],
+                                          endDate: now.toISOString().split("T")[0],
+                                          status: 'expired',
+                                          paymentMethod: user.professionalInfo.planPaymentMethod || "Ninguno"
+                                        }
+                                      ];
                                     }
 
                                     const updatedUser = {
@@ -12186,7 +12156,7 @@ const SettingsView = ({
                                         planEndDate: endDate.toISOString().split("T")[0],
                                         planStatus: "active",
                                         planBillingCycle: cycle,
-                                        planAutoRenew: plan.id !== "basic" ? true : false,
+                                        planAutoRenew: false,
                                         planHistory: newHistory,
                                       },
                                     } as UserProfile;
