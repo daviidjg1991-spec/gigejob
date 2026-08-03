@@ -16176,74 +16176,6 @@ const ListingDetail = ({
                 </div>
               </div>
             )}
-
-            {/* Reviews */}
-            <div className="space-y-8">
-              <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
-                  Reseñas
-                </h3>
-              </div>
-              <div className="space-y-6">
-                {reviews.length === 0 ? (
-                  <p className="text-on-surface-variant font-medium text-sm">
-                    No hay reseñas para este profesional todavía.
-                  </p>
-                ) : (
-                  reviews.map((r, i) => (
-                    <div
-                      key={i}
-                      className="bg-surface-container-lowest p-8 rounded-[2rem] ambient-shadow space-y-4"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex gap-4">
-                          <div className="w-12 h-12 rounded-full primary-gradient flex items-center justify-center text-white font-bold overflow-hidden">
-                            {r.authorPhotoUrl || r.clientPhotoUrl ? (
-                              <img
-                                src={r.authorPhotoUrl || r.clientPhotoUrl}
-                                alt={r.authorName || r.clientName || "Usuario"}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              (r.authorName || r.clientName || "?").charAt(0)
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-bold text-on-surface">
-                              {r.authorName || r.clientName || "Anónimo"}
-                            </p>
-                            <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                              {r.createdAt?.seconds
-                                ? new Date(
-                                    r.createdAt.seconds * 1000,
-                                  ).toLocaleDateString()
-                                : "Hace poco"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex text-amber-500">
-                          {[1, 2, 3, 4, 5].map((s) => (
-                            <Star
-                              key={s}
-                              className={cn(
-                                "w-4 h-4",
-                                s <= (r.rating || 0)
-                                  ? "fill-amber-500 text-amber-500"
-                                  : "fill-surface-container-high text-surface-container-high",
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-on-surface-variant font-medium italic opacity-80 leading-relaxed">
-                        "{r.comment}"
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Right Column: Sidebar */}
@@ -16362,13 +16294,82 @@ const ListingDetail = ({
               </div>
             </div>
           </aside>
-          <JobRequestModal
-            isOpen={isRequestModalOpen}
-            onClose={() => setIsRequestModalOpen(false)}
-            listing={listing}
-            user={user}
-          />
         </div>
+
+        {/* Reviews Section - Full Width below Main Grid */}
+        <div className="mt-12 space-y-8">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
+              Reseñas
+            </h3>
+          </div>
+          <div className="space-y-6">
+            {reviews.length === 0 ? (
+              <p className="text-on-surface-variant font-medium text-sm">
+                No hay reseñas para este profesional todavía.
+              </p>
+            ) : (
+              reviews.map((r, i) => (
+                <div
+                  key={i}
+                  className="bg-surface-container-lowest p-8 rounded-[2rem] ambient-shadow space-y-4"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-full primary-gradient flex items-center justify-center text-white font-bold overflow-hidden">
+                        {r.authorPhotoUrl || r.clientPhotoUrl ? (
+                          <img
+                            src={r.authorPhotoUrl || r.clientPhotoUrl}
+                            alt={r.authorName || r.clientName || "Usuario"}
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          (r.authorName || r.clientName || "?").charAt(0)
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-bold text-on-surface">
+                          {r.authorName || r.clientName || "Anónimo"}
+                        </p>
+                        <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
+                          {r.createdAt?.seconds
+                            ? new Date(
+                                r.createdAt.seconds * 1000,
+                              ).toLocaleDateString()
+                            : "Hace poco"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex text-amber-500">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={cn(
+                            "w-4 h-4",
+                            s <= (r.rating || 0)
+                              ? "fill-amber-500 text-amber-500"
+                              : "fill-surface-container-high text-surface-container-high",
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-on-surface-variant font-medium italic opacity-80 leading-relaxed">
+                    "{r.comment}"
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <JobRequestModal
+          isOpen={isRequestModalOpen}
+          onClose={() => setIsRequestModalOpen(false)}
+          listing={listing}
+          user={user}
+        />
       </div>
     </div>
   );
