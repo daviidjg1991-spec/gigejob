@@ -20872,7 +20872,7 @@ const CreateListing = ({
         )}
       </AnimatePresence>
 
-      <div className="max-w-3xl mx-auto px-4 pt-16">
+      <div className="max-w-3xl mx-auto px-4 pt-16 pb-24">
         <div className="bg-surface-container-lowest rounded-[3rem] ambient-shadow p-10 md:p-16">
           <h1 className="text-4xl font-display font-black text-on-surface mb-3 tracking-tight">
             Publicar anuncio
