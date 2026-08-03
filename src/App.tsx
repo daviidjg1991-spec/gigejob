@@ -12114,15 +12114,23 @@ const SettingsView = ({
                                     
                                     if (plan.id !== "basic") {
                                       const displayPrice = isQuarterlyView ? plan.priceQuarterly : plan.price;
-                                      await processStripePayment({
-                                        planId: plan.id,
-                                        planName: plan.name,
-                                        price: displayPrice,
-                                        cycle: cycle,
-                                        userId: user.id
-                                      });
+                                      try {
+                                        const res = await processStripePayment({
+                                          planId: plan.id,
+                                          planName: plan.name,
+                                          price: displayPrice,
+                                          cycle: cycle,
+                                          userId: user.id
+                                        });
+                                        if (!res.success) {
+                                          alert(res.error || "No se pudo iniciar el proceso de pago.");
+                                        }
+                                      } catch (e: any) {
+                                        alert("Error de pago: " + (e.message || e));
+                                      }
                                       return;
                                     }
+
 
                                     const endDate = new Date(now);
                                     endDate.setMonth(endDate.getMonth() + 1);
