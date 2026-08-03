@@ -7,6 +7,10 @@ PODS:
     - AppAuth/Core
   - Capacitor (6.2.1):
     - CapacitorCordova
+  - CapacitorCommunityStripe (6.5.1):
+    - Capacitor
+    - StripeApplePay (~> 24.4.1)
+    - StripePaymentSheet (~> 24.4.1)
   - CapacitorCordova (6.2.1)
   - CapacitorFirebaseAuthentication (6.3.1):
     - Capacitor
@@ -68,9 +72,29 @@ PODS:
     - GTMSessionFetcher/Core (< 4.0, >= 3.3)
   - GTMSessionFetcher/Core (3.5.0)
   - RecaptchaInterop (101.0.0)
+  - StripeApplePay (24.4.1):
+    - StripeCore (= 24.4.1)
+  - StripeCore (24.4.1)
+  - StripePayments (24.4.1):
+    - StripeCore (= 24.4.1)
+    - StripePayments/Stripe3DS2 (= 24.4.1)
+  - StripePayments/Stripe3DS2 (24.4.1):
+    - StripeCore (= 24.4.1)
+  - StripePaymentSheet (24.4.1):
+    - StripeApplePay (= 24.4.1)
+    - StripeCore (= 24.4.1)
+    - StripePayments (= 24.4.1)
+    - StripePaymentsUI (= 24.4.1)
+  - StripePaymentsUI (24.4.1):
+    - StripeCore (= 24.4.1)
+    - StripePayments (= 24.4.1)
+    - StripeUICore (= 24.4.1)
+  - StripeUICore (24.4.1):
+    - StripeCore (= 24.4.1)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorCommunityStripe (from `../../node_modules/@capacitor-community/stripe`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFirebaseAuthentication (from `../../node_modules/@capacitor-firebase/authentication`)"
   - "CapacitorFirebaseAuthentication/Google (from `../../node_modules/@capacitor-firebase/authentication`)"
@@ -89,10 +113,18 @@ SPEC REPOS:
     - GTMAppAuth
     - GTMSessionFetcher
     - RecaptchaInterop
+    - StripeApplePay
+    - StripeCore
+    - StripePayments
+    - StripePaymentSheet
+    - StripePaymentsUI
+    - StripeUICore
 
 EXTERNAL SOURCES:
   Capacitor:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorCommunityStripe:
+    :path: "../../node_modules/@capacitor-community/stripe"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorFirebaseAuthentication:
@@ -101,6 +133,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
   Capacitor: c95400d761e376be9da6be5a05f226c0e865cebf
+  CapacitorCommunityStripe: c340a7b79fce1fe015692992de58621058bfdc03
   CapacitorCordova: 8d93e14982f440181be7304aa9559ca631d77fff
   CapacitorFirebaseAuthentication: 2c43a65f88e30842dbf83f38dfb25d8076dce529
   FirebaseAppCheckInterop: 06fe5a3799278ae4667e6c432edd86b1030fa3df
@@ -114,7 +147,13 @@ SPEC CHECKSUMS:
   GTMAppAuth: f69bd07d68cd3b766125f7e072c45d7340dea0de
   GTMSessionFetcher: 5aea5ba6bd522a239e236100971f10cb71b96ab6
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
+  StripeApplePay: e2adcc71d7a0a07e9de85e871eacf55ecce546a9
+  StripeCore: a2c2f331cf2e105aaadda60416cf405da2d5232b
+  StripePayments: 438ec8dc7320a7d601cb6152b88b37d4c34df161
+  StripePaymentSheet: da0ee282723f3c0c87c52b5e5cc3eb7e1344eeb9
+  StripePaymentsUI: 70414581d3d14089831e370008b705ef03c7cce0
+  StripeUICore: f11561a53f81e210398b4f1bd75f1e87b101197d
 
-PODFILE CHECKSUM: dc5762adbf5a499c9a85d016fd1a120224190c85
+PODFILE CHECKSUM: 81a1dd5a18ff1390a546ee9a53e1a93ba2e02fd3
 
 COCOAPODS: 1.17.0
