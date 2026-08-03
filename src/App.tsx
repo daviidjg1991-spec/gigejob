@@ -209,6 +209,12 @@ export const getLocalizedFirebaseError = (error: any): string => {
     return isES ? "El proceso de inicio de sesión fue cancelado." : "The login process was cancelled.";
   }
   
+  if (code === "auth/unauthorized-domain" || message.includes("unauthorized-domain")) {
+    return isES
+      ? "Este dominio no está autorizado en la consola de Firebase Authentication. Añade tu dominio (ej. vercel.app o tu dominio personalizado) en Firebase Console > Authentication > Settings > Authorized Domains."
+      : "This domain is not authorized in Firebase Authentication Console. Add your domain to Authorized Domains in Firebase Console.";
+  }
+  
   return isES 
     ? `Ha ocurrido un error inesperado${message ? `: ${message}` : ""}`
     : `An unexpected error occurred${message ? `: ${message}` : ""}`;
@@ -21936,7 +21942,6 @@ const AuthPage = ({
       setUser(finalUserData);
       navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
-      alert("Error en inicio de sesión: " + (error.message || error.code || JSON.stringify(error)));
       if (
         error.code === "auth/popup-closed-by-user" ||
         error.code === "auth/cancelled-popup-request"
