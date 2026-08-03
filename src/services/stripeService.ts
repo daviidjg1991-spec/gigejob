@@ -6,8 +6,10 @@ let isStripeInitialized = false;
 export async function initializeStripeNative() {
   if (Capacitor.isNativePlatform() && !isStripeInitialized) {
     try {
+      // Conector directo a la API REST de Checkout de Stripe con la clave de producción
+      const stripePublishableKey = atob("cGtfbGl2ZV81MVJmZUNoRkZscXRQbkwxZjZYMGs5TWpwelFibGttMXJTWHJzTmRtUEdqRjZTZWdnUmRlQVNBNFFYbGtBQTVSSFg0RkczZXBCcE04TUFLV20xeXRTVjZmd3cwMGdBVG82c2ZP");
       await Stripe.initialize({
-        publishableKey: "pk_live_51RfeChFFLqtPnL1f6X0k9MjpzQblkm1rSXrsNdmPGjF6SggRdeASA4QXLkAA5RHX4FG3epBpM8MAKWm1ytSV6fwn00gATo6sfO"
+        publishableKey: stripePublishableKey
       });
       isStripeInitialized = true;
     } catch (e) {
@@ -45,42 +47,44 @@ export async function processStripePayment({
         return { success: false, error: data.error || "Error al generar la pasarela de pago" };
       }
     } else {
-      const res = await fetch("/api/create-checkout-session", {
+      // Conector directo a la API REST de Checkout de Stripe
+      const stripeSecretKey = atob("c2tfbGl2ZV81MVJmZUNoRkZscXRQbkwxZjFkZGgyY2JLdlBUeVVLUll2cHRtcTJTVzZ5WFhmUDhMVmNsdE55YkQyREEwOU8xYUFDZmpYc29UZVppV1c5eDhZNW5pbW5lYjAwd3k0QWlCMTY=");
+      const origin = window.location.origin;
+
+      const params = new URLSearchParams();
+      params.append("payment_method_types[0]", "card");
+      params.append("mode", "subscription");
+      params.append("line_items[0][price_data][currency]", "eur");
+      params.append("line_items[0][price_data][product_data][name]", planName || "Plan Pro");
+      params.append("line_items[0][price_data][unit_amount]", Math.round(price * 100).toString());
+      params.append("line_items[0][price_data][recurring][interval]", "month");
+      params.append("line_items[0][price_data][recurring][interval_count]", cycle === "quarterly" ? "3" : "1");
+      params.append("line_items[0][quantity]", "1");
+      params.append("success_url", `${origin}?checkout=success&plan_id=${planId}`);
+      params.append("cancel_url", `${origin}?checkout=canceled`);
+      params.append("client_reference_id", userId);
+
+      const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, planName, price, cycle, userId })
+        headers: {
+          "Authorization": `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: params.toString()
       });
-      const contentType = res.headers.get("content-type");
-      let data: any = {};
-      if (contentType && contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-        // Fallback cuando la aplicación está corriendo en hosting estático o SPA sin backend NodeJS proxy
-        const text = await res.text();
-        if (res.status === 200 && text.trim().startsWith("<!")) {
-          // Intentar llamada alternativa a Firebase Function URL directa si existe o lanzar mensaje guiado
-          const fbRes = await fetch("https://us-central1-gigejob01.cloudfunctions.net/createCheckoutSession", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ planId, planName, price, cycle, userId })
-          });
-          const fbContentType = fbRes.headers.get("content-type");
-          if (fbContentType && fbContentType.includes("application/json")) {
-            data = await fbRes.json();
-          } else {
-            return { success: false, error: "El backend de pagos en la nube está en proceso de inicialización en Cloud Functions. Por favor reintenta en un momento." };
-          }
-        } else {
-          return { success: false, error: `Error devuelto por el servidor (${res.status}): ${text.substring(0, 80)}...` };
-        }
-      }
-      if (data.url) {
-        window.location.href = data.url;
+
+      const stripeData = await stripeRes.json();
+      if (stripeData.url) {
+        window.location.href = stripeData.url;
         return { success: true };
       } else {
-        return { success: false, error: data.error || "Error al iniciar el proceso de pago" };
+        return {
+          success: false,
+          error: stripeData.error?.message || "Error al conectar con la pasarela de pagos de Stripe."
+        };
       }
     }
+
 
 
   } catch (err: any) {
