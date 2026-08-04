@@ -23,6 +23,12 @@ PODS:
   - CapacitorFirebaseAuthentication/Lite (6.3.1):
     - Capacitor
     - FirebaseAuth (~> 11.0)
+  - CapacitorLocalNotifications (6.1.3):
+    - Capacitor
+  - CapacitorPushNotifications (6.0.5):
+    - Capacitor
+  - CapawesomeCapacitorBadge (6.0.0):
+    - Capacitor
   - FirebaseAppCheckInterop (11.15.0)
   - FirebaseAuth (11.15.0):
     - FirebaseAppCheckInterop (~> 11.0)
@@ -98,6 +104,9 @@ DEPENDENCIES:
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFirebaseAuthentication (from `../../node_modules/@capacitor-firebase/authentication`)"
   - "CapacitorFirebaseAuthentication/Google (from `../../node_modules/@capacitor-firebase/authentication`)"
+  - "CapacitorLocalNotifications (from `../../node_modules/@capacitor/local-notifications`)"
+  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
+  - "CapawesomeCapacitorBadge (from `../../node_modules/@capawesome/capacitor-badge`)"
 
 SPEC REPOS:
   trunk:
@@ -129,6 +138,12 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorFirebaseAuthentication:
     :path: "../../node_modules/@capacitor-firebase/authentication"
+  CapacitorLocalNotifications:
+    :path: "../../node_modules/@capacitor/local-notifications"
+  CapacitorPushNotifications:
+    :path: "../../node_modules/@capacitor/push-notifications"
+  CapawesomeCapacitorBadge:
+    :path: "../../node_modules/@capawesome/capacitor-badge"
 
 SPEC CHECKSUMS:
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
@@ -136,6 +151,9 @@ SPEC CHECKSUMS:
   CapacitorCommunityStripe: c340a7b79fce1fe015692992de58621058bfdc03
   CapacitorCordova: 8d93e14982f440181be7304aa9559ca631d77fff
   CapacitorFirebaseAuthentication: 2c43a65f88e30842dbf83f38dfb25d8076dce529
+  CapacitorLocalNotifications: 801867e687c42dd2b33c1e22e08f48e6738d2f72
+  CapacitorPushNotifications: 35abece14371c57172e8321c9ccc8b6fa35fabfe
+  CapawesomeCapacitorBadge: 4df4bd752f7fcf0cedfc0748bca1cbe8a0e29794
   FirebaseAppCheckInterop: 06fe5a3799278ae4667e6c432edd86b1030fa3df
   FirebaseAuth: a6575e5fbf46b046c58dc211a28a5fbdd8d4c83b
   FirebaseAuthInterop: 7087d7a4ee4bc4de019b2d0c240974ed5d89e2fd
@@ -154,6 +172,6 @@ SPEC CHECKSUMS:
   StripePaymentsUI: 70414581d3d14089831e370008b705ef03c7cce0
   StripeUICore: f11561a53f81e210398b4f1bd75f1e87b101197d
 
-PODFILE CHECKSUM: 81a1dd5a18ff1390a546ee9a53e1a93ba2e02fd3
+PODFILE CHECKSUM: 2744e596272cd1c21a8e6f720481722b35260ed5
 
 COCOAPODS: 1.17.0

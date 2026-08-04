@@ -142,6 +142,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "./lib/utils";
+import { initNotifications, triggerNotificationBanner, setAppBadgeCount } from "./services/notificationService";
 import {
   collection,
   doc,
@@ -24367,18 +24368,20 @@ function App() {
         return;
       }
 
+      initNotifications();
+
       const q = query(
         collection(db, "conversations"),
         where("participants", "array-contains", firebaseUser.uid),
       );
+
+      let isInitialSnapshot = true;
 
       unsubscribe = onSnapshot(
         q,
         (snapshot) => {
           let count = 0;
           const currentUser = userRef.current;
-          const isAdmin = currentUser?.role === "admin" || currentUser?.email === "daviidjg1991@gmail.com";
-          const now = Date.now();
 
           snapshot.docs.forEach((doc) => {
             const data = doc.data();
@@ -24397,12 +24400,100 @@ function App() {
               count += data.unreadCount[firebaseUser.uid];
             }
           });
+
           setUnreadMessagesCount(count);
+          setAppBadgeCount(count);
+
+          if (!isInitialSnapshot) {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === "added" || change.type === "modified") {
+                const data = change.doc.data();
+                if (
+                  data.lastMessageSenderId &&
+                  data.lastMessageSenderId !== firebaseUser.uid &&
+                  data.unreadCount &&
+                  data.unreadCount[firebaseUser.uid] > 0
+                ) {
+                  const senderDetails = data.participantDetails?.[data.lastMessageSenderId];
+                  const senderName = senderDetails?.name || "Un usuario";
+                  triggerNotificationBanner({
+                    title: `Nuevo mensaje de ${senderName}`,
+                    body: data.lastMessage || "Tienes un nuevo mensaje en el buzón",
+                    badgeCount: count,
+                    data: { conversationId: change.doc.id },
+                  });
+                }
+              }
+            });
+          }
+          isInitialSnapshot = false;
         },
         (error) => {
           console.error("Navbar [conversations unread]: Error:", error);
         },
       );
+
+      // Listener for Bookings (Requests)
+      const qBookingsPro = query(
+        collection(db, "bookings"),
+        where("professionalId", "==", firebaseUser.uid)
+      );
+      const qBookingsClient = query(
+        collection(db, "bookings"),
+        where("clientId", "==", firebaseUser.uid)
+      );
+
+      let isInitialBookingsPro = true;
+      const unsubBookingsPro = onSnapshot(qBookingsPro, (snapshot) => {
+        if (!isInitialBookingsPro) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+              const data = change.doc.data();
+              if (data.status === "pending") {
+                triggerNotificationBanner({
+                  title: "Nueva Solicitud de Servicio 📅",
+                  body: `¡Has recibido una nueva solicitud para el ${data.date} a las ${data.time}!`,
+                  data: { bookingId: change.doc.id },
+                });
+              }
+            }
+          });
+        }
+        isInitialBookingsPro = false;
+      });
+
+      let isInitialBookingsClient = true;
+      const unsubBookingsClient = onSnapshot(qBookingsClient, (snapshot) => {
+        if (!isInitialBookingsClient) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "modified") {
+              const data = change.doc.data();
+              if (data.status === "accepted") {
+                triggerNotificationBanner({
+                  title: "Solicitud Aceptada ✅",
+                  body: `¡Tu solicitud de servicio para "${data.listingTitle || "Servicio"}" ha sido aceptada!`,
+                  data: { bookingId: change.doc.id },
+                });
+              } else if (data.status === "rejected") {
+                triggerNotificationBanner({
+                  title: "Solicitud Rechazada ❌",
+                  body: `Tu solicitud de servicio para "${data.listingTitle || "Servicio"}" ha sido rechazada.`,
+                  data: { bookingId: change.doc.id },
+                });
+              }
+            }
+          });
+        }
+        isInitialBookingsClient = false;
+      });
+
+      // Cleanup sub-listeners on auth change
+      const originalUnsub = unsubscribe;
+      unsubscribe = () => {
+        if (originalUnsub) originalUnsub();
+        unsubBookingsPro();
+        unsubBookingsClient();
+      };
     });
 
     return () => {

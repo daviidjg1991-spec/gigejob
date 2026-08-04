@@ -36,8 +36,15 @@ const config: CapacitorConfig = {
     },
     Stripe: {
       publishableKey: "pk_live_51RfeChFFLqtPnL1f6X0k9MjpzQblkm1rSXrsNdmPGjF6SggRdeASA4QXLkAA5RHX4FG3epBpM8MAKWm1ytSV6fwn00gATo6sfO"
+    },
+    LocalNotifications: {
+      smallIcon: "ic_stat_icon_config_sample",
+      iconColor: "#4F46E5",
+      sound: "beep.wav"
+    },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"]
     }
-
   }
 };
 
