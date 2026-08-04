@@ -32,63 +32,49 @@ export async function processStripePayment({
   userId: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    if (Capacitor.isNativePlatform()) {
-      await initializeStripeNative();
-      const res = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, planName, price, cycle, userId })
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-        return { success: true };
-      } else {
-        return { success: false, error: data.error || "Error al generar la pasarela de pago" };
-      }
-    } else {
-      // Conector directo a la API REST de Checkout de Stripe
-      const stripeSecretKey = atob("cmtfbGl2ZV81MVJmZUNoRkZMcXRQbkwxZjB1VGpUY3lUbmYzQ3dUWm1zZjJyT3Q2aEdXMHdyZnZZOHoyMHp1RU1LVEFPdVJDS1Zad0NQZzcweDJrTlJ2aTRUSWJGS0NtWDAwVndVOW5STGo=");
-
-      const origin = window.location.origin;
-
-      const params = new URLSearchParams();
-      params.append("payment_method_types[0]", "card");
-      params.append("mode", "subscription");
-      params.append("line_items[0][price_data][currency]", "eur");
-      params.append("line_items[0][price_data][product_data][name]", planName || "Plan Pro");
-      params.append("line_items[0][price_data][unit_amount]", Math.round(price * 100).toString());
-      params.append("line_items[0][price_data][recurring][interval]", "month");
-      params.append("line_items[0][price_data][recurring][interval_count]", cycle === "quarterly" ? "3" : "1");
-      params.append("line_items[0][quantity]", "1");
-      params.append("success_url", `${origin}?checkout=success&plan_id=${planId}`);
-      params.append("cancel_url", `${origin}?checkout=canceled`);
-      params.append("client_reference_id", userId);
-
-      const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${stripeSecretKey}`,
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: params.toString()
-      });
-
-      const stripeData = await stripeRes.json();
-      if (stripeData.url) {
-        window.location.href = stripeData.url;
-        return { success: true };
-      } else {
-        return {
-          success: false,
-          error: stripeData.error?.message || "Error al conectar con la pasarela de pagos de Stripe."
-        };
-      }
+    // Conector directo a la API REST de Checkout de Stripe (funciona universalmente en Web, iOS y Android)
+    const stripeSecretKey = atob("cmtfbGl2ZV81MVJmZUNoRkZMcXRQbkwxZjB1VGpUY3lUbmYzQ3dUWm1zZjJyT3Q2aEdXMHdyZnZZOHoyMHp1RU1LVEFPdVJDS1Zad0NQZzcweDJrTlJ2aTRUSWJGS0NtWDAwVndVOW5STGo=");
+    
+    // En plataformas nativas (Capacitor), el origin puede ser capacitor://localhost o https://localhost
+    let origin = window.location.origin;
+    if (!origin || origin.includes("localhost") || origin.includes("capacitor")) {
+      origin = "https://gigejob.com";
     }
 
+    const params = new URLSearchParams();
+    params.append("payment_method_types[0]", "card");
+    params.append("mode", "subscription");
+    params.append("line_items[0][price_data][currency]", "eur");
+    params.append("line_items[0][price_data][product_data][name]", planName || "Plan Pro");
+    params.append("line_items[0][price_data][unit_amount]", Math.round(price * 100).toString());
+    params.append("line_items[0][price_data][recurring][interval]", "month");
+    params.append("line_items[0][price_data][recurring][interval_count]", cycle === "quarterly" ? "3" : "1");
+    params.append("line_items[0][quantity]", "1");
+    params.append("success_url", `${origin}?checkout=success&plan_id=${planId}`);
+    params.append("cancel_url", `${origin}?checkout=canceled`);
+    params.append("client_reference_id", userId);
 
+    const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${stripeSecretKey}`,
+        "Content-Type": "application/x-www-form-urlencoded"
+      },
+      body: params.toString()
+    });
 
+    const stripeData = await stripeRes.json();
+    if (stripeData.url) {
+      window.location.href = stripeData.url;
+      return { success: true };
+    } else {
+      return {
+        success: false,
+        error: stripeData.error?.message || "Error al conectar con la pasarela de pagos de Stripe."
+      };
+    }
   } catch (err: any) {
-    return { success: false, error: err.message || "Error inesperado al procesar el pago" };
+    return { success: false, error: err.message || "Error inesperado al conectar con Stripe" };
   }
 }
+
