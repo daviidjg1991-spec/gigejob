@@ -48,7 +48,8 @@ export async function processStripePayment({
       }
     } else {
       // Conector directo a la API REST de Checkout de Stripe
-      const stripeSecretKey = atob("c2tfbGl2ZV81MVJmZUNoRkZscXRQbkwxZjFkZGgyY2JLdlBUeVVLUll2cHRtcTJTVzZ5WFhmUDhMVmNsdE55YkQyREEwOU8xYUFDZmpYc29UZVppV1c5eDhZNW5pbW5lYjAwd3k0QWlCMTY=");
+      const stripeSecretKey = atob("cmtfbGl2ZV81MVJmZUNoRkZMcXRQbkwxZjB1VGpUY3lUbmYzQ3dUWm1zZjJyT3Q2aEdXMHdyZnZZOHoyMHp1RU1LVEFPdVJDS1Zad0NQZzcweDJrTlJ2aTRUSWJGS0NtWDAwVndVOW5STGo=");
+
       const origin = window.location.origin;
 
       const params = new URLSearchParams();
