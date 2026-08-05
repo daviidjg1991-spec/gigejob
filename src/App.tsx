@@ -6795,89 +6795,104 @@ const AdminPage = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
-                {(filterStatus === "active"
-                  ? listings.filter((l) => (l.status === "active" || !l.status) && l.type !== "search")
-                  : listings.filter((l) => l.status !== "deleted" && l.type !== "search")
-                ).map((l, i) => {
-                  const listingTotalBilled = bookings
-                    .filter((b: any) => b.listingId === l.id && (b.status === "accepted" || b.status === "completed"))
-                    .reduce((sum: number, b: any) => sum + (Number(b.totalAmount || b.totalCost || b.price) || 0), 0);
-                  
-                  return (
-                  <React.Fragment key={l.id}>
-                    <tr
-                      className="hover:bg-surface-container-low cursor-pointer"
-                      onClick={() => setSelectedService(l)}
-                    >
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{i + 1}</td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold text-primary hidden sm:table-cell">
-                        {l.id}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold truncate max-w-[120px]">
-                        {l.author?.name || "Anónimo"}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{l.price}€</td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm hidden md:table-cell">
-                        {listingTotalBilled}€
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden lg:table-cell">
-                        {l.lastBooked
-                          ? new Date(
-                              l.lastBooked.seconds
-                                ? l.lastBooked.seconds * 1000
-                                : l.lastBooked,
-                            ).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
-                        {l.createdAt
-                          ? new Date(
-                              l.createdAt.seconds
-                                ? l.createdAt.seconds * 1000
-                                : l.createdAt,
-                            ).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-medium">
-                        <select
-                          className={cn(
-                            "px-3 py-1.5 border border-outline-variant/20 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all w-[110px]",
-                            (!l.status || l.status === "active") &&
-                              "bg-green-100 text-green-800",
-                            l.status === "disabled" &&
-                              "bg-orange-100 text-orange-800",
-                            l.status === "deleted" && "bg-red-100 text-red-800",
-                          )}
-                          value={l.status || "active"}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={async (e) => {
-                            const newStatus = e.target.value;
-                            if (setListings) {
-                              setListings((prev) =>
-                                prev.map((item) =>
-                                  item.id === l.id
-                                    ? { ...item, status: newStatus }
-                                    : item,
-                                ),
-                              );
-                            }
-                            try {
-                              await updateDoc(doc(db, "listings", l.id), {
-                                status: newStatus,
-                              });
-                            } catch (error) {
-                              console.warn(
-                                "Firestore update failed for listings:",
-                                error,
-                              );
-                            }
-                          }}
+                    {(filterStatus === "active"
+                      ? listings.filter((l) => {
+                          const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+                          const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
+                          return !isInactive && l.status !== "deleted" && l.type !== "search";
+                        })
+                      : listings.filter((l) => l.status !== "deleted" && l.type !== "search")
+                    ).map((l, i) => {
+                      const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+                      const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
+                      const currentDisplayStatus = isInactive ? "expired" : (l.status || "active");
+
+                      const listingTotalBilled = bookings
+                        .filter((b: any) => b.listingId === l.id && (b.status === "accepted" || b.status === "completed"))
+                        .reduce((sum: number, b: any) => sum + (Number(b.totalAmount || b.totalCost || b.price) || 0), 0);
+                      
+                      return (
+                      <React.Fragment key={l.id}>
+                        <tr
+                          className="hover:bg-surface-container-low cursor-pointer"
+                          onClick={() => setSelectedService(l)}
                         >
-                          <option value="active">Activo</option>
-                          <option value="disabled">Desactivado</option>
-                          <option value="deleted">Eliminado</option>
-                        </select>
-                      </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{i + 1}</td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold text-primary hidden sm:table-cell">
+                            {l.id}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold truncate max-w-[120px]">
+                            {l.author?.name || "Anónimo"}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{l.price}€</td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm hidden md:table-cell">
+                            {listingTotalBilled}€
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden lg:table-cell">
+                            {l.lastBooked
+                              ? new Date(
+                                  l.lastBooked.seconds
+                                    ? l.lastBooked.seconds * 1000
+                                    : l.lastBooked,
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
+                            {l.createdAt
+                              ? new Date(
+                                  l.createdAt.seconds
+                                    ? l.createdAt.seconds * 1000
+                                    : l.createdAt,
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-medium">
+                            <select
+                              className={cn(
+                                "px-3 py-1.5 border border-outline-variant/20 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all w-[115px]",
+                                currentDisplayStatus === "active" &&
+                                  "bg-green-100 text-green-800",
+                                (currentDisplayStatus === "disabled" || currentDisplayStatus === "expired") &&
+                                  "bg-orange-100 text-orange-800",
+                                currentDisplayStatus === "deleted" && "bg-red-100 text-red-800",
+                              )}
+                              value={currentDisplayStatus}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={async (e) => {
+                                const newStatus = e.target.value;
+                                const updatePayload: any = { status: newStatus };
+                                
+                                // If reactivating an expired/inactive listing, extend expiration date by 30 days
+                                if (newStatus === "active" && (isExpired || l.status === "inactive" || l.status === "expired" || l.status === "disabled")) {
+                                  const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                                  updatePayload.expiresAt = newExpiresAt;
+                                }
+
+                                if (setListings) {
+                                  setListings((prev) =>
+                                    prev.map((item) =>
+                                      item.id === l.id
+                                        ? { ...item, ...updatePayload }
+                                        : item,
+                                    ),
+                                  );
+                                }
+                                try {
+                                  await updateDoc(doc(db, "listings", l.id), updatePayload);
+                                } catch (error) {
+                                  console.warn(
+                                    "Firestore update failed for listings:",
+                                    error,
+                                  );
+                                }
+                              }}
+                            >
+                              <option value="active">Activo</option>
+                              <option value="expired">Caducado</option>
+                              <option value="disabled">Desactivado</option>
+                              <option value="deleted">Eliminado</option>
+                            </select>
+                          </td>
                       <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-primary font-bold">
                         <button
                           onClick={(e) => {
