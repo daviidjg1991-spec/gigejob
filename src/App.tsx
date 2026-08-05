@@ -20633,9 +20633,14 @@ const CreateListing = ({
     if (formData.type === "offer") {
       const userPlan = plans.find(p => p.id === (user.professionalInfo?.plan || 'basic')) || plans[0];
       const limit = userPlan?.limits?.maxListingsPerAccount ?? 1;
-      const currentListings = listings.filter(l => l.author?.id === user.id && l.type === 'offer').length;
-      if (currentListings >= limit) {
-         setError(`Tu plan actual permite un máximo de ${limit} publicación/es de servicio. Amplía tu plan para publicar más.`);
+      const activeListingsCount = listings.filter(l => {
+        if (l.author?.id !== user.id || l.type !== 'offer') return false;
+        const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || isExpired;
+        return !isInactive;
+      }).length;
+      if (activeListingsCount >= limit) {
+         setError(`Tu plan actual permite un máximo de ${limit} servicio(s) activo(s). Tienes ${activeListingsCount} servicio(s) activo(s). Desactiva o elimina un servicio para publicar uno nuevo, o amplía tu plan.`);
          return;
       }
     }
@@ -24864,6 +24869,28 @@ function App() {
   };
 
   const reactivateListing = async (id: string) => {
+    const listingToReactivate = listings.find(l => l.id === id);
+    const authorId = listingToReactivate?.author?.id || user?.id;
+
+    if (user && authorId === user.id) {
+      const userPlan = plans.find(p => p.id === (user.professionalInfo?.plan || 'basic')) || plans[0];
+      const limit = userPlan?.limits?.maxListingsPerAccount ?? 1;
+      const activeListingsCount = listings.filter(l => {
+        if (l.author?.id !== user.id || l.type !== 'offer' || l.id === id) return false;
+        const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || isExpired;
+        return !isInactive;
+      }).length;
+
+      if (activeListingsCount >= limit) {
+        setActiveToast({
+          message: `No puedes reactivar este servicio. Tu plan actual permite un máximo de ${limit} servicio(s) activo(s).`,
+          type: "alert",
+        });
+        return;
+      }
+    }
+
     const creationDate = new Date();
     const expirationDate = new Date(
       creationDate.getTime() + 30 * 24 * 60 * 60 * 1000,
