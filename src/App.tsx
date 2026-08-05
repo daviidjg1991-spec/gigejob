@@ -20636,9 +20636,10 @@ const CreateListing = ({
       const userPlan = plans.find(p => p.id === (user.professionalInfo?.plan || 'basic')) || plans[0];
       const limit = userPlan?.limits?.maxListingsPerAccount ?? 1;
       const activeListingsCount = listings.filter(l => {
-        if (l.author?.id !== user.id || l.type !== 'offer') return false;
+        const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
+        if (!isUserAuthor || l.type !== 'offer') return false;
         const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
-        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || isExpired;
+        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || l.status === "expired" || isExpired;
         return !isInactive;
       }).length;
       if (activeListingsCount >= limit) {
@@ -24872,15 +24873,17 @@ function App() {
 
   const reactivateListing = async (id: string) => {
     const listingToReactivate = listings.find(l => l.id === id);
-    const authorId = listingToReactivate?.author?.id || user?.id;
+    const authorId = listingToReactivate?.author?.id;
+    const authorEmail = listingToReactivate?.author?.email;
 
-    if (user && authorId === user.id) {
+    if (user && (authorId === user.id || (authorEmail && user.email && authorEmail === user.email))) {
       const userPlan = plans.find(p => p.id === (user.professionalInfo?.plan || 'basic')) || plans[0];
       const limit = userPlan?.limits?.maxListingsPerAccount ?? 1;
       const activeListingsCount = listings.filter(l => {
-        if (l.author?.id !== user.id || l.type !== 'offer' || l.id === id) return false;
+        const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
+        if (!isUserAuthor || l.type !== 'offer' || l.id === id) return false;
         const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
-        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || isExpired;
+        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || l.status === "expired" || isExpired;
         return !isInactive;
       }).length;
 
