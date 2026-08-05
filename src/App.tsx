@@ -6866,6 +6866,8 @@ const AdminPage = ({
                                 if (newStatus === "active" && (isExpired || l.status === "inactive" || l.status === "expired" || l.status === "disabled")) {
                                   const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
                                   updatePayload.expiresAt = newExpiresAt;
+                                } else if (newStatus === "expired") {
+                                  updatePayload.expiresAt = new Date(Date.now() - 1000).toISOString();
                                 }
 
                                 if (setListings) {
@@ -13250,11 +13252,11 @@ const ListingCard = ({
   const navigate = useNavigate();
   if (!listing || !listing.author) return null;
 
-  const isExpired = listing.expiresAt
+  const isExpired = listing.status === "expired" || (listing.expiresAt
     ? new Date(listing.expiresAt) < new Date()
-    : false;
+    : false);
   const isInactive =
-    listing.status === "inactive" || listing.status === "disabled" || isExpired;
+    listing.status === "inactive" || listing.status === "disabled" || listing.status === "expired" || isExpired;
 
   return (
     <motion.div
@@ -13298,10 +13300,10 @@ const ListingCard = ({
           </span>
           {isInactive && (
             <span className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-orange-500 text-white">
-              {listing.status === "disabled" || listing.status === "inactive"
-                ? "DESACTIVADO"
-                : isExpired
-                  ? "CADUCADO"
+              {listing.status === "expired" || isExpired
+                ? "CADUCADO"
+                : listing.status === "disabled" || listing.status === "inactive"
+                  ? "DESACTIVADO"
                   : "INACTIVO"}
             </span>
           )}
