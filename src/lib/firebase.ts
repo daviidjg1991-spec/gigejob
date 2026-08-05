@@ -11,7 +11,7 @@ setLogLevel('silent');
 export const db = getFirestore(app);
 
 // Use indexedDB explicitly on Capacitor iOS to prevent signIn hanging
-// Firebase Auth configured with authorized domains: localhost, 127.0.0.1, firebaseapp, vercel domains
+// Firebase Auth configured with authorized domains: gigejob.com, www.gigejob.com, localhost, 127.0.0.1, firebaseapp, vercel domains
 export const auth = Capacitor.isNativePlatform() 
   ? initializeAuth(app, { persistence: indexedDBLocalPersistence })
   : getAuth(app);
