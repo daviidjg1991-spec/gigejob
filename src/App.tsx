@@ -13281,11 +13281,13 @@ const ListingCard = ({
   isFavorite,
   onToggleFavorite,
   onReactivate,
+  onDelete,
 }: {
   listing: JobListing;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
+  onDelete?: (id: string) => void;
   key?: string;
 }) => {
   const navigate = useNavigate();
@@ -13473,19 +13475,35 @@ const ListingCard = ({
             )}
         </div>
 
-        {isInactive && onReactivate && (
-          <div className="mt-4 pt-4 border-t border-outline-variant/10">
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onReactivate(listing.id);
-              }}
-              className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Reactivar Anuncio
-            </button>
+        {(onReactivate || onDelete) && (
+          <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-2">
+            {isInactive && onReactivate && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onReactivate(listing.id);
+                }}
+                className="flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Reactivar Anuncio
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete(listing.id);
+                }}
+                className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+                title="Borrar anuncio permanentemente"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Borrar
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -13500,6 +13518,7 @@ const HomePage = ({
   favorites,
   onToggleFavorite,
   onReactivate,
+  onDelete,
   search,
   setSearch,
 }: {
@@ -13507,6 +13526,7 @@ const HomePage = ({
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
+  onDelete?: (id: string) => void;
   search: string;
   setSearch: (s: string) => void;
 }) => {
@@ -13676,6 +13696,7 @@ const HomePage = ({
                 isFavorite={favorites.includes(listing.id)}
                 onToggleFavorite={onToggleFavorite}
                 onReactivate={onReactivate}
+                onDelete={onDelete}
               />
             ))}
           </AnimatePresence>
@@ -15748,12 +15769,14 @@ const ListingDetail = ({
   setListings,
   favorites,
   onToggleFavorite,
+  onDelete,
   user,
 }: {
   listings: JobListing[];
   setListings: React.Dispatch<React.SetStateAction<JobListing[]>>;
   favorites: string[];
   onToggleFavorite: (id: string) => void;
+  onDelete?: (id: string) => void;
   user: UserProfile | null;
 }) => {
   const { id } = useParams();
@@ -16087,6 +16110,19 @@ const ListingDetail = ({
                   <AlertTriangle className="w-4 h-4" />
                   Reportar
                 </button>
+                {onDelete && (user?.id === listing.author?.id || user?.email === listing.author?.email || user?.role === "admin") && (
+                  <button
+                    onClick={() => {
+                      onDelete(listing.id);
+                      navigate(-1);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-all font-bold text-xs uppercase tracking-widest ml-auto"
+                    title="Borrar este anuncio definitivamente"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Borrar Anuncio
+                  </button>
+                )}
               </div>
             </div>
             {listing.type === "offer" && listing.price !== undefined && (
@@ -16428,6 +16464,7 @@ const ProfilePage = ({
   favorites,
   onToggleFavorite,
   onReactivate,
+  onDelete,
   onOpenSettings,
 }: {
   user: any;
@@ -16436,6 +16473,7 @@ const ProfilePage = ({
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
+  onDelete?: (id: string) => void;
   onOpenSettings?: (type: string) => void;
 }) => {
   const { id } = useParams();
@@ -16850,6 +16888,7 @@ const ProfilePage = ({
                           isFavorite={favorites.includes(listing.id)}
                           onToggleFavorite={onToggleFavorite}
                           onReactivate={onReactivate}
+                          onDelete={isOwnProfile || canEditProfile ? onDelete : undefined}
                         />
                       ))}
                     </div>
@@ -24993,6 +25032,47 @@ function App() {
     });
   };
 
+  const deleteListing = async (id: string) => {
+    const listingToDelete = listings.find((l) => l.id === id);
+    if (!listingToDelete) return;
+    const authorId = listingToDelete.author?.id;
+    const authorEmail = listingToDelete.author?.email;
+
+    const isAuthor =
+      user &&
+      (authorId === user.id ||
+        (authorEmail && user.email && authorEmail === user.email));
+    if (!isAuthor && user?.role !== "admin") {
+      setActiveToast({
+        message: "Solo el propietario puede borrar su propio anuncio.",
+        type: "alert",
+      });
+      return;
+    }
+
+    if (!window.confirm("¿Estás seguro de que deseas borrar este anuncio definitivamente?")) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "listings", id), {
+        status: "owner_deleted",
+      });
+    } catch (e) {
+      console.error("Error deleting listing in Firebase", e);
+    }
+
+    setListings((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, status: "owner_deleted" } : l))
+    );
+
+    setActiveToast({
+      message: "Anuncio borrado correctamente.",
+      type: "message",
+    });
+  };
+
+
   const simulateNotification = (type: "message" | "alert") => {
     if (type === "message") {
       socketRef.current?.emit("send_message", {
@@ -25312,11 +25392,13 @@ function App() {
                             l.author.email &&
                             l.author.email ===
                               (user?.email || "guest@example.com") &&
-                            l.status !== "deleted",
+                            l.status !== "deleted" &&
+                            l.status !== "owner_deleted",
                         )}
                         favorites={favorites}
                         onToggleFavorite={toggleFavorite}
                         onReactivate={reactivateListing}
+                        onDelete={deleteListing}
                         search={search}
                         setSearch={setSearch}
                       />
@@ -25429,6 +25511,7 @@ function App() {
                       setListings={setListings}
                       favorites={favorites}
                       onToggleFavorite={toggleFavorite}
+                      onDelete={deleteListing}
                       user={user}
                     />
                   }
@@ -25456,6 +25539,7 @@ function App() {
                       favorites={favorites}
                       onToggleFavorite={toggleFavorite}
                       onReactivate={reactivateListing}
+                      onDelete={deleteListing}
                       onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     />
                   }
