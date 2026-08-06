@@ -438,6 +438,39 @@ export const defaultDynamicAppConfig: DynamicAppConfig = {
   homeImageUrl: "",
 };
 
+export const resolveUserPlanId = (user: any): string => {
+  if (!user) return "basic";
+  let rawPlan = user.professionalInfo?.plan;
+  if (!rawPlan && user.hasClaimedPromotion) {
+    rawPlan = "premium-pro";
+  }
+  if (!rawPlan) return "basic";
+
+  const lower = String(rawPlan).toLowerCase().trim();
+  if (lower === "premium-pro" || lower === "premium pro" || lower === "plan premium pro") {
+    return "premium-pro";
+  }
+  if (lower === "premium" || lower === "plan premium") {
+    return "premium";
+  }
+  if (lower === "medium" || lower === "pro" || lower === "plan medium") {
+    return "medium";
+  }
+  if (lower === "basic" || lower === "plan basic") {
+    return "basic";
+  }
+  return lower;
+};
+
+export const getUserPlan = (user: any, plans: any[] = PRO_PLANS) => {
+  const planId = resolveUserPlanId(user);
+  const matched = (plans || PRO_PLANS).find(
+    (p: any) => p.id === planId || p.id?.toLowerCase() === planId || p.name?.toLowerCase() === planId || p.name?.toLowerCase() === (user?.professionalInfo?.plan || "").toLowerCase()
+  );
+  return matched || (plans || PRO_PLANS).find((p: any) => p.id === "basic") || (plans || PRO_PLANS)[0];
+};
+
+
 export const AppConfigContext = createContext<{
   config: DynamicAppConfig;
   updateConfig: (c: Partial<DynamicAppConfig>) => void;
@@ -4849,46 +4882,21 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
 const AdminProPlansTab = ({ users }: { users: any[] }) => {
   const { plans, isEnabled } = useProPlansConfig();
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
-  const [subscriberCounts, setSubscriberCounts] = useState<{
-    [key: string]: number;
-  }>({});
-  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [isQuarterly, setIsQuarterly] = useState(false);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      const statsRef = doc(db, "settings", "pro_plans_stats");
-      const docSnap = await getDoc(statsRef);
-      const now = Date.now();
-
-      let needsUpdate = true;
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (now - data.lastUpdated < 3 * 60 * 60 * 1000) {
-          needsUpdate = false;
-          setSubscriberCounts(data.counts);
-          setLastUpdated(data.lastUpdated);
-        }
+  const subscriberCounts = useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    plans.forEach((p) => (counts[p.id] = 0));
+    (users || []).forEach((u) => {
+      if (u.role === "professional") {
+        const userPlan = getUserPlan(u, plans);
+        const pid = userPlan ? userPlan.id : "basic";
+        counts[pid] = (counts[pid] || 0) + 1;
       }
-
-      if (needsUpdate && users && users.length > 0) {
-        // Calculate new stats
-        const counts: any = {};
-        plans.forEach((p) => (counts[p.id] = 0));
-        users.forEach((u) => {
-          const planId = u.professionalInfo?.plan || "basic";
-          if (u.role === "professional" && counts[planId] !== undefined) {
-            counts[planId]++;
-          } else if (u.role === "professional") {
-            counts[planId] = 1;
-          }
-        });
-        setSubscriberCounts(counts);
-        setLastUpdated(now);
-      }
-    };
-    fetchStats();
+    });
+    return counts;
   }, [users, plans]);
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -5187,18 +5195,11 @@ const AdminProPlansTab = ({ users }: { users: any[] }) => {
               : "Mostrar Planes a Usuarios"}
           </button>
         </div>
-        {lastUpdated && (
-          <div className="text-xs font-medium text-on-surface-variant/60">
-            Contador de usuarios actualizado:{" "}
-            {new Date(lastUpdated).toLocaleTimeString()}
-          </div>
-        )}
       </div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <p className="text-sm text-on-surface-variant flex items-center justify-between">
           <span>
-            Edita la configuración o comprueba la suscripción a planes. Los
-            contadores se actualizan automáticamente cada 3 horas.
+            Edita la configuración o comprueba la suscripción a planes.
           </span>
           {!isEnabled && (
             <span className="text-error font-bold text-xs bg-error/10 px-3 py-1 rounded-full ml-4">
@@ -14313,9 +14314,9 @@ const checkBookingOverlap = async (
   try {
     // 1. Obtener plan del profesional
     const profDocSnap = await getDoc(doc(db, "users", professionalId));
-    let planId = "basic";
+    let profData: any = null;
     if (profDocSnap.exists()) {
-      planId = profDocSnap.data().professionalInfo?.plan || "basic";
+      profData = profDocSnap.data();
     }
 
     const planConfigDoc = await getDoc(doc(db, "settings", "pro_plans_config"));
@@ -14323,9 +14324,9 @@ const checkBookingOverlap = async (
     if (planConfigDoc.exists() && planConfigDoc.data().plans) {
       plans = planConfigDoc.data().plans;
     }
-    const plan = plans.find((p: any) => p.id === planId) || plans[0];
-    const maxBookingsPerDay = plan.limits?.maxBookingsPerDay ?? 1;
-    const maxConcurrentBookings = plan.limits?.maxConcurrentBookings ?? 1;
+    const plan = getUserPlan(profData, plans);
+    const maxBookingsPerDay = Number(plan?.limits?.maxBookingsPerDay ?? 1);
+    const maxConcurrentBookings = Number(plan?.limits?.maxConcurrentBookings ?? 1);
 
     // 2. Comprobar reservas
     const bookingsRef = collection(db, "bookings");
@@ -14361,11 +14362,11 @@ const checkBookingOverlap = async (
       }
     });
 
-    if (sameDayCount >= maxBookingsPerDay && maxBookingsPerDay < 999) {
+    if (sameDayCount >= maxBookingsPerDay && maxBookingsPerDay < 9999) {
        return { allowed: false, reason: `El profesional ha alcanzado su límite de reservas diarias (${maxBookingsPerDay}).` };
     }
-    if (overlapCount >= maxConcurrentBookings && maxConcurrentBookings < 999) {
-       return { allowed: false, reason: `El profesional ha alcanzado su límite de reservas concurrentes (${maxConcurrentBookings}).` };
+    if (overlapCount >= maxConcurrentBookings && maxConcurrentBookings < 9999) {
+       return { allowed: false, reason: `El profesional ha alcanzado su límite de reservas en la misma franja horaria (${maxConcurrentBookings}).` };
     }
 
     return { allowed: true };
@@ -20605,8 +20606,8 @@ const CreateListing = ({
     }
 
     if (formData.type === "offer") {
-      const userPlan = plans.find(p => p.id === (user.professionalInfo?.plan || 'basic')) || plans[0];
-      const limit = userPlan?.limits?.maxListingsPerAccount ?? 1;
+      const userPlan = getUserPlan(user, plans);
+      const limit = Number(userPlan?.limits?.maxListingsPerAccount ?? 1);
       const activeListingsCount = listings.filter(l => {
         const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
         if (!isUserAuthor || l.type !== 'offer') return false;
@@ -24941,8 +24942,8 @@ function App() {
     const authorEmail = listingToReactivate?.author?.email;
 
     if (user && (authorId === user.id || (authorEmail && user.email && authorEmail === user.email))) {
-      const userPlan = plans.find(p => p.id === (user.professionalInfo?.plan || 'basic')) || plans[0];
-      const limit = userPlan?.limits?.maxListingsPerAccount ?? 1;
+      const userPlan = getUserPlan(user, plans);
+      const limit = Number(userPlan?.limits?.maxListingsPerAccount ?? 1);
       const activeListingsCount = listings.filter(l => {
         const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
         if (!isUserAuthor || l.type !== 'offer' || l.id === id) return false;
