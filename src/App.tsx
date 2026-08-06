@@ -4326,8 +4326,12 @@ const BlogListPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex justify-center items-center min-h-[50vh]">
-        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      <div className="flex-1 flex flex-col justify-center items-center min-h-[50vh] p-4">
+        <img
+          src="/logo.png"
+          alt="Cargando..."
+          className="w-24 h-24 object-contain animate-heartbeat"
+        />
       </div>
     );
   }
@@ -4455,8 +4459,12 @@ const BlogPostPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex justify-center items-center min-h-[50vh]">
-        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      <div className="flex-1 flex flex-col justify-center items-center min-h-[50vh] p-4">
+        <img
+          src="/logo.png"
+          alt="Cargando..."
+          className="w-24 h-24 object-contain animate-heartbeat"
+        />
       </div>
     );
   }
