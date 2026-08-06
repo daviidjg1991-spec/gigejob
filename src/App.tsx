@@ -15784,6 +15784,7 @@ const ListingDetail = ({
   const { openReportModal } = React.useContext(ReportContext);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const listing = listings.find((l) => l && l.id === id);
+  const isOwner = !!(user && listing?.author && (user.id === listing.author.id || user.email === listing.author.email));
 
   const checkPersonalDataComplete = (u: UserProfile | null) => {
     if (!u) return false;
@@ -16006,17 +16007,33 @@ const ListingDetail = ({
                     </span>
                   </div>
                   <div className="w-1/3 text-right">
-                    <button
-                      onClick={handleConcretarCita}
-                      disabled={!user}
-                      className={cn(
-                        "text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-lg shadow-sm transition-all w-full",
-                        !user ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50" : "bg-primary text-white active:scale-95"
-                      )}
-                      title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
-                    >
-                      CONCRETAR CITA
-                    </button>
+                    {isOwner ? (
+                      <button
+                        onClick={() => {
+                          if (onDelete && listing) {
+                            onDelete(listing.id);
+                            navigate(-1);
+                          }
+                        }}
+                        className="text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-lg shadow-sm transition-all w-full bg-red-600 hover:bg-red-700 text-white active:scale-95 flex items-center justify-center gap-1"
+                        title="Borrar tu anuncio"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Borrar
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleConcretarCita}
+                        disabled={!user}
+                        className={cn(
+                          "text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-lg shadow-sm transition-all w-full",
+                          !user ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50" : "bg-primary text-white active:scale-95"
+                        )}
+                        title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
+                      >
+                        CONCRETAR CITA
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -16365,24 +16382,41 @@ const ListingDetail = ({
                     Profesional
                   </p>
 
-                  <div className="space-y-3 mb-6">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleConcretarCita();
-                      }}
-                      disabled={!user}
-                      className={cn(
-                        "w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all",
-                        !user 
-                          ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
-                          : "bg-[#005a54] text-white shadow-xl shadow-[#005a54]/20 hover:scale-[1.02] active:scale-95"
-                      )}
-                      title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
-                    >
-                      <Calendar className="w-4 h-4" />
-                      CONCRETAR CITA
-                    </button>
+                  <div className="space-y-3 mb-6 w-full">
+                    {isOwner ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onDelete && listing) {
+                            onDelete(listing.id);
+                            navigate(-1);
+                          }
+                        }}
+                        className="w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all bg-red-600 hover:bg-red-700 text-white shadow-xl shadow-red-600/20 hover:scale-[1.02] active:scale-95"
+                        title="Borrar tu anuncio"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Borrar Anuncio
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConcretarCita();
+                        }}
+                        disabled={!user}
+                        className={cn(
+                          "w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all",
+                          !user 
+                            ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                            : "bg-[#005a54] text-white shadow-xl shadow-[#005a54]/20 hover:scale-[1.02] active:scale-95"
+                        )}
+                        title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
+                      >
+                        <Calendar className="w-4 h-4" />
+                        CONCRETAR CITA
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4">
