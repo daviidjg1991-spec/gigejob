@@ -2797,6 +2797,17 @@ const AdminUserEditModal = ({
                                   await deleteDoc(doc(db, "reviews", review.id));
                                   setUserReviews((prev) => prev.filter((r) => r.id !== review.id));
 
+                                  // Mark booking as reviewed/dismissed so prompt doesn't pop up again
+                                  if (review.bookingId) {
+                                    try {
+                                      await updateDoc(doc(db, "bookings", review.bookingId), {
+                                        dismissedReview: true
+                                      });
+                                    } catch (err) {
+                                      console.warn("Could not update booking dismissedReview status:", err);
+                                    }
+                                  }
+
                                   // Recalculate target user's rating
                                   if (review.targetId) {
                                     const qReviews = query(collection(db, "reviews"), where("targetId", "==", review.targetId));
@@ -23955,6 +23966,8 @@ const useReviewPrompt = (user: UserProfile | null) => {
         const bookings = [...snapClient.docs, ...snapPro.docs].map(d => ({ id: d.id, ...d.data() }));
 
         for (const b of bookings as any[]) {
+          if (b.dismissedReview) continue;
+
           const durationStr = typeof b.duration === 'string' ? b.duration.replace(/\D/g, '') : "1";
           const durationHours = parseInt(durationStr) || 1;
           
