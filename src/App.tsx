@@ -23864,13 +23864,35 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
   const bookingDate = booking.date || "No especificada";
   const bookingDuration = booking.duration || "1h";
 
+  const handleClose = async () => {
+    if (booking?.id) {
+      try {
+        await updateDoc(doc(db, "bookings", booking.id), {
+          dismissedReview: true
+        });
+      } catch (err) {
+        console.warn("Error marking booking as dismissedReview on close:", err);
+      }
+    }
+    onComplete();
+  };
+
   return (
     <div className="fixed inset-0 z-[9999] bg-scrim/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-surface rounded-3xl w-full max-w-md shadow-2xl p-6 sm:p-8 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-display font-black text-on-surface mb-1">
+      <div className="bg-surface rounded-3xl w-full max-w-md shadow-2xl p-6 sm:p-8 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto relative">
+        <button
+          onClick={handleClose}
+          className="absolute top-5 right-5 p-2 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors"
+          title="Cerrar y no volver a mostrar"
+          aria-label="Cerrar"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <h2 className="text-2xl font-display font-black text-on-surface mb-1 pr-8">
           {config.title}
         </h2>
-        <p className="text-on-surface-variant text-sm mb-4">
+        <p className="text-on-surface-variant text-sm mb-4 pr-6">
           {config.subtitle}
         </p>
 
