@@ -2792,10 +2792,37 @@ const AdminUserEditModal = ({
                         <div className="flex justify-end mt-2">
                           <button
                             onClick={async () => {
-                              if (window.confirm("¿Seguro que quieres borrar esta reseña?")) {
+                              if (window.confirm("¿Seguro que quieres borrar esta reseña de forma definitiva?")) {
                                 try {
-                                  await updateDoc(doc(db, "reviews", review.id), { deleted: true });
-                                  setUserReviews(userReviews.filter((r) => r.id !== review.id));
+                                  await deleteDoc(doc(db, "reviews", review.id));
+                                  setUserReviews((prev) => prev.filter((r) => r.id !== review.id));
+
+                                  // Recalculate target user's rating
+                                  if (review.targetId) {
+                                    const qReviews = query(collection(db, "reviews"), where("targetId", "==", review.targetId));
+                                    const reviewsSnap = await getDocs(qReviews);
+                                    let totalRating = 0;
+                                    let count = 0;
+                                    reviewsSnap.forEach(docSnap => {
+                                      if (docSnap.id !== review.id && !docSnap.data().deleted) {
+                                        totalRating += docSnap.data().rating || 0;
+                                        count++;
+                                      }
+                                    });
+                                    const newRating = count > 0 ? totalRating / count : 5.0;
+
+                                    await updateDoc(doc(db, "users", review.targetId), {
+                                      rating: newRating
+                                    });
+
+                                    const qListings = query(collection(db, "listings"), where("author.id", "==", review.targetId));
+                                    const listingsSnap = await getDocs(qListings);
+                                    for (const listingDoc of listingsSnap.docs) {
+                                      await updateDoc(doc(db, "listings", listingDoc.id), {
+                                        "author.rating": newRating
+                                      });
+                                    }
+                                  }
                                 } catch (e) {
                                   console.error("Error al borrar la reseña", e);
                                   alert("Error al borrar la reseña");
