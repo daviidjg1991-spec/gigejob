@@ -23803,20 +23803,46 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
   const [comment, setComment] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [proDetails, setProDetails] = useState<any>(null);
   const config = DEFAULT_REVIEW_MODAL_CONFIG;
 
+  const targetId = booking.clientId === user.id ? booking.professionalId : booking.clientId;
+
+  useEffect(() => {
+    if (!targetId) return;
+    getDoc(doc(db, "users", targetId)).then((snap) => {
+      if (snap.exists()) {
+        setProDetails(snap.data());
+      }
+    }).catch(err => console.error("Error fetching pro details for modal:", err));
+  }, [targetId]);
+
+  const convertFileToBase64 = (fileToConvert: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(fileToConvert);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleSubmit = async () => {
-    if (rating === 0) return;
+    if (rating === 0 || isSubmitting) return;
     setIsSubmitting(true);
     try {
       let photoUrl = "";
       if (file) {
-        const storageRef = ref(storage, `reviews/${Date.now()}_${file.name}`);
-        await uploadBytes(storageRef, file);
-        photoUrl = await getDownloadURL(storageRef);
+        try {
+          // Attempt Storage upload first with a 6-second timeout, falling back to base64 if storage hangs
+          const storageRef = ref(storage, `reviews/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
+          const uploadPromise = uploadBytes(storageRef, file).then(snapshot => getDownloadURL(snapshot.ref));
+          const timeoutPromise = new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Storage timeout")), 6000));
+          photoUrl = await Promise.race([uploadPromise, timeoutPromise]);
+        } catch (storageErr) {
+          console.warn("Storage upload timed out or failed, using compressed base64 fallback:", storageErr);
+          photoUrl = await convertFileToBase64(file);
+        }
       }
-
-      const targetId = booking.clientId === user.id ? booking.professionalId : booking.clientId;
 
       await addDoc(collection(db, "reviews"), {
         bookingId: booking.id,
@@ -23837,7 +23863,7 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
       reviewsSnap.forEach(docSnap => {
         totalRating += docSnap.data().rating || 0;
       });
-      const newRating = totalRating / reviewsSnap.size;
+      const newRating = reviewsSnap.size > 0 ? totalRating / reviewsSnap.size : 5.0;
 
       await updateDoc(doc(db, "users", targetId), {
         rating: newRating
@@ -23895,23 +23921,58 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
     return <div className="flex items-center gap-1">{stars}</div>;
   };
 
+  const proName = proDetails 
+    ? (proDetails.firstName ? `${proDetails.firstName} ${proDetails.lastName1 || ''}`.trim() : proDetails.username || "Profesional")
+    : (booking.professionalName || "Profesional");
+
+  const serviceTitle = booking.listingTitle || booking.title || booking.serviceTitle || "Servicio contratado";
+  const jobType = booking.listingType === "offer" ? "Oferta de servicio" : (booking.type || "Servicio");
+  const bookingDate = booking.date || "No especificada";
+  const bookingDuration = booking.duration || "1h";
+
   return (
     <div className="fixed inset-0 z-[9999] bg-scrim/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-surface rounded-3xl w-full max-w-md shadow-2xl p-6 sm:p-8 animate-in fade-in zoom-in duration-200">
-        <h2 className="text-2xl font-display font-black text-on-surface mb-2">
+      <div className="bg-surface rounded-3xl w-full max-w-md shadow-2xl p-6 sm:p-8 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-display font-black text-on-surface mb-1">
           {config.title}
         </h2>
-        <p className="text-on-surface-variant text-sm mb-6">
+        <p className="text-on-surface-variant text-sm mb-4">
           {config.subtitle}
         </p>
 
-        <div className="space-y-6">
+        {/* Info card summarizing the booking */}
+        <div className="bg-surface-container-low/50 border border-outline-variant/20 rounded-2xl p-4 mb-6 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-black uppercase tracking-widest text-[9px] px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+              {jobType}
+            </span>
+            <span className="text-on-surface-variant font-medium">
+              Duración: <strong className="text-on-surface font-bold">{bookingDuration}</strong>
+            </span>
+          </div>
+          <div>
+            <span className="text-on-surface-variant font-medium block">Trabajo:</span>
+            <h3 className="font-bold text-sm text-on-surface line-clamp-1">{serviceTitle}</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-outline-variant/10 text-on-surface-variant">
+            <div>
+              <span className="block font-medium">Profesional:</span>
+              <span className="font-bold text-on-surface">{proName}</span>
+            </div>
+            <div>
+              <span className="block font-medium">Fecha:</span>
+              <span className="font-bold text-on-surface">{bookingDate}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-5">
           <div>
             <label className="block text-sm font-bold text-on-surface mb-2">
               {config.starLabel}
             </label>
             {renderStars()}
-            <p className="text-sm font-bold text-amber-500 mt-2">{rating > 0 ? rating : ''}</p>
+            <p className="text-sm font-bold text-amber-500 mt-1">{rating > 0 ? rating : ''}</p>
           </div>
 
           <div>
@@ -23919,7 +23980,7 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
               {config.commentLabel}
             </label>
             <textarea
-              className="w-full bg-surface-container-lowest border-2 border-outline-variant rounded-xl p-4 text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none resize-none min-h-[120px]"
+              className="w-full bg-surface-container-lowest border-2 border-outline-variant rounded-xl p-3.5 text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none resize-none min-h-[100px]"
               placeholder={config.commentPlaceholder}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
@@ -23941,9 +24002,16 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
           <button
             onClick={handleSubmit}
             disabled={rating === 0 || isSubmitting}
-            className="w-full bg-primary text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors"
+            className="w-full bg-primary text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
           >
-            {isSubmitting ? "Enviando..." : config.submitButtonText}
+            {isSubmitting ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Enviando...</span>
+              </>
+            ) : (
+              config.submitButtonText
+            )}
           </button>
         </div>
       </div>
