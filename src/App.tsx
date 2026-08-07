@@ -18844,6 +18844,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [swipedChatId, setSwipedChatId] = useState<string | null>(null);
+  const itemTouchStartXRef = useRef<number | null>(null);
+  const itemTouchStartYRef = useRef<number | null>(null);
+
   const [showEditBookingModal, setShowEditBookingModal] = useState(false);
   const [showProfessionalConfirm, setShowProfessionalConfirm] = useState(false);
   const [showClientConfirm, setShowClientConfirm] = useState(false);
@@ -19250,18 +19254,50 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
     return false;
   }, [activeBooking, effectiveBookingStatus, currentChat]);
 
-  const handleDeleteConversation = async () => {
-    if (!selectedChatId) return;
-    if (!confirm("¿Estás seguro de que quieres borrar esta conversación?"))
-      return;
+  const handleDeleteConversation = async (targetChatId?: string, skipConfirm = false) => {
+    const chatIdToDelete = targetChatId || selectedChatId;
+    if (!chatIdToDelete || !myActualId) return;
+    
+    if (!skipConfirm) {
+      if (!confirm("¿Estás seguro de que quieres borrar esta conversación de forma permanente?"))
+        return;
+    }
 
     try {
-      await updateDoc(doc(db, "conversations", selectedChatId), {
+      // Find chat object
+      const chatToDelete = chats.find((c: any) => c.id === chatIdToDelete) || (chatIdToDelete === selectedChatId ? currentChat : null);
+      const otherId = chatToDelete?.participants?.find((p: string) => p !== myActualId);
+
+      // Check and reject any pending bookings between these participants
+      if (otherId) {
+        try {
+          const qPending = query(
+            collection(db, "bookings"),
+            where("clientId", "in", [myActualId, otherId]),
+            where("professionalId", "in", [myActualId, otherId]),
+            where("status", "in", ["pending", "pending_client_approval"])
+          );
+          const pendingSnap = await getDocs(qPending);
+          for (const pendingDoc of pendingSnap.docs) {
+            await updateDoc(doc(db, "bookings", pendingDoc.id), {
+              status: "rejected",
+              updatedAt: serverTimestamp()
+            });
+          }
+        } catch (bookingErr) {
+          console.error("Error rejecting pending bookings on chat delete:", bookingErr);
+        }
+      }
+
+      await updateDoc(doc(db, "conversations", chatIdToDelete), {
         deletedBy: arrayUnion(myActualId)
       });
-      setSelectedChatId(null);
-      navigate("/mensajes");
-      setShowMenu(false);
+
+      if (selectedChatId === chatIdToDelete) {
+        setSelectedChatId(null);
+        navigate("/mensajes");
+        setShowMenu(false);
+      }
     } catch (e) {
       console.error("Error deleting conversation:", e);
       alert("Error al borrar la conversación");
@@ -19605,53 +19641,108 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                   })()
                 : "Ahora";
 
+              const isSwiped = swipedChatId === chat.id;
+
               return (
-                <button
+                <div
                   key={chat.id}
-                  onClick={() => {
-                    setSelectedChatId(chat.id);
-                    navigate(`/mensajes?chatId=${chat.id}`);
+                  className="relative overflow-hidden border-b border-outline-variant/5 group"
+                  onTouchStart={(e) => {
+                    itemTouchStartXRef.current = e.touches[0].clientX;
+                    itemTouchStartYRef.current = e.touches[0].clientY;
                   }}
-                  className={cn(
-                    "w-full p-3 flex items-center gap-2 transition-all border-b border-outline-variant/5",
-                    selectedChatId === chat.id
-                      ? "bg-primary/5"
-                      : "hover:bg-surface-container-low",
-                  )}
+                  onTouchEnd={(e) => {
+                    if (itemTouchStartXRef.current === null || itemTouchStartYRef.current === null) return;
+                    const diffX = itemTouchStartXRef.current - e.changedTouches[0].clientX;
+                    const diffY = Math.abs(itemTouchStartYRef.current - e.changedTouches[0].clientY);
+                    if (diffX > 40 && diffY < 30) {
+                      setSwipedChatId(chat.id);
+                    } else if (diffX < -40) {
+                      setSwipedChatId(null);
+                    }
+                    itemTouchStartXRef.current = null;
+                    itemTouchStartYRef.current = null;
+                  }}
                 >
-                  <div className="relative">
-                    {otherInfo.photoUrl ? (
-                      <img
-                        src={otherInfo.photoUrl}
-                        className="w-10 h-10 rounded-lg object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-black text-sm uppercase">
-                        {(
-                          otherInfo.firstName?.[0] ||
-                          otherInfo.name?.[0] ||
-                          "?"
-                        ).toUpperCase()}
-                      </div>
+                  <div
+                    className={cn(
+                      "flex items-center transition-transform duration-200 ease-out w-full",
+                      isSwiped ? "-translate-x-20" : "translate-x-0"
                     )}
+                  >
+                    <button
+                      onClick={() => {
+                        if (isSwiped) {
+                          setSwipedChatId(null);
+                          return;
+                        }
+                        setSelectedChatId(chat.id);
+                        navigate(`/mensajes?chatId=${chat.id}`);
+                      }}
+                      className={cn(
+                        "w-full p-3 flex items-center gap-2 transition-all text-left",
+                        selectedChatId === chat.id
+                          ? "bg-primary/5"
+                          : "hover:bg-surface-container-low",
+                      )}
+                    >
+                      <div className="relative shrink-0">
+                        {otherInfo.photoUrl ? (
+                          <img
+                            src={otherInfo.photoUrl}
+                            className="w-10 h-10 rounded-lg object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-black text-sm uppercase">
+                            {(
+                              otherInfo.firstName?.[0] ||
+                              otherInfo.name?.[0] ||
+                              "?"
+                            ).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-on-surface truncate text-xs">
+                            {otherInfo.firstName
+                              ? `${otherInfo.firstName} ${otherInfo.lastName1 || ""}`
+                              : otherInfo.name}
+                          </span>
+                          <span className="text-[8px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
+                            {time}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-on-surface-variant/60 font-medium line-clamp-1 truncate">
+                          {chat.lastMessage}
+                        </p>
+                      </div>
+                    </button>
                   </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="font-black text-on-surface truncate text-xs">
-                        {otherInfo.firstName
-                          ? `${otherInfo.firstName} ${otherInfo.lastName1 || ""}`
-                          : otherInfo.name}
-                      </span>
-                      <span className="text-[8px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                        {time}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-on-surface-variant/60 font-medium line-clamp-1 truncate">
-                      {chat.lastMessage}
-                    </p>
+
+                  {/* Red Delete Button visible on swipe right-to-left */}
+                  <div
+                    className={cn(
+                      "absolute right-0 top-0 bottom-0 w-20 bg-red-600 flex items-center justify-center transition-opacity duration-200",
+                      isSwiped ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                    )}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleDeleteConversation(chat.id);
+                        setSwipedChatId(null);
+                      }}
+                      className="w-full h-full flex flex-col items-center justify-center text-white gap-1 active:scale-95 transition-transform"
+                      title="Borrar chat"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Borrar</span>
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             })
           )}
