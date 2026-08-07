@@ -6855,13 +6855,13 @@ const AdminPage = ({
                       ? listings.filter((l) => {
                           const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
                           const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
-                          return !isInactive && l.status !== "deleted" && l.type !== "search";
+                          return !isInactive && l.status !== "deleted" && l.status !== "owner_deleted" && l.type !== "search";
                         })
-                      : listings.filter((l) => l.status !== "deleted" && l.type !== "search")
+                      : listings.filter((l) => l.status !== "deleted" && l.status !== "owner_deleted" && l.type !== "search")
                     ).map((l, i) => {
                       const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
                       const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
-                      const currentDisplayStatus = isInactive ? "expired" : (l.status || "active");
+                      const currentDisplayStatus = l.status === "owner_deleted" ? "owner_deleted" : isInactive ? "expired" : (l.status || "active");
 
                       const listingTotalBilled = bookings
                         .filter((b: any) => b.listingId === l.id && (b.status === "accepted" || b.status === "completed"))
@@ -6910,7 +6910,7 @@ const AdminPage = ({
                                   "bg-green-100 text-green-800",
                                 (currentDisplayStatus === "disabled" || currentDisplayStatus === "expired") &&
                                   "bg-orange-100 text-orange-800",
-                                currentDisplayStatus === "deleted" && "bg-red-100 text-red-800",
+                                (currentDisplayStatus === "deleted" || currentDisplayStatus === "owner_deleted") && "bg-red-100 text-red-800",
                               )}
                               value={currentDisplayStatus}
                               onClick={(e) => e.stopPropagation()}
@@ -6919,7 +6919,7 @@ const AdminPage = ({
                                 const updatePayload: any = { status: newStatus };
                                 
                                 // If reactivating an expired/inactive listing, extend expiration date by 30 days
-                                if (newStatus === "active" && (isExpired || l.status === "inactive" || l.status === "expired" || l.status === "disabled")) {
+                                if (newStatus === "active" && (isExpired || l.status === "inactive" || l.status === "expired" || l.status === "disabled" || l.status === "owner_deleted")) {
                                   const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
                                   updatePayload.expiresAt = newExpiresAt;
                                 } else if (newStatus === "expired") {
@@ -6949,6 +6949,7 @@ const AdminPage = ({
                               <option value="expired">Caducado</option>
                               <option value="disabled">Desactivado</option>
                               <option value="deleted">Eliminado</option>
+                              <option value="owner_deleted">Borrado por propietario</option>
                             </select>
                           </td>
                       <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-primary font-bold">
@@ -7262,7 +7263,7 @@ const AdminPage = ({
           <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10">
             <h2 className="text-2xl font-black mb-6">Mis Anuncios</h2>
             {listings
-              .filter((l) => l.author.id === user.id && l.status !== "deleted")
+              .filter((l) => l.author?.id === user.id && l.status !== "deleted" && l.status !== "owner_deleted")
               .map((l) => (
                 <div
                   key={l.id}
@@ -16570,7 +16571,7 @@ const ProfilePage = ({
       l.author.id === (isOwnProfile ? user?.id || "" : profileUser?.id || "");
     if (!isAuthor) return false;
 
-    if (l.status === "deleted") return false;
+    if (l.status === "deleted" || l.status === "owner_deleted") return false;
 
     const isActive = l.status === "active" || !l.status;
     const isExpired = l.expiresAt && new Date(l.expiresAt) <= new Date();
@@ -17432,7 +17433,7 @@ const StatsPage = ({ user, listings }: { user: any; listings: any[] }) => {
 
   const userListings = listings
     ? listings.filter(
-        (l) => l?.author?.email === user?.email && l.status !== "deleted",
+        (l) => l?.author?.email === user?.email && l.status !== "deleted" && l.status !== "owner_deleted",
       )
     : [];
   const activeListingsCount = userListings.filter(
