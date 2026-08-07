@@ -13300,16 +13300,27 @@ const ListingCard = ({
   onToggleFavorite,
   onReactivate,
   onDelete,
+  onEdit,
+  user,
 }: {
   listing: JobListing;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
   key?: string;
 }) => {
   const navigate = useNavigate();
   if (!listing || !listing.author) return null;
+
+  const isOwner = !!(
+    user &&
+    listing.author &&
+    ((user.id && listing.author.id && user.id === listing.author.id) ||
+      (user.email && listing.author.email && user.email === listing.author.email))
+  );
 
   const isExpired = listing.status === "expired" || (listing.expiresAt
     ? new Date(listing.expiresAt) < new Date()
@@ -13493,35 +13504,51 @@ const ListingCard = ({
             )}
         </div>
 
-        {(onReactivate || onDelete) && (
-          <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-2">
-            {isInactive && onReactivate && (
+        {(isOwner || onReactivate || onDelete) && (
+          <div className="mt-4 pt-4 border-t border-outline-variant/10 flex flex-col gap-2">
+            {isOwner && onEdit && (
               <button
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onReactivate(listing.id);
+                  onEdit(listing);
                 }}
-                className="flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+                title="Editar tu anuncio"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Reactivar Anuncio
+                <Edit3 className="w-3.5 h-3.5" />
+                Editar
               </button>
             )}
-            {onDelete && (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onDelete(listing.id);
-                }}
-                className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
-                title="Borrar anuncio permanentemente"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Borrar
-              </button>
-            )}
+            <div className="flex items-center gap-2 w-full">
+              {isInactive && onReactivate && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onReactivate(listing.id);
+                  }}
+                  className="flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Reactivar Anuncio
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDelete(listing.id);
+                  }}
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+                  title="Borrar anuncio permanentemente"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Borrar
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -13537,6 +13564,8 @@ const HomePage = ({
   onToggleFavorite,
   onReactivate,
   onDelete,
+  onEdit,
+  user,
   search,
   setSearch,
 }: {
@@ -13545,6 +13574,8 @@ const HomePage = ({
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
   search: string;
   setSearch: (s: string) => void;
 }) => {
@@ -13715,6 +13746,8 @@ const HomePage = ({
                 onToggleFavorite={onToggleFavorite}
                 onReactivate={onReactivate}
                 onDelete={onDelete}
+                onEdit={onEdit}
+                user={user}
               />
             ))}
           </AnimatePresence>
@@ -13844,10 +13877,14 @@ const ExplorePage = ({
   listings,
   favorites,
   onToggleFavorite,
+  onEdit,
+  user,
 }: {
   listings: JobListing[];
   favorites: string[];
   onToggleFavorite: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -14236,6 +14273,8 @@ const ExplorePage = ({
                   listing={listing}
                   isFavorite={favorites.includes(listing.id)}
                   onToggleFavorite={onToggleFavorite}
+                  onEdit={onEdit}
+                  user={user}
                 />
               ))}
             </AnimatePresence>
@@ -15788,6 +15827,7 @@ const ListingDetail = ({
   favorites,
   onToggleFavorite,
   onDelete,
+  onEdit,
   user,
 }: {
   listings: JobListing[];
@@ -15795,6 +15835,7 @@ const ListingDetail = ({
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
   user: UserProfile | null;
 }) => {
   const { id } = useParams();
@@ -16026,19 +16067,31 @@ const ListingDetail = ({
                   </div>
                   <div className="w-1/3 text-right">
                     {isOwner ? (
-                      <button
-                        onClick={() => {
-                          if (onDelete && listing) {
-                            onDelete(listing.id);
-                            navigate(-1);
-                          }
-                        }}
-                        className="text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-lg shadow-sm transition-all w-full bg-red-600 hover:bg-red-700 text-white active:scale-95 flex items-center justify-center gap-1"
-                        title="Borrar tu anuncio"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Borrar
-                      </button>
+                      <div className="flex flex-col gap-1.5 w-full">
+                        {onEdit && listing && (
+                          <button
+                            onClick={() => onEdit(listing)}
+                            className="text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg shadow-sm transition-all w-full bg-primary hover:bg-primary/90 text-white active:scale-95 flex items-center justify-center gap-1"
+                            title="Editar tu anuncio"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            Editar
+                          </button>
+                        )}
+                        {onDelete && listing && (
+                          <button
+                            onClick={() => {
+                              onDelete(listing.id);
+                              navigate(-1);
+                            }}
+                            className="text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg shadow-sm transition-all w-full bg-red-600 hover:bg-red-700 text-white active:scale-95 flex items-center justify-center gap-1"
+                            title="Borrar tu anuncio"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Borrar
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <button
                         onClick={handleConcretarCita}
@@ -16145,18 +16198,32 @@ const ListingDetail = ({
                   <AlertTriangle className="w-4 h-4" />
                   Reportar
                 </button>
-                {onDelete && (user?.id === listing.author?.id || user?.email === listing.author?.email || user?.role === "admin") && (
-                  <button
-                    onClick={() => {
-                      onDelete(listing.id);
-                      navigate(-1);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-all font-bold text-xs uppercase tracking-widest ml-auto"
-                    title="Borrar este anuncio definitivamente"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Borrar Anuncio
-                  </button>
+                {isOwner && listing && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    {onEdit && (
+                      <button
+                        onClick={() => onEdit(listing)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-all font-bold text-xs uppercase tracking-widest"
+                        title="Editar este anuncio"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        Editar Anuncio
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={() => {
+                          onDelete(listing.id);
+                          navigate(-1);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-all font-bold text-xs uppercase tracking-widest"
+                        title="Borrar este anuncio definitivamente"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Borrar Anuncio
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -16402,20 +16469,35 @@ const ListingDetail = ({
 
                   <div className="space-y-3 mb-6 w-full">
                     {isOwner ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onDelete && listing) {
-                            onDelete(listing.id);
-                            navigate(-1);
-                          }
-                        }}
-                        className="w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all bg-red-600 hover:bg-red-700 text-white shadow-xl shadow-red-600/20 hover:scale-[1.02] active:scale-95"
-                        title="Borrar tu anuncio"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Borrar Anuncio
-                      </button>
+                      <div className="flex flex-col gap-3 w-full">
+                        {onEdit && listing && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit(listing);
+                            }}
+                            className="w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95"
+                            title="Editar tu anuncio"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            EDITAR ANUNCIO
+                          </button>
+                        )}
+                        {onDelete && listing && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(listing.id);
+                              navigate(-1);
+                            }}
+                            className="w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all bg-red-600 hover:bg-red-700 text-white shadow-xl shadow-red-600/20 hover:scale-[1.02] active:scale-95"
+                            title="Borrar tu anuncio"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            BORRAR ANUNCIO
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <button
                         onClick={(e) => {
@@ -16517,6 +16599,7 @@ const ProfilePage = ({
   onToggleFavorite,
   onReactivate,
   onDelete,
+  onEdit,
   onOpenSettings,
 }: {
   user: any;
@@ -16526,6 +16609,7 @@ const ProfilePage = ({
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
   onOpenSettings?: (type: string) => void;
 }) => {
   const { id } = useParams();
@@ -16941,6 +17025,8 @@ const ProfilePage = ({
                           onToggleFavorite={onToggleFavorite}
                           onReactivate={onReactivate}
                           onDelete={isOwnProfile || canEditProfile ? onDelete : undefined}
+                          onEdit={isOwnProfile || canEditProfile ? onEdit : undefined}
+                          user={user}
                         />
                       ))}
                     </div>
@@ -17343,10 +17429,14 @@ const FavoritesPage = ({
   listings,
   favorites,
   onToggleFavorite,
+  onEdit,
+  user,
 }: {
   listings: JobListing[];
   favorites: string[];
   onToggleFavorite: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
 }) => {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
@@ -17375,6 +17465,8 @@ const FavoritesPage = ({
                 listing={listing}
                 isFavorite={favorites.includes(listing.id)}
                 onToggleFavorite={onToggleFavorite}
+                onEdit={onEdit}
+                user={user}
               />
             ))}
           </div>
@@ -25574,6 +25666,8 @@ function App() {
                       listings={activeListings}
                       favorites={favorites}
                       onToggleFavorite={toggleFavorite}
+                      onEdit={editListing}
+                      user={user}
                       search={search}
                       setSearch={setSearch}
                     />
@@ -25586,6 +25680,8 @@ function App() {
                       listings={activeListings}
                       favorites={favorites}
                       onToggleFavorite={toggleFavorite}
+                      onEdit={editListing}
+                      user={user}
                     />
                   }
                 />
@@ -25656,6 +25752,8 @@ function App() {
                         onToggleFavorite={toggleFavorite}
                         onReactivate={reactivateListing}
                         onDelete={deleteListing}
+                        onEdit={editListing}
+                        user={user}
                         search={search}
                         setSearch={setSearch}
                       />
@@ -25675,6 +25773,8 @@ function App() {
                         )}
                         favorites={favorites}
                         onToggleFavorite={toggleFavorite}
+                        onEdit={editListing}
+                        user={user}
                       />
                     </DashboardLayout>
                   }
@@ -25769,6 +25869,7 @@ function App() {
                       favorites={favorites}
                       onToggleFavorite={toggleFavorite}
                       onDelete={deleteListing}
+                      onEdit={editListing}
                       user={user}
                     />
                   }
@@ -25787,6 +25888,16 @@ function App() {
                   }
                 />
                 <Route
+                  path="/editar-anuncio/:id"
+                  element={
+                    <EditListingPage
+                      user={user}
+                      listings={listings}
+                      onUpdate={updateListing}
+                    />
+                  }
+                />
+                <Route
                   path="/perfil/:id?"
                   element={
                     <ProfilePage
@@ -25797,6 +25908,7 @@ function App() {
                       onToggleFavorite={toggleFavorite}
                       onReactivate={reactivateListing}
                       onDelete={deleteListing}
+                      onEdit={editListing}
                       onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
                     />
                   }
