@@ -24578,13 +24578,81 @@ function App() {
   }, [user?.id]);
 
   const [listings, setListings] = useState<JobListing[]>([]);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        setIsKeyboardVisible(true);
+      }
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const active = document.activeElement as HTMLElement;
+        if (
+          !active ||
+          (active.tagName !== "INPUT" &&
+            active.tagName !== "TEXTAREA" &&
+            !active.isContentEditable)
+        ) {
+          setIsKeyboardVisible(false);
+        }
+      }, 100);
+    };
+
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const diff = window.innerHeight - window.visualViewport.height;
+        if (diff > 150) {
+          setIsKeyboardVisible(true);
+        } else if (diff < 50) {
+          const active = document.activeElement as HTMLElement;
+          if (
+            !active ||
+            (active.tagName !== "INPUT" &&
+              active.tagName !== "TEXTAREA" &&
+              !active.isContentEditable)
+          ) {
+            setIsKeyboardVisible(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("focusout", handleFocusOut);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleViewportResize);
+    }
+
+    return () => {
+      window.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("focusout", handleFocusOut);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleViewportResize);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const unsubListings = onSnapshot(collection(db, "listings"), (snapshot) => {
       const fbListings = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as JobListing)
       );
-      setListings(fbListings);
+      const uniqueMap = new Map<string, JobListing>();
+      fbListings.forEach((l) => {
+        if (l && l.id) {
+          uniqueMap.set(l.id, l);
+        }
+      });
+      setListings(Array.from(uniqueMap.values()));
     }, (err) => {
       console.error("Error syncing listings:", err);
     });
@@ -25152,6 +25220,10 @@ function App() {
 
       setListings((prev) => {
         if (!Array.isArray(prev)) return [newListing];
+        const exists = prev.some((l) => l.id === newListing.id);
+        if (exists) {
+          return prev.map((l) => (l.id === newListing.id ? newListing : l));
+        }
         return [newListing, ...prev];
       });
     } catch (e) {
@@ -26130,8 +26202,8 @@ function App() {
         <AnimatePresence></AnimatePresence>
 
         {/* Mobile Bottom Navigation - Visible on mobile viewports (lg:hidden) */}
-        {location.pathname.includes("/mensajes") && searchParams.has("chatId") ? null : (
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0">
+        {isKeyboardVisible || (location.pathname.includes("/mensajes") && searchParams.has("chatId")) ? null : (
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0 touch-action-manipulation select-none">
             {[
               { label: "Inicio", icon: Home, path: "/" },
               { label: "Favoritos", icon: Heart, path: "/favoritos" },
@@ -26159,10 +26231,10 @@ function App() {
               const content = (
                 <div
                   className={cn(
-                    "flex flex-col items-center gap-1 transition-all",
+                    "flex flex-col items-center gap-1 transition-all active:scale-95 py-1 px-2 touch-action-manipulation",
                     (item.path && location.pathname === item.path) ||
                       item.isActive
-                      ? "text-primary"
+                      ? "text-primary font-bold"
                       : "text-on-surface-variant/40",
                   )}
                 >
@@ -26196,6 +26268,7 @@ function App() {
                   <Link
                     key={item.label}
                     to={item.path}
+                    className="touch-action-manipulation py-1 px-1 flex flex-col items-center justify-center min-w-[56px] min-h-[48px]"
                     onClick={(e) => {
                       if (item.label === "Inicio") {
                         e.preventDefault();
@@ -26209,7 +26282,11 @@ function App() {
               }
 
               return (
-                <button key={item.label} onClick={item.onClick}>
+                <button
+                  key={item.label}
+                  onClick={item.onClick}
+                  className="touch-action-manipulation py-1 px-1 flex flex-col items-center justify-center min-w-[56px] min-h-[48px]"
+                >
                   {content}
                 </button>
               );
