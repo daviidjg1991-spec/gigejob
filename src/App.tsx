@@ -27,6 +27,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { Capacitor } from "@capacitor/core";
+import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 import {
   Home,
   Search,
@@ -21027,9 +21028,30 @@ const CreateListing = ({
           800,
           0.7,
         );
-        setFormData({ ...formData, headerImage: optimizedUrl });
+        setFormData((prev) => ({ ...prev, headerImage: optimizedUrl }));
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleTakePicture = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const image = await CapCamera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+        });
+        if (image && image.dataUrl) {
+          const optimizedUrl = await compressImage(image.dataUrl, 1200, 800, 0.7);
+          setFormData((prev) => ({ ...prev, headerImage: optimizedUrl }));
+        }
+      } else {
+        fileInputRef.current?.click();
+      }
+    } catch (err: any) {
+      console.warn("User cancelled or camera error:", err);
     }
   };
 
@@ -21214,6 +21236,27 @@ const CreateListing = ({
                     </p>
 
                     <div className="grid grid-cols-1 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsImageSourceModalOpen(false);
+                          handleTakePicture();
+                        }}
+                        className="flex items-center gap-4 p-6 bg-surface-container-low hover:bg-primary/5 hover:text-primary rounded-3xl transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                          <Camera className="w-6 h-6" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-black uppercase tracking-widest">
+                            Hacer foto
+                          </p>
+                          <p className="text-[9px] font-bold opacity-40 uppercase tracking-widest">
+                            Usar la cámara
+                          </p>
+                        </div>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {

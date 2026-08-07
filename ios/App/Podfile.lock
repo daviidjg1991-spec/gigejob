@@ -7,6 +7,8 @@ PODS:
     - AppAuth/Core
   - Capacitor (6.2.1):
     - CapacitorCordova
+  - CapacitorCamera (6.1.3):
+    - Capacitor
   - CapacitorCommunityStripe (6.5.1):
     - Capacitor
     - StripeApplePay (~> 24.4.1)
@@ -100,6 +102,7 @@ PODS:
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorCamera (from `../../node_modules/@capacitor/camera`)"
   - "CapacitorCommunityStripe (from `../../node_modules/@capacitor-community/stripe`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFirebaseAuthentication (from `../../node_modules/@capacitor-firebase/authentication`)"
@@ -132,6 +135,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   Capacitor:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorCamera:
+    :path: "../../node_modules/@capacitor/camera"
   CapacitorCommunityStripe:
     :path: "../../node_modules/@capacitor-community/stripe"
   CapacitorCordova:
@@ -148,6 +153,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
   Capacitor: c95400d761e376be9da6be5a05f226c0e865cebf
+  CapacitorCamera: 5ba135b0cb55a788758139fa2404d726bf60f0f3
   CapacitorCommunityStripe: c340a7b79fce1fe015692992de58621058bfdc03
   CapacitorCordova: 8d93e14982f440181be7304aa9559ca631d77fff
   CapacitorFirebaseAuthentication: 2c43a65f88e30842dbf83f38dfb25d8076dce529
@@ -172,6 +178,6 @@ SPEC CHECKSUMS:
   StripePaymentsUI: 70414581d3d14089831e370008b705ef03c7cce0
   StripeUICore: f11561a53f81e210398b4f1bd75f1e87b101197d
 
-PODFILE CHECKSUM: 2744e596272cd1c21a8e6f720481722b35260ed5
+PODFILE CHECKSUM: b22154ff81d471d009013e578df8b2ec42a99de5
 
 COCOAPODS: 1.17.0
