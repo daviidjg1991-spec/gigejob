@@ -6506,6 +6506,7 @@ const AdminPage = ({
                   <th className="px-2 lg:px-4 py-3 text-left">Usuario</th>
                   <th className="px-2 lg:px-4 py-3 text-left">Prof.</th>
                   <th className="px-2 lg:px-4 py-3 text-left">Anuncios</th>
+                  <th className="px-2 lg:px-4 py-3 text-left">A. ACTIVOS</th>
                   <th className="px-2 lg:px-4 py-3 text-left hidden md:table-cell">
                     Facturado
                   </th>
@@ -6566,9 +6567,14 @@ const AdminPage = ({
                    })
                    .map((u, i, arr) => {
                   const userListingsArr = listings.filter(
-                    (l) => l.author?.id === u.id,
+                    (l) => l.author?.id === u.id && l.status !== "deleted",
                   );
                   const userListingsCount = userListingsArr.length;
+                  const activeListingsCount = userListingsArr.filter((l) => {
+                    const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+                    const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
+                    return !isInactive;
+                  }).length;
                   const userBilled = bookings
                     .filter(
                       (b) =>
@@ -6705,6 +6711,9 @@ const AdminPage = ({
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold">
                         {userListingsCount}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold text-green-600">
+                        {activeListingsCount}
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold text-primary hidden md:table-cell">
                         {userBilled}€
@@ -13010,7 +13019,7 @@ const Navbar = ({
                         Buzón
                       </span>
                     </Link>
-                    {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && (
+                    {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && location.pathname !== "/admin" && (
                       <Link
                         to="/admin"
                         className="flex flex-col items-center gap-1 text-on-surface-variant/60 hover:text-primary transition-all group"
@@ -25408,7 +25417,7 @@ function App() {
               : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-16 lg:pb-0"
           )}
         >
-          {!isDashboard && <CategoriesBar />}
+          {!isDashboard && location.pathname !== "/admin" && <CategoriesBar />}
           {(() => {
             const activeListings = listings.filter(
               (l) =>
