@@ -27,7 +27,6 @@ import {
 import { createPortal } from "react-dom";
 
 import { Capacitor } from "@capacitor/core";
-import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 import {
   Home,
   Search,
@@ -21037,7 +21036,8 @@ const CreateListing = ({
   const handleTakePicture = async () => {
     try {
       if (Capacitor.isNativePlatform()) {
-        const image = await CapCamera.getPhoto({
+        const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+        const image = await Camera.getPhoto({
           quality: 80,
           allowEditing: false,
           resultType: CameraResultType.DataUrl,
