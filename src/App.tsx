@@ -25422,6 +25422,12 @@ function App() {
     });
   };
 
+  const editListing = (listing: JobListing) => {
+    if (listing && listing.id) {
+      navigate(`/editar-anuncio/${listing.id}`);
+    }
+  };
+
 
   const simulateNotification = (type: "message" | "alert") => {
     if (type === "message") {
