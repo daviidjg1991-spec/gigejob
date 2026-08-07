@@ -24371,6 +24371,350 @@ const useReviewPrompt = (user: UserProfile | null) => {
   return { pendingBooking, setPendingBooking };
 };
 
+const EditListingPage = ({
+  user,
+  listings,
+  onUpdate,
+}: {
+  user: any;
+  listings: JobListing[];
+  onUpdate?: (listing: JobListing) => void;
+}) => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [listing, setListing] = useState<JobListing | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    price: "",
+    unit: "hour" as JobListing["unit"],
+    type: "offer" as ListingType,
+    category: CATEGORIES[0] || "",
+    location: "",
+    additionalInfo: "",
+    tags: "",
+    headerImage: "",
+    status: "active" as ListingStatus,
+  });
+
+  useEffect(() => {
+    if (!id) return;
+    const found = listings.find((l) => l.id === id);
+    if (found) {
+      setListing(found);
+      setFormData({
+        title: found.title || "",
+        description: found.description || "",
+        price: found.price ? String(found.price) : "",
+        unit: found.unit || "hour",
+        type: found.type || "offer",
+        category: found.category || CATEGORIES[0] || "",
+        location: found.location?.address || (typeof found.location === 'string' ? found.location : ""),
+        additionalInfo: found.additionalInfo || "",
+        tags: Array.isArray(found.tags) ? found.tags.join(", ") : "",
+        headerImage: found.headerImage || (found.images && found.images[0]) || "",
+        status: found.status || "active",
+      });
+      setIsLoading(false);
+    } else {
+      getDoc(doc(db, "listings", id))
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            const data = { id: docSnap.id, ...docSnap.data() } as JobListing;
+            setListing(data);
+            setFormData({
+              title: data.title || "",
+              description: data.description || "",
+              price: data.price ? String(data.price) : "",
+              unit: data.unit || "hour",
+              type: data.type || "offer",
+              category: data.category || CATEGORIES[0] || "",
+              location: data.location?.address || (typeof data.location === 'string' ? data.location : ""),
+              additionalInfo: data.additionalInfo || "",
+              tags: Array.isArray(data.tags) ? data.tags.join(", ") : "",
+              headerImage: data.headerImage || (data.images && data.images[0]) || "",
+              status: data.status || "active",
+            });
+          } else {
+            setError("El anuncio no existe o fue eliminado.");
+          }
+        })
+        .catch((e) => {
+          console.error(e);
+          setError("Error al cargar el anuncio.");
+        })
+        .finally(() => setIsLoading(false));
+    }
+  }, [id, listings]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!listing || !id) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    const priceNum = parseFloat(formData.price) || 0;
+    const tagArray = formData.tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const updatedListing: JobListing = {
+      ...listing,
+      title: formData.title,
+      description: formData.description,
+      price: priceNum,
+      unit: formData.unit,
+      type: formData.type,
+      category: formData.category,
+      location: {
+        ...(typeof listing.location === 'object' ? listing.location : {}),
+        address: formData.location,
+      },
+      additionalInfo: formData.additionalInfo,
+      tags: tagArray,
+      headerImage: formData.headerImage,
+      status: formData.status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      if (onUpdate) {
+        await onUpdate(updatedListing);
+      } else {
+        const { id: _, ...dataToUpdate } = updatedListing;
+        await updateDoc(doc(db, "listings", id), dataToUpdate);
+      }
+      navigate(`/anuncio/${id}`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Error al actualizar el anuncio");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error || !listing) {
+    return (
+      <div className="max-w-2xl mx-auto p-8 text-center space-y-4">
+        <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />
+        <h2 className="text-xl font-bold text-on-surface">{error || "Anuncio no encontrado"}</h2>
+        <button
+          onClick={() => navigate(-1)}
+          className="px-6 py-2 bg-primary text-white font-bold rounded-full text-sm"
+        >
+          Volver
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <div className="flex items-center gap-4 mb-8">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-display font-black text-on-surface tracking-tight">
+            Editar Anuncio
+          </h1>
+          <p className="text-sm text-on-surface-variant/60">
+            Modifica los detalles de tu publicación
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-outline-variant/10">
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Título del Anuncio *
+          </label>
+          <input
+            type="text"
+            required
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            placeholder="Ej: Limpieza profesional de hogar u oficinas"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Categoría *
+            </label>
+            <select
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Tipo de Anuncio *
+            </label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as ListingType })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            >
+              <option value="offer">Ofrezco servicio</option>
+              <option value="search">Busco profesional</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Precio (€) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Unidad de Cobro *
+            </label>
+            <select
+              value={formData.unit}
+              onChange={(e) => setFormData({ ...formData, unit: e.target.value as JobListing["unit"] })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            >
+              <option value="hour">Por hora</option>
+              <option value="job">Por trabajo / presupuesto cerrado</option>
+              <option value="day">Por día</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Ubicación / Zona de Trabajo *
+          </label>
+          <input
+            type="text"
+            required
+            value={formData.location}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            placeholder="Ej: Madrid Centro, Barcelona, etc."
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Descripción Detallada *
+          </label>
+          <textarea
+            required
+            rows={5}
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium resize-none"
+            placeholder="Describe tu servicio con todo el detalle posible..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            URL de Imagen Principal
+          </label>
+          <input
+            type="url"
+            value={formData.headerImage}
+            onChange={(e) => setFormData({ ...formData, headerImage: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            placeholder="https://ejemplo.com/imagen.jpg"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Etiquetas / Palabras Clave (separadas por comas)
+          </label>
+          <input
+            type="text"
+            value={formData.tags}
+            onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            placeholder="ej: limpieza, hogar, urgencias"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Estado del Anuncio
+          </label>
+          <select
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value as ListingStatus })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+          >
+            <option value="active">Activo (Visible para todos)</option>
+            <option value="inactive">Pausado / Inactivo</option>
+          </select>
+        </div>
+
+        {error && (
+          <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold">
+            {error}
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 pt-4">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex-1 py-4 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold rounded-2xl text-xs uppercase tracking-widest transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex-1 py-4 bg-primary hover:bg-primary/90 text-white font-bold rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+          >
+            {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -25426,6 +25770,24 @@ function App() {
     if (listing && listing.id) {
       navigate(`/editar-anuncio/${listing.id}`);
     }
+  };
+
+  const updateListing = async (updated: JobListing) => {
+    try {
+      const { id, ...dataToUpdate } = updated;
+      await updateDoc(doc(db, "listings", id), dataToUpdate as any);
+    } catch (e) {
+      console.error("Error updating listing in Firebase", e);
+    }
+
+    setListings((prev) =>
+      prev.map((l) => (l.id === updated.id ? { ...l, ...updated } : l))
+    );
+
+    setActiveToast({
+      message: "Anuncio actualizado correctamente.",
+      type: "message",
+    });
   };
 
 
