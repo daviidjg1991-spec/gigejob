@@ -6533,7 +6533,7 @@ const AdminPage = ({
                    .filter((u) => u.emailVerified !== false)
                    .filter((u) => {
                      if (userListTab === "TODOS") return true;
-                     const userListingsCount = listings.filter((l) => l.author?.id === u.id).length;
+                     const userListingsCount = listings.filter((l) => (l.author?.id === u.id || (l.author?.email && u.email && l.author.email === u.email)) && l.status !== "deleted" && l.status !== "owner_deleted").length;
                      if (userListTab === "PROFESIONALES") {
                        return u.role === "professional" && userListingsCount > 0;
                      }
@@ -6567,7 +6567,7 @@ const AdminPage = ({
                    })
                    .map((u, i, arr) => {
                   const userListingsArr = listings.filter(
-                    (l) => l.author?.id === u.id && l.status !== "deleted",
+                    (l) => (l.author?.id === u.id || (l.author?.email && u.email && l.author.email === u.email)) && l.status !== "deleted" && l.status !== "owner_deleted",
                   );
                   const userListingsCount = userListingsArr.length;
                   const activeListingsCount = userListingsArr.filter((l) => {
@@ -25532,9 +25532,8 @@ function App() {
                           (l) =>
                             l &&
                             l.author &&
-                            l.author.email &&
-                            l.author.email ===
-                              (user?.email || "guest@example.com") &&
+                            ((l.author.id && user?.id && l.author.id === user.id) ||
+                              (l.author.email && user?.email && l.author.email === user.email)) &&
                             l.status !== "deleted" &&
                             l.status !== "owner_deleted",
                         )}
