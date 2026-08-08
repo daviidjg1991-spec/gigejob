@@ -16591,6 +16591,312 @@ const ListingDetail = ({
   );
 };
 
+const AddGalleryPhotoModal = ({
+  isOpen,
+  onClose,
+  onAddPhoto,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onAddPhoto: (photo: { url: string; category: string; title?: string }) => Promise<void>;
+}) => {
+  const [category, setCategory] = useState(CATEGORIES[0] || "General");
+  const [title, setTitle] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (!isOpen) return null;
+
+  const handleProcessBase64 = async (rawBase64: string) => {
+    setIsProcessing(true);
+    try {
+      const optimizedUrl = await compressImage(rawBase64, 800, 800, 0.7);
+      setImagePreview(optimizedUrl);
+    } catch (e) {
+      setImagePreview(rawBase64);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert("La imagen seleccionada es demasiado grande (máximo 10MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        handleProcessBase64(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleNativeCamera = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+        const image = await Camera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+        });
+        if (image && image.dataUrl) {
+          await handleProcessBase64(image.dataUrl);
+        }
+      } else {
+        cameraInputRef.current?.click();
+      }
+    } catch (err: any) {
+      console.warn("Camera cancelled or failed:", err);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!imagePreview) return;
+    setIsProcessing(true);
+    try {
+      await onAddPhoto({
+        url: imagePreview,
+        category: category,
+        title: title.trim() || undefined,
+      });
+      setImagePreview(null);
+      setTitle("");
+      onClose();
+    } catch (e) {
+      console.error(e);
+      alert("Error al guardar la foto en la galería.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-surface rounded-3xl w-full max-w-lg shadow-2xl p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto border border-outline-variant/10">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 p-2 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 bg-primary/10 rounded-2xl text-primary">
+            <Camera className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-display font-black text-on-surface tracking-tight">
+              Añadir Foto de Trabajo
+            </h2>
+            <p className="text-xs text-on-surface-variant/60 font-medium">
+              Asocia tu foto a una categoría para organizar tu portafolio
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Categoría del Trabajo *
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium bg-surface-container-lowest"
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Título o Descripción Corta (Opcional)
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ej: Reforma de baño, Limpieza de cristales..."
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium bg-surface-container-lowest"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Foto del Trabajo *
+            </label>
+
+            {imagePreview ? (
+              <div className="relative rounded-2xl overflow-hidden border border-outline-variant/20 group">
+                <img
+                  src={imagePreview}
+                  alt="Vista previa foto"
+                  className="w-full h-56 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImagePreview(null)}
+                  className="absolute top-3 right-3 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-all active:scale-95 flex items-center gap-1 text-xs font-bold"
+                  title="Cambiar foto"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Cambiar</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleNativeCamera}
+                  disabled={isProcessing}
+                  className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 transition-all text-primary font-bold text-xs group active:scale-95"
+                >
+                  <Camera className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                  <span>Hacer Foto con Cámara</span>
+                  <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                    (Cámara Móvil / Web)
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessing}
+                  className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-outline-variant/30 hover:border-primary bg-surface-container-low/50 hover:bg-surface-container-high transition-all text-on-surface font-bold text-xs group active:scale-95"
+                >
+                  <Upload className="w-8 h-8 text-on-surface-variant group-hover:scale-110 transition-transform" />
+                  <span>Elegir de Galería</span>
+                  <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                    (Fotos del dispositivo)
+                  </span>
+                </button>
+              </div>
+            )}
+
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold rounded-2xl text-xs uppercase tracking-widest transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!imagePreview || isProcessing}
+              className="flex-1 py-3.5 bg-primary text-white font-bold rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                "Guardar Foto"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const GalleryLightboxModal = ({
+  photo,
+  onClose,
+  onDelete,
+  canDelete,
+}: {
+  photo: { url: string; category: string; title?: string } | null;
+  onClose: () => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
+}) => {
+  if (!photo) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="relative max-w-4xl w-full flex flex-col items-center">
+        <div className="w-full flex items-center justify-between p-4 text-white z-10">
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-primary text-white font-black text-[10px] uppercase tracking-widest">
+              #{photo.category}
+            </span>
+            {photo.title && (
+              <span className="text-sm font-bold text-white/90 line-clamp-1">
+                {photo.title}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {canDelete && onDelete && (
+              <button
+                onClick={() => {
+                  if (window.confirm("¿Seguro que deseas eliminar esta foto de tu galería?")) {
+                    onDelete();
+                    onClose();
+                  }
+                }}
+                className="p-2.5 bg-red-600/80 hover:bg-red-600 text-white rounded-full transition-colors shadow-lg"
+                title="Eliminar foto"
+              >
+                <Trash2 className="w-5 h-5 text-white" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors shadow-lg"
+              title="Cerrar"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-[75vh] w-full flex items-center justify-center overflow-hidden rounded-2xl p-2">
+          <img
+            src={photo.url}
+            alt={photo.title || photo.category}
+            className="max-h-[75vh] max-w-full object-contain rounded-xl shadow-2xl"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ProfilePage = ({
   user,
   setUser,
@@ -16738,48 +17044,58 @@ const ProfilePage = ({
     }
   };
 
-  const handleGalleryUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (file && isOwnProfile && user) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("La imagen es demasiado grande. El límite es 5MB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const optimizedUrl = await compressImage(
-          reader.result as string,
-          800,
-          800,
-          0.6,
-        );
-        const newPhoto = {
-          url: optimizedUrl,
-          category: selectedGalleryCategory,
-        };
-        const updatedGallery = [...(user.gallery || []), newPhoto];
+  const [isAddPhotoModalOpen, setIsAddPhotoModalOpen] = useState(false);
+  const [selectedLightboxPhoto, setSelectedLightboxPhoto] = useState<{
+    url: string;
+    category: string;
+    title?: string;
+    index: number;
+  } | null>(null);
 
-        // Check total size to prevent Firestore 1MB limit error
-        const estimatedSize = JSON.stringify({ items: updatedGallery }).length;
-        if (estimatedSize > 950000) {
-          alert(
-            "Has alcanzado el límite de almacenamiento para tu galería. Por favor, elimina algunas fotos antes de añadir más.",
-          );
-          return;
-        }
+  const saveGalleryToFirestore = async (updatedGallery: any[]) => {
+    if (!user || !isOwnProfile) return;
+    try {
+      const updatedUser = { ...user, gallery: updatedGallery };
+      setUser(updatedUser);
+      localStorage.setItem("GigeJob_user", JSON.stringify(updatedUser));
 
-        setUser({ ...user, gallery: updatedGallery });
-      };
-      reader.readAsDataURL(file);
+      const userRef = doc(db, "users", user.id);
+      await updateDoc(userRef, { gallery: updatedGallery });
+
+      const galleryRef = doc(db, "users", user.id, "private", "gallery");
+      await setDoc(
+        galleryRef,
+        { items: updatedGallery, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+      setFetchedGallery(updatedGallery);
+    } catch (err) {
+      console.error("Error saving gallery to Firestore:", err);
     }
   };
 
-  const removeGalleryPhoto = (index: number) => {
-    if (isOwnProfile && user && user.gallery) {
-      const updatedGallery = user.gallery.filter((_, i) => i !== index);
-      setUser({ ...user, gallery: updatedGallery });
+  const handleAddGalleryPhoto = async (newPhoto: {
+    url: string;
+    category: string;
+    title?: string;
+  }) => {
+    const currentGallery = (isOwnProfile ? user?.gallery : fetchedGallery) || [];
+    const updatedGallery = [...currentGallery, newPhoto];
+
+    const estimatedSize = JSON.stringify({ items: updatedGallery }).length;
+    if (estimatedSize > 950000) {
+      alert("Has alcanzado el límite de almacenamiento para tu galería. Por favor, elimina algunas fotos antes de añadir más.");
+      return;
+    }
+
+    await saveGalleryToFirestore(updatedGallery);
+  };
+
+  const removeGalleryPhoto = async (index: number) => {
+    if (isOwnProfile && user) {
+      const currentGallery = (user.gallery || fetchedGallery) || [];
+      const updatedGallery = currentGallery.filter((_: any, i: number) => i !== index);
+      await saveGalleryToFirestore(updatedGallery);
     }
   };
 
@@ -16787,13 +17103,11 @@ const ProfilePage = ({
 
   useEffect(() => {
     const fetchProfileGallery = async () => {
-      // If it's my own profile, we already have it in 'user' state
       if (isOwnProfile && user?.gallery) {
         setFetchedGallery(user.gallery);
         return;
       }
 
-      // If it's another user, fetch from their private gallery document
       const targetId = id === "me" ? user?.id : id || profileUser?.id;
       if (targetId) {
         try {
@@ -16802,7 +17116,6 @@ const ProfilePage = ({
           if (gallerySnap.exists()) {
             setFetchedGallery(gallerySnap.data().items || []);
           } else {
-            // Fallback to what's in the author object if any
             setFetchedGallery((profileUser as any)?.gallery || []);
           }
         } catch (error) {
@@ -17046,14 +17359,14 @@ const ProfilePage = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/20 p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-outline-variant/5">
                     <div className="flex items-center gap-3 sm:gap-4">
                       <div className="p-2.5 sm:p-3 bg-primary/10 rounded-xl sm:rounded-2xl text-primary">
-                        <ImageIcon className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+                        <Camera className="w-5 h-5" />
                       </div>
                       <div>
                         <h2 className="text-lg sm:text-xl font-display font-black text-on-surface tracking-tight">
-                          Galería
+                          Galería de Trabajos
                         </h2>
                         <p className="text-[9px] sm:text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                          Muestra tu trabajo
+                          Fotos de trabajos organizadas por categoría
                         </p>
                       </div>
                     </div>
@@ -17063,9 +17376,9 @@ const ProfilePage = ({
                         <select
                           value={galleryFilter}
                           onChange={(e) => setGalleryFilter(e.target.value)}
-                          className="bg-surface-container-low pl-3 pr-8 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all hover:bg-surface-container-high min-w-[120px] sm:min-w-[140px]"
+                          className="bg-surface-container-low pl-3 pr-8 py-2.5 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all hover:bg-surface-container-high min-w-[140px]"
                         >
-                          <option value="all">Todo</option>
+                          <option value="all">Todas las categorías</option>
                           {CATEGORIES.map((cat) => (
                             <option key={cat} value={cat}>
                               {cat}
@@ -17076,59 +17389,13 @@ const ProfilePage = ({
                       </div>
 
                       {isOwnProfile && (
-                        <div className="relative">
-                          {!isUploadStep ? (
-                            <button
-                              onClick={() => setIsUploadStep(true)}
-                              className="flex items-center gap-1.5 px-4 sm:px-6 py-2 primary-gradient text-white rounded-xl font-black uppercase tracking-widest text-[9px] sm:text-[10px] shadow-lg transition-all active:scale-95"
-                            >
-                              <PlusCircle className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Subir</span>
-                            </button>
-                          ) : (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-primary/20 shadow-xl"
-                            >
-                              <select
-                                value={selectedGalleryCategory}
-                                onChange={(e) =>
-                                  setSelectedGalleryCategory(e.target.value)
-                                }
-                                className="bg-transparent pl-2 pr-4 py-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer appearance-none"
-                              >
-                                {CATEGORIES.map((cat) => (
-                                  <option key={cat} value={cat}>
-                                    {cat}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => {
-                                  galleryInputRef.current?.click();
-                                  setIsUploadStep(false);
-                                }}
-                                className="px-3 py-1 bg-primary text-white rounded-lg font-black uppercase tracking-widest text-[8px] transition-colors"
-                              >
-                                OK
-                              </button>
-                              <button
-                                onClick={() => setIsUploadStep(false)}
-                                className="p-1 text-on-surface-variant/40 hover:text-red-500 transition-colors"
-                              >
-                                <X className="w-3 h-3 text-red-500" />
-                              </button>
-                            </motion.div>
-                          )}
-                          <input
-                            type="file"
-                            ref={galleryInputRef}
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handleGalleryUpload}
-                          />
-                        </div>
+                        <button
+                          onClick={() => setIsAddPhotoModalOpen(true)}
+                          className="flex items-center gap-2 px-4 sm:px-6 py-2.5 primary-gradient text-white rounded-xl font-black uppercase tracking-widest text-[9px] sm:text-[10px] shadow-lg shadow-primary/20 transition-all active:scale-95 hover:opacity-95"
+                        >
+                          <Camera className="w-4 h-4" />
+                          <span>Añadir Foto</span>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -17140,39 +17407,49 @@ const ProfilePage = ({
                     const filteredGallery =
                       galleryFilter === "all"
                         ? gallery
-                        : gallery?.filter(
-                            (p: any) => p.category === galleryFilter,
-                          );
+                        : gallery?.filter((p: any) => p.category === galleryFilter);
 
                     return filteredGallery?.length > 0 ? (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
                         {filteredGallery.map((photo: any, i: number) => (
                           <div
                             key={i}
-                            className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-container-low border border-outline-variant/5 ambient-shadow transition-all duration-500 hover:shadow-lg"
+                            onClick={() => setSelectedLightboxPhoto({ ...photo, index: i })}
+                            className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-container-low border border-outline-variant/5 ambient-shadow transition-all duration-300 hover:shadow-xl cursor-pointer"
                           >
                             <img
                               src={photo.url}
-                              alt={`Trabajo ${i}`}
-                              className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                              alt={photo.title || `Trabajo ${i}`}
+                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                               referrerPolicy="no-referrer"
                             />
 
-                            <div className="absolute bottom-2 left-2 right-2">
-                              <div className="bg-black/30 backdrop-blur-md px-2 py-1 rounded-lg border border-white/5 inline-block">
-                                <p className="text-[7px] font-black text-white/90 uppercase tracking-widest">
-                                  #{photo.category}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
+
+                            <div className="absolute bottom-3 left-3 right-3 space-y-1">
+                              <span className="bg-primary/90 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[8px] font-black text-white uppercase tracking-widest inline-block shadow">
+                                #{photo.category}
+                              </span>
+                              {photo.title && (
+                                <p className="text-xs font-bold text-white line-clamp-1 drop-shadow">
+                                  {photo.title}
                                 </p>
-                              </div>
+                              )}
                             </div>
 
                             {isOwnProfile && (
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                 <button
-                                  onClick={() => removeGalleryPhoto(i)}
-                                  className="p-1.5 bg-red-500/90 text-white rounded-lg shadow-lg hover:bg-red-600 transition-all"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm("¿Seguro que deseas eliminar esta foto de tu galería?")) {
+                                      removeGalleryPhoto(i);
+                                    }
+                                  }}
+                                  className="p-2 bg-red-600/90 text-white rounded-xl shadow-lg hover:bg-red-600 transition-all active:scale-95"
+                                  title="Eliminar foto"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500" />
+                                  <Trash2 className="w-4 h-4 text-white" />
                                 </button>
                               </div>
                             )}
@@ -17180,14 +17457,49 @@ const ProfilePage = ({
                         ))}
                       </div>
                     ) : (
-                      <div className="bg-surface-container-low/10 py-16 sm:py-20 rounded-2xl sm:rounded-[2.5rem] text-center border border-dashed border-outline-variant/10">
-                        <Camera className="w-8 h-8 sm:w-12 sm:h-12 text-on-surface-variant/10 mx-auto mb-3 sm:mb-4" />
-                        <p className="text-on-surface-variant/40 font-black uppercase tracking-widest text-[8px] sm:text-[9px]">
-                          Sin fotos
-                        </p>
+                      <div className="bg-surface-container-low/10 py-16 sm:py-20 rounded-2xl sm:rounded-[2.5rem] text-center border border-dashed border-outline-variant/20 p-6 space-y-4">
+                        <Camera className="w-12 h-12 text-on-surface-variant/30 mx-auto" />
+                        <div>
+                          <h3 className="text-base sm:text-lg font-bold text-on-surface">
+                            {galleryFilter === "all"
+                              ? "No hay fotos en la galería"
+                              : `No hay fotos en la categoría "${galleryFilter}"`}
+                          </h3>
+                          <p className="text-xs text-on-surface-variant/60 mt-1">
+                            {isOwnProfile
+                              ? "Sube fotos de tus trabajos completados organizadas por categoría"
+                              : "Este profesional aún no ha subido fotos a esta categoría"}
+                          </p>
+                        </div>
+                        {isOwnProfile && (
+                          <button
+                            onClick={() => setIsAddPhotoModalOpen(true)}
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95"
+                          >
+                            <Camera className="w-4 h-4" />
+                            <span>Subir Mi Primera Foto</span>
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
+
+                  <AddGalleryPhotoModal
+                    isOpen={isAddPhotoModalOpen}
+                    onClose={() => setIsAddPhotoModalOpen(false)}
+                    onAddPhoto={handleAddGalleryPhoto}
+                  />
+
+                  <GalleryLightboxModal
+                    photo={selectedLightboxPhoto}
+                    onClose={() => setSelectedLightboxPhoto(null)}
+                    onDelete={
+                      selectedLightboxPhoto && isOwnProfile
+                        ? () => removeGalleryPhoto(selectedLightboxPhoto.index)
+                        : undefined
+                    }
+                    canDelete={isOwnProfile}
+                  />
                 </div>
               )}
 
