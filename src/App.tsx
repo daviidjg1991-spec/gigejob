@@ -24837,7 +24837,7 @@ const EditListingPage = ({
         location: formatLocation(found.location),
         additionalInfo: found.additionalInfo || "",
         tags: Array.isArray(found.tags) ? found.tags.join(", ") : "",
-        headerImage: found.headerImage || (found.images && found.images[0]) || "",
+        headerImage: found.headerImage || found.imageUrl || (found.images && found.images[0]) || "",
         status: found.status || "active",
       });
       setIsLoading(false);
@@ -24858,7 +24858,7 @@ const EditListingPage = ({
               location: formatLocation(data.location),
               additionalInfo: data.additionalInfo || "",
               tags: Array.isArray(data.tags) ? data.tags.join(", ") : "",
-              headerImage: data.headerImage || (data.images && data.images[0]) || "",
+              headerImage: data.headerImage || data.imageUrl || (data.images && data.images[0]) || "",
               status: data.status || "active",
             });
             setIsLoaded(true);
@@ -24898,6 +24898,8 @@ const EditListingPage = ({
       additionalInfo: formData.additionalInfo,
       tags: tagArray,
       headerImage: formData.headerImage,
+      imageUrl: formData.headerImage,
+      images: formData.headerImage ? [formData.headerImage] : [],
       status: formData.status,
       updatedAt: new Date().toISOString(),
     };
