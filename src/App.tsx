@@ -393,6 +393,25 @@ const compressImage = (
   });
 };
 
+const cleanUndefinedData = (obj: any): any => {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj
+      .filter((item) => item !== undefined)
+      .map((item) => cleanUndefinedData(item));
+  }
+  if (typeof obj === "object" && !(obj instanceof Date)) {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = cleanUndefinedData(value);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+};
+
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, "test", "connection"));
@@ -24951,7 +24970,8 @@ const EditListingPage = ({
         await onUpdate(updatedListing);
       } else {
         const { id: _, ...dataToUpdate } = updatedListing;
-        await setDoc(doc(db, "listings", id), dataToUpdate, { merge: true });
+        const cleanedData = cleanUndefinedData(dataToUpdate);
+        await setDoc(doc(db, "listings", id), cleanedData, { merge: true });
       }
       navigate(`/anuncio/${id}`);
     } catch (err: any) {
@@ -26231,10 +26251,13 @@ function App() {
                 ...l.author,
                 id: user.id,
                 name: displayName,
-                photoUrl: user.photoUrl,
+                photoUrl: user.photoUrl || l.author?.photoUrl || "",
                 isVerified: user.isVerified === true,
-                certifications: user.certifications,
-                gallery: user.gallery,
+                certifications: user.certifications || l.author?.certifications || {
+                  serviceGuarantee: false,
+                  professionalInsurance: false,
+                },
+                gallery: user.gallery || l.author?.gallery || [],
               },
             };
           }
@@ -26279,7 +26302,8 @@ function App() {
         } catch (e) {}
       }
 
-      await setDoc(doc(db, "listings", newListing.id), newListing, { merge: true });
+      const cleanedListing = cleanUndefinedData(newListing);
+      await setDoc(doc(db, "listings", newListing.id), cleanedListing, { merge: true });
 
       setListings((prev) => {
         const list = !Array.isArray(prev)
@@ -26433,7 +26457,8 @@ function App() {
         } catch (e) {}
       }
 
-      await setDoc(doc(db, "listings", id), dataToUpdate as any, { merge: true });
+      const cleanedData = cleanUndefinedData(dataToUpdate);
+      await setDoc(doc(db, "listings", id), cleanedData as any, { merge: true });
 
       setListings((prev) => {
         const next = prev.map((l) =>
