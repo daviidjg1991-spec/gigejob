@@ -249,7 +249,6 @@ const generateBookingCode = async (
 };
 
 import { db, auth, storage } from "./lib/firebase";
-import { Capacitor } from '@capacitor/core';
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
@@ -13746,7 +13745,7 @@ const HomePage = ({
 
   return (
     <>
-      <div className="min-h-screen bg-surface pb-36 md:pb-20">
+      <div className="min-h-screen bg-surface pb-36 md:pb-20 shrink-0">
       <div 
         className="bg-surface-container-lowest pt-8 sm:pt-16 pb-12 sm:pb-16 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
@@ -14033,7 +14032,7 @@ const ExplorePage = ({
   ]);
 
   return (
-    <div className="min-h-screen bg-surface pb-32 relative">
+    <div className="min-h-screen bg-surface pb-32 relative shrink-0">
       {/* Filter Bar - Top Position */}
       <div className="lg:sticky lg:top-20 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -26697,7 +26696,7 @@ function App() {
                 (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
             );
             return (
-              <>
+              <div className="flex-1 shrink-0 flex flex-col">
                 <Routes>
                 <Route
                   path="/pagina/:slug"
@@ -26979,7 +26978,7 @@ function App() {
                 <Route path="*" element={<NotFoundPage />} />
 
               </Routes>
-              </>
+              </div>
             );
           })()}
 

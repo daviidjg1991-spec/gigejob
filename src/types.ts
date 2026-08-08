@@ -213,9 +213,11 @@ export interface JobListing {
     gallery?: { url: string, category: string }[];
   };
   imageUrl?: string;
+  headerImage?: string;
+  images?: string[];
   createdAt: string;
   expiresAt?: string;
-  status?: 'active' | 'inactive' | 'disabled' | 'deleted';
+  status?: 'active' | 'inactive' | 'disabled' | 'deleted' | 'expired' | 'owner_deleted';
   tags: string[];
 }
 
