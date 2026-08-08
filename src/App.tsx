@@ -13423,10 +13423,10 @@ const ListingCard = ({
         />
 
         {/* Top-left label */}
-        <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex flex-col gap-2">
+        <div className="absolute top-2 left-2 sm:top-4 sm:left-4 flex flex-col gap-1.5 sm:gap-2">
           <span
             className={cn(
-              "px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md",
+              "px-2 sm:px-4 py-0.5 sm:py-1.5 rounded-full text-[7px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md",
               listing.type === "offer"
                 ? "bg-primary text-white"
                 : "bg-surface-container-highest text-on-surface-variant",
@@ -13435,7 +13435,7 @@ const ListingCard = ({
             {listing.type === "offer" ? "Ofrezco" : "Busco"}
           </span>
           {isInactive && (
-            <span className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-orange-500 text-white">
+            <span className="px-2 sm:px-4 py-0.5 sm:py-1.5 rounded-full text-[7px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-orange-500 text-white">
               {listing.status === "expired" || isExpired
                 ? "CADUCADO"
                 : listing.status === "disabled" || listing.status === "inactive"
@@ -13444,7 +13444,7 @@ const ListingCard = ({
             </span>
           )}
           {listing.status === "deleted" && (
-            <span className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-red-500 text-white">
+            <span className="px-2 sm:px-4 py-0.5 sm:py-1.5 rounded-full text-[7px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-red-500 text-white">
               ELIMINADO
             </span>
           )}
@@ -13452,11 +13452,11 @@ const ListingCard = ({
 
         {/* Top-right price */}
         {listing.price !== undefined && (
-          <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-            <div className="bg-white/90 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl shadow-lg">
-              <span className="text-primary font-black text-sm sm:text-base">
+          <div className="absolute top-2 right-2 sm:top-4 sm:right-4">
+            <div className="bg-white/90 backdrop-blur-md px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded-lg sm:rounded-2xl shadow-lg">
+              <span className="text-primary font-black text-xs sm:text-base">
                 {listing.price}€
-                <span className="text-[10px] opacity-60 font-bold">
+                <span className="text-[8px] sm:text-[10px] opacity-60 font-bold">
                   /
                   {listing.unit === "hour"
                     ? "h"
@@ -13469,11 +13469,11 @@ const ListingCard = ({
           </div>
         )}
       </Link>
-      <div className="p-4 sm:p-5 flex flex-col flex-1">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+      <div className="p-3 sm:p-5 flex flex-col flex-1">
+        <div className="flex items-start justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-1 min-w-0">
             <div
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-surface-container-low shadow-sm cursor-pointer hover:border-primary transition-colors"
+              className="w-8 h-8 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-surface-container-low shadow-sm cursor-pointer hover:border-primary transition-colors"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -13488,20 +13488,20 @@ const ListingCard = ({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-full h-full primary-gradient flex items-center justify-center text-white font-bold text-lg">
+                <div className="w-full h-full primary-gradient flex items-center justify-center text-white font-bold text-sm sm:text-lg">
                   {(listing.author?.name || "?").charAt(0)}
                 </div>
               )}
             </div>
             <div className="flex flex-col min-w-0">
               <Link to={`/anuncio/${listing.id}`}>
-                <h3 className="text-sm sm:text-base font-display font-black text-on-surface hover:text-primary transition-colors line-clamp-1 leading-tight">
+                <h3 className="text-xs sm:text-base font-display font-black text-on-surface hover:text-primary transition-colors line-clamp-1 leading-tight">
                   {listing.title || "Sin título"}
                 </h3>
               </Link>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 flex-wrap">
                 <span
-                  className="text-[10px] sm:text-[11px] font-bold text-on-surface-variant/80 cursor-pointer hover:text-primary transition-colors truncate"
+                  className="text-[9px] sm:text-[11px] font-bold text-on-surface-variant/80 cursor-pointer hover:text-primary transition-colors truncate"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -13515,8 +13515,8 @@ const ListingCard = ({
                     <ShieldCheck className="w-2.5 h-2.5 text-white stroke-[3px]" />
                   </div>
                 )}
-                <div className="flex items-center gap-1 ml-1 text-amber-500 font-bold text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded-md">
-                  <Star className="w-3 h-3 fill-amber-500" />
+                <div className="flex items-center gap-0.5 sm:gap-1 ml-0.5 sm:ml-1 text-amber-500 font-bold text-[8px] sm:text-[10px] bg-amber-500/10 px-1 sm:px-1.5 py-0.5 rounded-md">
+                  <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-amber-500" />
                   {Number(listing.author?.rating || 0).toFixed(1)}
                 </div>
               </div>
@@ -13531,7 +13531,7 @@ const ListingCard = ({
             }}
             disabled={!auth.currentUser}
             className={cn(
-              "p-2 sm:p-2.5 rounded-full transition-all shadow-sm flex-shrink-0",
+              "p-1.5 sm:p-2.5 rounded-full transition-all shadow-sm flex-shrink-0",
               !auth.currentUser
                 ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
                 : isFavorite
@@ -13541,15 +13541,15 @@ const ListingCard = ({
           >
             <Heart
               className={cn(
-                "w-4 h-4 sm:w-5 sm:h-5",
+                "w-3.5 h-3.5 sm:w-5 sm:h-5",
                 isFavorite && "fill-primary",
               )}
             />
           </button>
         </div>
 
-        <div className="flex items-center gap-3 mt-4">
-          <div className="flex items-center text-[9px] sm:text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-wider truncate flex-1">
+        <div className="flex items-center gap-2 sm:gap-3 mt-2.5 sm:mt-4">
+          <div className="flex items-center text-[8px] sm:text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-wider truncate flex-1">
             <MapPin className="w-3 h-3 mr-1 shrink-0" />
             {formatLocation(listing.location)}
           </div>
@@ -13802,7 +13802,7 @@ const HomePage = ({
 
 
         {/* Results Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
           <AnimatePresence>
             {filteredListings.map((listing) => (
               <ListingCard
@@ -14336,7 +14336,7 @@ const ExplorePage = ({
         </div>
 
         {viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
             <AnimatePresence>
               {filteredListings.map((listing) => (
                 <ListingCard
@@ -17402,7 +17402,7 @@ const ProfilePage = ({
                   </div>
 
                   {userListings.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-16 pb-8">
+                    <div className="grid grid-cols-2 md:grid-cols-2 gap-2.5 sm:gap-6 lg:gap-8 mb-16 pb-8">
                       {userListings.map((listing) => (
                         <ListingCard
                           key={listing.id}
@@ -17843,7 +17843,7 @@ const FavoritesPage = ({
         </div>
 
         {listings.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-2.5 sm:gap-6 lg:gap-8">
             {listings.map((listing) => (
               <ListingCard
                 key={listing.id}
