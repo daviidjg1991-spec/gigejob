@@ -24738,7 +24738,58 @@ const EditListingPage = ({
   const navigate = useNavigate();
   const [listing, setListing] = useState<JobListing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+
+  const handleProcessImageBase64 = async (rawBase64: string) => {
+    setIsProcessingImage(true);
+    try {
+      const optimizedUrl = await compressImage(rawBase64, 1000, 800, 0.7);
+      setFormData((prev) => ({ ...prev, headerImage: optimizedUrl }));
+    } catch (e) {
+      setFormData((prev) => ({ ...prev, headerImage: rawBase64 }));
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const handleLocalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert("La imagen elegida es demasiado grande (máximo 10MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        handleProcessImageBase64(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCameraCapture = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+        const image = await Camera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+        });
+        if (image && image.dataUrl) {
+          await handleProcessImageBase64(image.dataUrl);
+        }
+      } else {
+        cameraInputRef.current?.click();
+      }
+    } catch (err: any) {
+      console.warn("Camera trigger cancelled or failed:", err);
+    }
+  };
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -25004,14 +25055,126 @@ const EditListingPage = ({
 
         <div>
           <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
-            URL de Imagen Principal
+            Imagen Principal del Anuncio *
           </label>
+
+          {formData.headerImage ? (
+            <div className="relative rounded-3xl overflow-hidden border border-outline-variant/20 mb-3 group">
+              <img
+                src={formData.headerImage}
+                alt="Vista previa anuncio"
+                className="w-full h-56 object-cover"
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleCameraCapture}
+                  className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-lg hover:bg-primary/90 flex items-center gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Cámara</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-white text-on-surface rounded-xl text-xs font-bold shadow-lg hover:bg-surface-container-high flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Subir Local</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, headerImage: "" })}
+                  className="p-2 bg-red-600 text-white rounded-xl text-xs font-bold shadow-lg hover:bg-red-700"
+                  title="Quitar imagen"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <button
+                type="button"
+                onClick={handleCameraCapture}
+                disabled={isProcessingImage}
+                className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 transition-all text-primary font-bold text-xs group active:scale-95"
+              >
+                <Camera className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                <span>Hacer Foto con Cámara</span>
+                <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                  (Cámara Móvil / Web)
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessingImage}
+                className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-outline-variant/30 hover:border-primary bg-surface-container-low/50 hover:bg-surface-container-high transition-all text-on-surface font-bold text-xs group active:scale-95"
+              >
+                <Upload className="w-8 h-8 text-on-surface-variant group-hover:scale-110 transition-transform" />
+                <span>Subir de Galería / Archivo Local</span>
+                <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                  (Fotos del dispositivo)
+                </span>
+              </button>
+            </div>
+          )}
+
+          {user?.gallery && user.gallery.length > 0 && (
+            <div className="mt-3 p-4 bg-surface-container-low/30 rounded-2xl border border-outline-variant/10 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/60 block">
+                O elige una foto de tu Galería de Perfil:
+              </span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {user.gallery.map((gPhoto: any, idx: number) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, headerImage: gPhoto.url })}
+                    className={cn(
+                      "relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all",
+                      formData.headerImage === gPhoto.url
+                        ? "border-primary ring-2 ring-primary/20 scale-105"
+                        : "border-transparent hover:opacity-80"
+                    )}
+                  >
+                    <img
+                      src={gPhoto.url}
+                      alt={`Galería ${idx}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3">
+            <input
+              type="url"
+              value={formData.headerImage}
+              onChange={(e) => setFormData({ ...formData, headerImage: e.target.value })}
+              className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary focus:outline-none text-xs font-medium bg-surface-container-lowest"
+              placeholder="O pega una URL de imagen (https://...)"
+            />
+          </div>
+
           <input
-            type="url"
-            value={formData.headerImage}
-            onChange={(e) => setFormData({ ...formData, headerImage: e.target.value })}
-            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
-            placeholder="https://ejemplo.com/imagen.jpg"
+            type="file"
+            ref={cameraInputRef}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleLocalFileSelect}
+          />
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            className="hidden"
+            onChange={handleLocalFileSelect}
           />
         </div>
 
