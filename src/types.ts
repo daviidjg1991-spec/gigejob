@@ -1,4 +1,5 @@
 export type ListingType = 'offer' | 'search';
+export type ListingStatus = 'active' | 'inactive' | 'disabled' | 'deleted' | 'owner_deleted' | 'expired';
 export type UserRole = 'user' | 'professional' | 'admin';
 
 // ADMIN CONFIGURATIONS (Hardcoded)

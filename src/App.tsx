@@ -429,6 +429,7 @@ import {
   JobListing,
   CATEGORIES,
   ListingType,
+  ListingStatus,
   UserProfile,
   UserRole,
   Address,
@@ -5709,6 +5710,7 @@ const AdminPage = ({
   const [bookings, setBookings] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [isSavingLegalDocs, setIsSavingLegalDocs] = useState(false);
 
   const totalRevenue = allTransactions
     .filter((tx) => tx.type === "income" || tx.type === "in")
@@ -13439,7 +13441,7 @@ const ListingCard = ({
       (user.email && listing.author.email && user.email === listing.author.email))
   );
 
-  const isExpired = checkIsListingExpired(listing, listing.author, proPlans);
+  const isExpired = checkIsListingExpired(listing, listing.author);
   const isInactive =
     listing.status === "inactive" || listing.status === "disabled" || listing.status === "expired" || isExpired;
 
@@ -16059,7 +16061,7 @@ const ListingDetail = ({
   const isOwnListing =
     user &&
     (user.id === listing.author?.id || user.email === listing.author?.email);
-  const isExpired = checkIsListingExpired(listing, listing.author, proPlans);
+  const isExpired = checkIsListingExpired(listing, listing.author);
   const isInactive =
     listing.status === "inactive" || listing.status === "disabled" || isExpired;
 
@@ -17060,7 +17062,7 @@ const ProfilePage = ({
     if (l.status === "deleted" || l.status === "owner_deleted") return false;
 
     const isActive = l.status === "active" || !l.status;
-    const isExpired = checkIsListingExpired(l, isOwnProfile ? user : profileUser, proPlans);
+    const isExpired = checkIsListingExpired(l, isOwnProfile ? user : profileUser);
 
     if (canEditProfile) return true;
     return isActive && !isExpired;
@@ -17937,7 +17939,7 @@ const StatsPage = ({ user, listings }: { user: any; listings: any[] }) => {
       )
     : [];
   const activeListingsCount = userListings.filter(
-    (l) => (l.status === "active" || !l.status) && !checkIsListingExpired(l, user, proPlans),
+    (l) => (l.status === "active" || !l.status) && !checkIsListingExpired(l, user),
   ).length;
   const totalViews = userListings.reduce((sum, l) => sum + (l.views || 0), 0);
 
@@ -19328,6 +19330,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
     touchStartXRef.current = null;
     touchStartYRef.current = null;
   };
+
+  const menuTimeoutRef = useRef<any>(null);
 
   const clearMenuTimeout = () => {
     if (menuTimeoutRef.current) {
@@ -22622,7 +22626,7 @@ const AuthPage = ({
           ? new GoogleAuthProvider()
           : new FacebookAuthProvider();
 
-      // Check if running on mobile browser (iOS / Android web)
+      let user: any;
       const isMobileWeb = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
       if (Capacitor.isNativePlatform() && providerName === "google") {
@@ -26355,12 +26359,12 @@ function App() {
     const authorEmail = listingToReactivate?.author?.email;
 
     if (user && (authorId === user.id || (authorEmail && user.email && authorEmail === user.email))) {
-      const userPlan = getUserPlan(user, plans);
+      const userPlan = getUserPlan(user);
       const limit = Number(userPlan?.limits?.maxListingsPerAccount ?? 1);
       const activeListingsCount = listings.filter(l => {
         const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
         if (!isUserAuthor || l.type !== 'offer' || l.id === id) return false;
-        const isExpired = checkIsListingExpired(l, user, plans);
+        const isExpired = checkIsListingExpired(l, user);
         const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || l.status === "expired" || isExpired;
         return !isInactive;
       }).length;
@@ -26375,7 +26379,7 @@ function App() {
     }
 
     const creationDate = new Date();
-    const activeDays = getListingActiveDays(user, plans);
+    const activeDays = getListingActiveDays(user);
     const expirationDate = new Date(
       creationDate.getTime() + activeDays * 24 * 60 * 60 * 1000,
     );
@@ -26721,7 +26725,7 @@ function App() {
               (l) =>
                 l &&
                 (!l.status || l.status === "active") &&
-                !checkIsListingExpired(l, l.author, proPlans) &&
+                !checkIsListingExpired(l, l.author) &&
                 (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
             );
             return (

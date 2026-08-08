@@ -7,7 +7,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import Stripe from 'stripe';
 import cron from "node-cron";
-import * as admin from "firebase-admin";
+import admin from "firebase-admin";
 import nodemailer from "nodemailer";
 
 // Configuración de nodemailer
@@ -30,7 +30,7 @@ try {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: (admin as any).credential.cert(serviceAccount)
      });
   } else {
      admin.initializeApp();
@@ -49,9 +49,9 @@ cron.schedule('0 * * * *', async () => {
     const usersToDelete: string[] = [];
     
     do {
-      const listUsersResult = await admin.auth().listUsers(1000, nextPageToken);
+      const listUsersResult = await (admin as any).auth().listUsers(1000, nextPageToken);
       
-      listUsersResult.users.forEach((userRecord) => {
+      listUsersResult.users.forEach((userRecord: any) => {
         const creationTime = new Date(userRecord.metadata.creationTime).getTime();
         
         if (!userRecord.emailVerified && creationTime < twentyFourHoursAgo) {
@@ -67,10 +67,10 @@ cron.schedule('0 * * * *', async () => {
       // Delete in batches of 1000 (Auth max is 1000)
       for (let i = 0; i < usersToDelete.length; i += 1000) {
          const batch = usersToDelete.slice(i, i + 1000);
-         await admin.auth().deleteUsers(batch);
+         await (admin as any).auth().deleteUsers(batch);
          console.log(`Deleted batch of ${batch.length} users from Auth.`);
          
-         const db = admin.firestore();
+         const db = (admin as any).firestore();
          for (let j = 0; j < batch.length; j += 500) {
             const dbBatch = db.batch();
             const subBatch = batch.slice(j, j + 500);
@@ -230,8 +230,8 @@ async function startServer() {
     
     const { collectionName, ids, updates } = req.body;
     try {
-      if (admin.apps.length > 0) {
-        const db = admin.firestore();
+      if ((admin as any).apps?.length > 0) {
+        const db = (admin as any).firestore();
         const batch = db.batch();
         ids.forEach((id: string) => {
           const ref = db.collection(collectionName).doc(id);
@@ -379,6 +379,19 @@ async function startServer() {
     }
   });
 
+  const validPrefixes = [
+    '/pagina/', '/blog', '/explorar', '/admin', '/login', '/registro',
+    '/mensajes', '/mis-anuncios', '/favoritos', '/estadisticas', '/monederos',
+    '/configuracion/', '/anuncio/', '/publicar', '/perfil'
+  ];
+
+  function isKnownRoute(url: string): boolean {
+    if (url === '/' || url.startsWith('/?')) return true;
+    const path = url.split('?')[0];
+    if (path === '/configuracion') return true;
+    return validPrefixes.some(prefix => path === prefix || path.startsWith(prefix + '/'));
+  }
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     // Import Vite plugins dynamically or at the top. Here we just require them.
@@ -414,19 +427,6 @@ async function startServer() {
 
     // Fallback for SPA routing in development
     
-const validPrefixes = [
-  '/pagina/', '/blog', '/explorar', '/admin', '/login', '/registro',
-  '/mensajes', '/mis-anuncios', '/favoritos', '/estadisticas', '/monederos',
-  '/configuracion/', '/anuncio/', '/publicar', '/perfil'
-];
-
-function isKnownRoute(url: string): boolean {
-  if (url === '/' || url.startsWith('/?')) return true;
-  const path = url.split('?')[0];
-  if (path === '/configuracion') return true;
-  return validPrefixes.some(prefix => path === prefix || path.startsWith(prefix + '/'));
-}
-
     app.use('*', async (req, res, next) => {
       try {
         const url = req.originalUrl;
