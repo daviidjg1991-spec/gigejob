@@ -24820,8 +24820,10 @@ const EditListingPage = ({
     status: "active" as ListingStatus,
   });
 
+  const [isLoaded, setIsLoaded] = useState(false);
+
   useEffect(() => {
-    if (!id) return;
+    if (!id || isLoaded) return;
     const found = listings.find((l) => l.id === id);
     if (found) {
       setListing(found);
@@ -24839,6 +24841,7 @@ const EditListingPage = ({
         status: found.status || "active",
       });
       setIsLoading(false);
+      setIsLoaded(true);
     } else {
       getDoc(doc(db, "listings", id))
         .then((docSnap) => {
@@ -24858,6 +24861,7 @@ const EditListingPage = ({
               headerImage: data.headerImage || (data.images && data.images[0]) || "",
               status: data.status || "active",
             });
+            setIsLoaded(true);
           } else {
             setError("El anuncio no existe o fue eliminado.");
           }
@@ -24868,7 +24872,7 @@ const EditListingPage = ({
         })
         .finally(() => setIsLoading(false));
     }
-  }, [id, listings]);
+  }, [id, listings, isLoaded]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
