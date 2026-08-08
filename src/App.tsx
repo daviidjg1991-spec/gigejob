@@ -13391,7 +13391,9 @@ const ListingCard = ({
       >
         <img
           src={
+            listing.headerImage ||
             listing.imageUrl ||
+            (listing.images && listing.images[0]) ||
             `https://picsum.photos/seed/${listing.id}/800/600`
           }
           alt={listing.title}
@@ -13863,7 +13865,12 @@ const MapView = ({
               <Popup className="custom-popup">
                 <div className="w-64 p-2">
                   <img
-                    src={listing.imageUrl}
+                    src={
+                      listing.headerImage ||
+                      listing.imageUrl ||
+                      (listing.images && listing.images[0]) ||
+                      `https://picsum.photos/seed/${listing.id}/800/600`
+                    }
                     alt={listing.title}
                     className="w-full h-32 object-cover rounded-xl mb-3"
                     referrerPolicy="no-referrer"
@@ -16300,7 +16307,9 @@ const ListingDetail = ({
             <div className="relative group rounded-[2.5rem] overflow-hidden ambient-shadow aspect-[16/9] bg-surface-container-low">
               <img
                 src={
+                  listing.headerImage ||
                   listing.imageUrl ||
+                  (listing.images && listing.images[0]) ||
                   `https://picsum.photos/seed/${listing.id}/1200/800`
                 }
                 alt={listing.title}
@@ -24942,7 +24951,7 @@ const EditListingPage = ({
         await onUpdate(updatedListing);
       } else {
         const { id: _, ...dataToUpdate } = updatedListing;
-        await updateDoc(doc(db, "listings", id), dataToUpdate);
+        await setDoc(doc(db, "listings", id), dataToUpdate, { merge: true });
       }
       navigate(`/anuncio/${id}`);
     } catch (err: any) {
@@ -26368,7 +26377,7 @@ function App() {
   const updateListing = async (updated: JobListing) => {
     try {
       const { id, ...dataToUpdate } = updated;
-      await updateDoc(doc(db, "listings", id), dataToUpdate as any);
+      await setDoc(doc(db, "listings", id), dataToUpdate as any, { merge: true });
     } catch (e) {
       console.error("Error updating listing in Firebase", e);
     }
