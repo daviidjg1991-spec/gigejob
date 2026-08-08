@@ -14037,34 +14037,8 @@ const ExplorePage = ({
       <div className="lg:sticky lg:top-20 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            {/* Left: Type Tabs */}
+            {/* Left: Filter button */}
             <div className="flex items-center gap-4">
-              <div className="flex p-1 bg-surface-container-low rounded-xl w-fit">
-                {[
-                  { id: "all", label: "Todos" },
-                  { id: "offer", label: "Servicios" },
-                  { id: "search", label: "Ofertas" },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      const params = new URLSearchParams(searchParams);
-                      if (t.id === "all") params.delete("type");
-                      else params.set("type", t.id);
-                      setSearchParams(params);
-                    }}
-                    className={cn(
-                      "px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all",
-                      type === t.id
-                        ? "bg-surface-container-lowest text-primary shadow-sm"
-                        : "text-on-surface-variant/40 hover:text-on-surface-variant",
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
                 className={cn(
