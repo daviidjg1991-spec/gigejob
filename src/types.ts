@@ -14,7 +14,8 @@ export const PRO_PLANS = [
     "limits": {
       "maxConcurrentBookings": 1,
       "maxListingsPerAccount": 1,
-      "maxBookingsPerDay": 1
+      "maxBookingsPerDay": 1,
+      "activeDaysPerListing": 30
     },
     "features": [
       "Perfil básico",
@@ -33,7 +34,8 @@ export const PRO_PLANS = [
     "limits": {
       "maxConcurrentBookings": 1,
       "maxListingsPerAccount": 1,
-      "maxBookingsPerDay": 1
+      "maxBookingsPerDay": 1,
+      "activeDaysPerListing": 30
     },
     "isRecommended": true
   },
@@ -41,7 +43,8 @@ export const PRO_PLANS = [
     "limits": {
       "maxListingsPerAccount": 1,
       "maxConcurrentBookings": 1,
-      "maxBookingsPerDay": 999
+      "maxBookingsPerDay": 999,
+      "activeDaysPerListing": 30
     },
     "features": [
       "Perfil Premium",
@@ -57,7 +60,8 @@ export const PRO_PLANS = [
     "limits": {
       "maxListingsPerAccount": 2,
       "maxConcurrentBookings": 4,
-      "maxBookingsPerDay": 999
+      "maxBookingsPerDay": 999,
+      "activeDaysPerListing": 30
     },
     "features": [
       "Perfil Premium Pro",
@@ -216,6 +220,8 @@ export interface JobListing {
   headerImage?: string;
   images?: string[];
   createdAt: string;
+  publishedAt?: string;
+  reactivatedAt?: string;
   expiresAt?: string;
   status?: 'active' | 'inactive' | 'disabled' | 'deleted' | 'expired' | 'owner_deleted';
   tags: string[];

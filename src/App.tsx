@@ -501,6 +501,35 @@ export const getUserPlan = (user: any, plans: any[] = PRO_PLANS) => {
   return matched || (plans || PRO_PLANS).find((p: any) => p.id === "basic") || (plans || PRO_PLANS)[0];
 };
 
+export const getListingActiveDays = (authorUser: any, plans: any[] = PRO_PLANS) => {
+  const plan = getUserPlan(authorUser, plans);
+  return Number(plan?.limits?.activeDaysPerListing ?? 30);
+};
+
+export const checkIsListingExpired = (listing: any, authorUser?: any, plans: any[] = PRO_PLANS) => {
+  if (!listing) return false;
+  if (listing.status === "expired") return true;
+
+  // Check explicit expiresAt timestamp if present
+  if (listing.expiresAt && new Date(listing.expiresAt).getTime() <= Date.now()) {
+    return true;
+  }
+
+  // Check dynamic active days limit from plan based on publication or last reactivation date
+  const activeDays = getListingActiveDays(authorUser || listing.author, plans);
+  const startDateStr = listing.reactivatedAt || listing.publishedAt || listing.createdAt;
+  if (startDateStr) {
+    const startMs = new Date(startDateStr).getTime();
+    if (!isNaN(startMs) && startMs > 0) {
+      const expirationMs = startMs + activeDays * 24 * 60 * 60 * 1000;
+      if (Date.now() >= expirationMs) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
 
 export const AppConfigContext = createContext<{
   config: DynamicAppConfig;
@@ -5111,7 +5140,7 @@ const AdminProPlansTab = ({ users }: { users: any[] }) => {
               Marcar como el Plan Recomendado (Etiqueta destacada)
             </label>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-outline-variant/10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-outline-variant/10">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2" title="999 para sin límite">
                 Límite Reservas / Día
@@ -5164,6 +5193,25 @@ const AdminProPlansTab = ({ users }: { users: any[] }) => {
                     limits: {
                       ...(editingPlan.limits || {}),
                       maxConcurrentBookings: Number(e.target.value)
+                    }
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
+                Días activos del anuncio
+              </label>
+              <input
+                type="number"
+                className="input-field"
+                value={editingPlan.limits?.activeDaysPerListing ?? 30}
+                onChange={(e) =>
+                  setEditingPlan({
+                    ...editingPlan,
+                    limits: {
+                      ...(editingPlan.limits || {}),
+                      activeDaysPerListing: Number(e.target.value)
                     }
                   })
                 }
@@ -6653,7 +6701,7 @@ const AdminPage = ({
                   );
                   const userListingsCount = userListingsArr.length;
                   const activeListingsCount = userListingsArr.filter((l) => {
-                    const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+                    const isExpired = checkIsListingExpired(l, u, proPlans);
                     const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
                     return !isInactive;
                   }).length;
@@ -6935,13 +6983,15 @@ const AdminPage = ({
               <tbody className="divide-y divide-surface-container">
                     {(filterStatus === "active"
                       ? listings.filter((l) => {
-                          const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+                          const authorUser = (users || []).find((u: any) => u.id === l.author?.id || u.email === l.author?.email);
+                          const isExpired = checkIsListingExpired(l, authorUser, proPlans);
                           const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
                           return !isInactive && l.status !== "deleted" && l.status !== "owner_deleted" && l.type !== "search";
                         })
                       : listings.filter((l) => l.status !== "deleted" && l.status !== "owner_deleted" && l.type !== "search")
                     ).map((l, i) => {
-                      const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+                      const authorUser = (users || []).find((u: any) => u.id === l.author?.id || u.email === l.author?.email);
+                      const isExpired = checkIsListingExpired(l, authorUser, proPlans);
                       const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
                       const currentDisplayStatus = l.status === "owner_deleted" ? "owner_deleted" : isInactive ? "expired" : (l.status || "active");
 
@@ -7000,10 +7050,13 @@ const AdminPage = ({
                                 const newStatus = e.target.value;
                                 const updatePayload: any = { status: newStatus };
                                 
-                                // If reactivating an expired/inactive listing, extend expiration date by 30 days
+                                // If reactivating an expired/inactive listing, extend expiration date according to activeDaysPerListing
                                 if (newStatus === "active" && (isExpired || l.status === "inactive" || l.status === "expired" || l.status === "disabled" || l.status === "owner_deleted")) {
-                                  const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                                  const activeDays = getListingActiveDays(authorUser || l.author, proPlans);
+                                  const nowIso = new Date().toISOString();
+                                  const newExpiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
                                   updatePayload.expiresAt = newExpiresAt;
+                                  updatePayload.reactivatedAt = nowIso;
                                 } else if (newStatus === "expired") {
                                   updatePayload.expiresAt = new Date(Date.now() - 1000).toISOString();
                                 }
@@ -13386,9 +13439,7 @@ const ListingCard = ({
       (user.email && listing.author.email && user.email === listing.author.email))
   );
 
-  const isExpired = listing.status === "expired" || (listing.expiresAt
-    ? new Date(listing.expiresAt) < new Date()
-    : false);
+  const isExpired = checkIsListingExpired(listing, listing.author, proPlans);
   const isInactive =
     listing.status === "inactive" || listing.status === "disabled" || listing.status === "expired" || isExpired;
 
@@ -16008,9 +16059,7 @@ const ListingDetail = ({
   const isOwnListing =
     user &&
     (user.id === listing.author?.id || user.email === listing.author?.email);
-  const isExpired = listing.expiresAt
-    ? new Date(listing.expiresAt) < new Date()
-    : false;
+  const isExpired = checkIsListingExpired(listing, listing.author, proPlans);
   const isInactive =
     listing.status === "inactive" || listing.status === "disabled" || isExpired;
 
@@ -17011,7 +17060,7 @@ const ProfilePage = ({
     if (l.status === "deleted" || l.status === "owner_deleted") return false;
 
     const isActive = l.status === "active" || !l.status;
-    const isExpired = l.expiresAt && new Date(l.expiresAt) <= new Date();
+    const isExpired = checkIsListingExpired(l, isOwnProfile ? user : profileUser, proPlans);
 
     if (canEditProfile) return true;
     return isActive && !isExpired;
@@ -17888,7 +17937,7 @@ const StatsPage = ({ user, listings }: { user: any; listings: any[] }) => {
       )
     : [];
   const activeListingsCount = userListings.filter(
-    (l) => l.status === "active" || !l.status,
+    (l) => (l.status === "active" || !l.status) && !checkIsListingExpired(l, user, proPlans),
   ).length;
   const totalViews = userListings.reduce((sum, l) => sum + (l.views || 0), 0);
 
@@ -21244,7 +21293,7 @@ const CreateListing = ({
       const activeListingsCount = listings.filter(l => {
         const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
         if (!isUserAuthor || l.type !== 'offer') return false;
-        const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+        const isExpired = checkIsListingExpired(l, user, plans);
         const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || l.status === "expired" || isExpired;
         return !isInactive;
       }).length;
@@ -21260,9 +21309,10 @@ const CreateListing = ({
       const tagsString = String(formData.tags || "");
 
       const creationDate = new Date();
+      const activeDays = getListingActiveDays(user, plans);
       const expirationDate = new Date(
-        creationDate.getTime() + 30 * 24 * 60 * 60 * 1000,
-      ); // 30 days
+        creationDate.getTime() + activeDays * 24 * 60 * 60 * 1000,
+      );
 
       const newListing: JobListing = {
         id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
@@ -21297,6 +21347,8 @@ const CreateListing = ({
           formData.headerImage ||
           `https://picsum.photos/seed/${Math.random()}/800/600`,
         createdAt: creationDate.toISOString(),
+        publishedAt: creationDate.toISOString(),
+        reactivatedAt: creationDate.toISOString(),
         expiresAt: expirationDate.toISOString(),
         status: "active",
         tags: tagsString
@@ -26308,7 +26360,7 @@ function App() {
       const activeListingsCount = listings.filter(l => {
         const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
         if (!isUserAuthor || l.type !== 'offer' || l.id === id) return false;
-        const isExpired = l.expiresAt ? new Date(l.expiresAt) < new Date() : false;
+        const isExpired = checkIsListingExpired(l, user, plans);
         const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || l.status === "expired" || isExpired;
         return !isInactive;
       }).length;
@@ -26323,15 +26375,17 @@ function App() {
     }
 
     const creationDate = new Date();
+    const activeDays = getListingActiveDays(user, plans);
     const expirationDate = new Date(
-      creationDate.getTime() + 30 * 24 * 60 * 60 * 1000,
-    ); // 30 days
+      creationDate.getTime() + activeDays * 24 * 60 * 60 * 1000,
+    );
 
     try {
       await setDoc(
         doc(db, "listings", id),
         {
           status: "active",
+          reactivatedAt: creationDate.toISOString(),
           expiresAt: expirationDate.toISOString(),
         },
         { merge: true }
@@ -26346,6 +26400,7 @@ function App() {
           return {
             ...l,
             status: "active",
+            reactivatedAt: creationDate.toISOString(),
             expiresAt: expirationDate.toISOString(),
           };
         }
@@ -26357,8 +26412,8 @@ function App() {
       return next;
     });
     setActiveToast({
-      message: "Anuncio reactivado por 30 días.",
-      type: "message",
+      message: `Anuncio reactivado por ${activeDays} días.`,
+      type: "success",
     });
   };
 
@@ -26666,7 +26721,7 @@ function App() {
               (l) =>
                 l &&
                 (!l.status || l.status === "active") &&
-                (!l.expiresAt || new Date(l.expiresAt) > new Date()) &&
+                !checkIsListingExpired(l, (users || []).find((u: any) => u.id === l.author?.id || u.email === l.author?.email) || l.author, proPlans) &&
                 (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
             );
             return (
