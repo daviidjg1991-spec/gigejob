@@ -24054,6 +24054,7 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [proDetails, setProDetails] = useState<any>(null);
   const config = DEFAULT_REVIEW_MODAL_CONFIG;
@@ -24073,9 +24074,33 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(fileToConvert);
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = async () => {
+        try {
+          const rawBase64 = reader.result as string;
+          const compressed = await compressImage(rawBase64, 800, 800, 0.7);
+          resolve(compressed);
+        } catch (e) {
+          resolve(reader.result as string);
+        }
+      };
       reader.onerror = (error) => reject(error);
     });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      try {
+        const compressed = await convertFileToBase64(selectedFile);
+        setPreviewUrl(compressed);
+      } catch {
+        setPreviewUrl(URL.createObjectURL(selectedFile));
+      }
+    } else {
+      setFile(null);
+      setPreviewUrl(null);
+    }
   };
 
   const handleSubmit = async () => {
@@ -24084,15 +24109,18 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
     try {
       let photoUrl = "";
       if (file) {
+        const compressedBase64 = previewUrl || await convertFileToBase64(file);
         try {
-          // Attempt Storage upload first with a 6-second timeout, falling back to base64 if storage hangs
-          const storageRef = ref(storage, `reviews/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
-          const uploadPromise = uploadBytes(storageRef, file).then(snapshot => getDownloadURL(snapshot.ref));
-          const timeoutPromise = new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Storage timeout")), 6000));
+          const fetchRes = await fetch(compressedBase64);
+          const blob = await fetchRes.blob();
+          const fileName = `reviews/${Date.now()}_${(file.name || "review.jpg").replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const storageRef = ref(storage, fileName);
+          const uploadPromise = uploadBytes(storageRef, blob).then(snapshot => getDownloadURL(snapshot.ref));
+          const timeoutPromise = new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Storage timeout")), 4000));
           photoUrl = await Promise.race([uploadPromise, timeoutPromise]);
         } catch (storageErr) {
           console.warn("Storage upload timed out or failed, using compressed base64 fallback:", storageErr);
-          photoUrl = await convertFileToBase64(file);
+          photoUrl = compressedBase64;
         }
       }
 
@@ -24132,7 +24160,7 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
       onComplete();
     } catch (err) {
       console.error("Error submitting review:", err);
-      alert("Error al enviar la valoración.");
+      alert("Error al enviar la valoración. Inténtalo de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
@@ -24265,12 +24293,26 @@ const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserPr
             <label className="block text-sm font-bold text-on-surface mb-2">
               {config.photoLabel}
             </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="w-full text-sm text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-colors"
-            />
+            {previewUrl ? (
+              <div className="relative rounded-2xl overflow-hidden border border-outline-variant/30 group">
+                <img src={previewUrl} alt="Vista previa foto" className="w-full h-40 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => { setFile(null); setPreviewUrl(null); }}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                  title="Eliminar foto"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="w-full text-sm text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-colors"
+              />
+            )}
           </div>
 
           <button
