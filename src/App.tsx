@@ -26721,7 +26721,7 @@ function App() {
               (l) =>
                 l &&
                 (!l.status || l.status === "active") &&
-                !checkIsListingExpired(l, (users || []).find((u: any) => u.id === l.author?.id || u.email === l.author?.email) || l.author, proPlans) &&
+                !checkIsListingExpired(l, l.author, proPlans) &&
                 (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
             );
             return (
