@@ -343,6 +343,19 @@ function handleFirestoreError(
   }
 }
 
+// Utility to safely format location into a string and avoid React error #31 (rendering objects in JSX)
+const formatLocation = (loc: any): string => {
+  if (!loc) return "Sin ubicación";
+  if (typeof loc === "string") return loc;
+  if (typeof loc === "object") {
+    if (loc.address && typeof loc.address === "string") return loc.address;
+    if (loc.city && typeof loc.city === "string") return loc.city;
+    if (Array.isArray(loc)) return loc.join(", ");
+    return "Sin ubicación";
+  }
+  return String(loc);
+};
+
 // Utility to optimize images before saving to Firestore
 const compressImage = (
   base64Str: string,
@@ -13485,7 +13498,7 @@ const ListingCard = ({
         <div className="flex items-center gap-3 mt-4">
           <div className="flex items-center text-[9px] sm:text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-wider truncate flex-1">
             <MapPin className="w-3 h-3 mr-1 shrink-0" />
-            {listing.location || "Sin ubicación"}
+            {formatLocation(listing.location)}
           </div>
 
           {listing.type === "offer" &&
@@ -16113,7 +16126,7 @@ const ListingDetail = ({
                   <div className="flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-primary" />
                     <span className="font-bold uppercase tracking-wider">
-                      {listing.location}
+                      {formatLocation(listing.location)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-2 py-0.5 rounded-md">
@@ -16165,7 +16178,7 @@ const ListingDetail = ({
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary" />
                   <span className="font-bold text-xs uppercase tracking-wider">
-                    {listing.location}
+                    {formatLocation(listing.location)}
                   </span>
                 </div>
                 <button
@@ -20760,7 +20773,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                         <div className="flex items-center gap-2 text-[9px]">
                           <MapPin className="w-3 h-3 text-on-surface-variant/40" />
                           <span className="font-bold text-on-surface-variant/60 uppercase">
-                            {booking.location}
+                            {formatLocation(booking.location)}
                           </span>
                         </div>
                         <p className="text-xs text-on-surface-variant font-medium line-clamp-2">
@@ -24819,7 +24832,7 @@ const EditListingPage = ({
         unit: found.unit || "hour",
         type: found.type || "offer",
         category: found.category || CATEGORIES[0] || "",
-        location: found.location?.address || (typeof found.location === 'string' ? found.location : ""),
+        location: formatLocation(found.location),
         additionalInfo: found.additionalInfo || "",
         tags: Array.isArray(found.tags) ? found.tags.join(", ") : "",
         headerImage: found.headerImage || (found.images && found.images[0]) || "",
@@ -24839,7 +24852,7 @@ const EditListingPage = ({
               unit: data.unit || "hour",
               type: data.type || "offer",
               category: data.category || CATEGORIES[0] || "",
-              location: data.location?.address || (typeof data.location === 'string' ? data.location : ""),
+              location: formatLocation(data.location),
               additionalInfo: data.additionalInfo || "",
               tags: Array.isArray(data.tags) ? data.tags.join(", ") : "",
               headerImage: data.headerImage || (data.images && data.images[0]) || "",
@@ -24877,10 +24890,7 @@ const EditListingPage = ({
       unit: formData.unit,
       type: formData.type,
       category: formData.category,
-      location: {
-        ...(typeof listing.location === 'object' ? listing.location : {}),
-        address: formData.location,
-      },
+      location: formData.location.trim() || "Sin ubicación",
       additionalInfo: formData.additionalInfo,
       tags: tagArray,
       headerImage: formData.headerImage,
