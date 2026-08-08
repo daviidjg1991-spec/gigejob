@@ -26298,6 +26298,8 @@ function App() {
     }
   };
 
+  const addListing = createListing;
+
   const reactivateListing = async (id: string) => {
     const listingToReactivate = listings.find(l => l.id === id);
     const authorId = listingToReactivate?.author?.id;
