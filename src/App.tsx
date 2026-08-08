@@ -25654,20 +25654,40 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const unsubListings = onSnapshot(collection(db, "listings"), (snapshot) => {
-      const fbListings = snapshot.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() } as JobListing)
-      );
-      const uniqueMap = new Map<string, JobListing>();
-      fbListings.forEach((l) => {
-        if (l && l.id) {
-          uniqueMap.set(l.id, l);
+    try {
+      const cached = localStorage.getItem("app_listings_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setListings(parsed);
         }
-      });
-      setListings(Array.from(uniqueMap.values()));
-    }, (err) => {
-      console.error("Error syncing listings:", err);
-    });
+      }
+    } catch (e) {}
+
+    const unsubListings = onSnapshot(
+      collection(db, "listings"),
+      (snapshot) => {
+        const fbListings = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as JobListing)
+        );
+        if (fbListings.length > 0) {
+          const uniqueMap = new Map<string, JobListing>();
+          fbListings.forEach((l) => {
+            if (l && l.id) {
+              uniqueMap.set(l.id, l);
+            }
+          });
+          const list = Array.from(uniqueMap.values());
+          setListings(list);
+          try {
+            localStorage.setItem("app_listings_cache", JSON.stringify(list));
+          } catch (e) {}
+        }
+      },
+      (err) => {
+        console.error("Error syncing listings:", err);
+      }
+    );
     return () => unsubListings();
   }, []);
 
@@ -26236,37 +26256,44 @@ function App() {
     );
   };
 
-  const addListing = async (newListing: JobListing) => {
+  const createListing = async (newListing: JobListing) => {
     try {
       if (!newListing || !newListing.id || !newListing.author) {
         throw new Error("Anuncio malformado: faltan campos obligatorios.");
       }
 
-      // Ensure coordinates are valid if present
       if (
         newListing.coordinates &&
         (isNaN(newListing.coordinates.lat) || isNaN(newListing.coordinates.lng))
       ) {
-        console.warn(
-          "Invalid coordinates detected, removing them to prevent map crashes",
-        );
         delete newListing.coordinates;
       }
 
-      console.log("Adding new listing to state:", newListing);
-      await setDoc(doc(db, "listings", newListing.id), newListing);
+      const imgToCompress = newListing.headerImage || newListing.imageUrl;
+      if (imgToCompress && imgToCompress.startsWith("data:image")) {
+        try {
+          const compressed = await compressImage(imgToCompress, 800, 600, 0.6);
+          newListing.headerImage = compressed;
+          newListing.imageUrl = compressed;
+          newListing.images = [compressed];
+        } catch (e) {}
+      }
+
+      await setDoc(doc(db, "listings", newListing.id), newListing, { merge: true });
 
       setListings((prev) => {
-        if (!Array.isArray(prev)) return [newListing];
-        const exists = prev.some((l) => l.id === newListing.id);
-        if (exists) {
-          return prev.map((l) => (l.id === newListing.id ? newListing : l));
-        }
-        return [newListing, ...prev];
+        const list = !Array.isArray(prev)
+          ? [newListing]
+          : prev.some((l) => l.id === newListing.id)
+            ? prev.map((l) => (l.id === newListing.id ? newListing : l))
+            : [newListing, ...prev];
+        try {
+          localStorage.setItem("app_listings_cache", JSON.stringify(list));
+        } catch (e) {}
+        return list;
       });
     } catch (e) {
       console.error("Error adding listing:", e);
-      // We don't have a global setError in App, so we re-throw to be caught by CreateListing
       throw e;
     }
   };
@@ -26302,16 +26329,20 @@ function App() {
     ); // 30 days
 
     try {
-      await updateDoc(doc(db, "listings", id), {
-        status: "active",
-        expiresAt: expirationDate.toISOString(),
-      });
+      await setDoc(
+        doc(db, "listings", id),
+        {
+          status: "active",
+          expiresAt: expirationDate.toISOString(),
+        },
+        { merge: true }
+      );
     } catch (e) {
       console.error("Error reactivating listing in Firebase", e);
     }
 
-    setListings((prev) =>
-      prev.map((l) => {
+    setListings((prev) => {
+      const next = prev.map((l) => {
         if (l.id === id) {
           return {
             ...l,
@@ -26320,8 +26351,12 @@ function App() {
           };
         }
         return l;
-      }),
-    );
+      });
+      try {
+        localStorage.setItem("app_listings_cache", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
     setActiveToast({
       message: "Anuncio reactivado por 30 días.",
       type: "message",
@@ -26351,16 +26386,24 @@ function App() {
     }
 
     try {
-      await updateDoc(doc(db, "listings", id), {
-        status: "owner_deleted",
-      });
+      await setDoc(
+        doc(db, "listings", id),
+        { status: "owner_deleted" },
+        { merge: true }
+      );
     } catch (e) {
       console.error("Error deleting listing in Firebase", e);
     }
 
-    setListings((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, status: "owner_deleted" } : l))
-    );
+    setListings((prev) => {
+      const next = prev.map((l) =>
+        l.id === id ? { ...l, status: "owner_deleted" } : l
+      );
+      try {
+        localStorage.setItem("app_listings_cache", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
 
     setActiveToast({
       message: "Anuncio borrado correctamente.",
@@ -26377,19 +26420,41 @@ function App() {
   const updateListing = async (updated: JobListing) => {
     try {
       const { id, ...dataToUpdate } = updated;
+
+      const imgToCompress = dataToUpdate.headerImage || dataToUpdate.imageUrl;
+      if (imgToCompress && imgToCompress.startsWith("data:image")) {
+        try {
+          const compressed = await compressImage(imgToCompress, 800, 600, 0.6);
+          dataToUpdate.headerImage = compressed;
+          dataToUpdate.imageUrl = compressed;
+          dataToUpdate.images = [compressed];
+        } catch (e) {}
+      }
+
       await setDoc(doc(db, "listings", id), dataToUpdate as any, { merge: true });
-    } catch (e) {
+
+      setListings((prev) => {
+        const next = prev.map((l) =>
+          l.id === updated.id ? { ...l, ...updated, ...dataToUpdate } : l
+        );
+        try {
+          localStorage.setItem("app_listings_cache", JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      setActiveToast({
+        message: "Anuncio actualizado correctamente.",
+        type: "message",
+      });
+    } catch (e: any) {
       console.error("Error updating listing in Firebase", e);
+      setActiveToast({
+        message: "Error al guardar el anuncio en la base de datos.",
+        type: "alert",
+      });
+      throw e;
     }
-
-    setListings((prev) =>
-      prev.map((l) => (l.id === updated.id ? { ...l, ...updated } : l))
-    );
-
-    setActiveToast({
-      message: "Anuncio actualizado correctamente.",
-      type: "message",
-    });
   };
 
 
