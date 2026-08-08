@@ -24738,6 +24738,7 @@ const EditListingPage = ({
   const navigate = useNavigate();
   const [listing, setListing] = useState<JobListing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
