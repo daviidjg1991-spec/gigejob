@@ -5678,9 +5678,60 @@ const AdminPage = ({
     privacyPolicy: "",
     dataProtectionInfo: "",
   });
-  const [isSavingLegalDocs, setIsSavingLegalDocs] = useState(false);
-  const [appCategories, setAppCategories] = useState([...CATEGORIES]);
+  const [appCategories, setAppCategories] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem("app_categories");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [...CATEGORIES];
+  });
   const [newCategory, setNewCategory] = useState("");
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "categories"), (docSnap) => {
+      if (docSnap.exists() && Array.isArray(docSnap.data().list) && docSnap.data().list.length > 0) {
+        const list = docSnap.data().list as string[];
+        setAppCategories(list);
+        CATEGORIES.length = 0;
+        CATEGORIES.push(...list);
+        localStorage.setItem("app_categories", JSON.stringify(list));
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAddCategory = async () => {
+    const cat = newCategory.trim();
+    if (!cat || appCategories.includes(cat)) return;
+    const nextList = [...appCategories, cat];
+    setAppCategories(nextList);
+    CATEGORIES.length = 0;
+    CATEGORIES.push(...nextList);
+    localStorage.setItem("app_categories", JSON.stringify(nextList));
+    setNewCategory("");
+    try {
+      await setDoc(doc(db, "settings", "categories"), { list: nextList }, { merge: true });
+    } catch (err) {
+      console.error("Error saving category to Firestore", err);
+    }
+  };
+
+  const handleRemoveCategory = async (catToRemove: string) => {
+    const nextList = appCategories.filter((c) => c !== catToRemove);
+    setAppCategories(nextList);
+    CATEGORIES.length = 0;
+    CATEGORIES.push(...nextList);
+    localStorage.setItem("app_categories", JSON.stringify(nextList));
+    try {
+      await setDoc(doc(db, "settings", "categories"), { list: nextList }, { merge: true });
+    } catch (err) {
+      console.error("Error removing category from Firestore", err);
+    }
+  };
+
   const [footerConfig, setFooterConfig] = useState<FooterConfig>(() => {
     try {
       const cached = localStorage.getItem("app_footerConfig");
@@ -7591,26 +7642,14 @@ const AdminPage = ({
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && newCategory.trim()) {
-                            const cat = newCategory.trim();
-                            if (!appCategories.includes(cat)) {
-                              setAppCategories([...appCategories, cat]);
-                              CATEGORIES.push(cat);
-                            }
-                            setNewCategory("");
+                          if (e.key === "Enter") {
+                            handleAddCategory();
                           }
                         }}
                       />
                       <button
                         className="px-4 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-sm flex-shrink-0"
-                        onClick={() => {
-                          const cat = newCategory.trim();
-                          if (cat && !appCategories.includes(cat)) {
-                            setAppCategories([...appCategories, cat]);
-                            CATEGORIES.push(cat);
-                            setNewCategory("");
-                          }
-                        }}
+                        onClick={handleAddCategory}
                       >
                         Añadir
                       </button>
@@ -7626,13 +7665,7 @@ const AdminPage = ({
                           </span>
                           <button
                             className="p-1 rounded-full hover:bg-red-50 text-on-surface-variant hover:text-red-500 transition-colors"
-                            onClick={() => {
-                              setAppCategories(
-                                appCategories.filter((c) => c !== cat),
-                              );
-                              const idx = CATEGORIES.indexOf(cat);
-                              if (idx > -1) CATEGORIES.splice(idx, 1);
-                            }}
+                            onClick={() => handleRemoveCategory(cat)}
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -25697,9 +25730,35 @@ function App() {
       }
     };
     window.addEventListener("admin-updated-user", handleAdminUserUpdate);
-    return () =>
-      window.removeEventListener("admin-updated-user", handleAdminUserUpdate);
   }, [user]);
+
+  const [categoriesState, setCategoriesState] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem("app_categories");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          CATEGORIES.length = 0;
+          CATEGORIES.push(...parsed);
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [...CATEGORIES];
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "categories"), (docSnap) => {
+      if (docSnap.exists() && Array.isArray(docSnap.data().list) && docSnap.data().list.length > 0) {
+        const list = docSnap.data().list as string[];
+        CATEGORIES.length = 0;
+        CATEGORIES.push(...list);
+        setCategoriesState([...list]);
+        localStorage.setItem("app_categories", JSON.stringify(list));
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const userRef = useRef<UserProfile | null>(user);
   useEffect(() => {
