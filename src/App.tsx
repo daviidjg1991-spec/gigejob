@@ -13817,7 +13817,7 @@ const HomePage = ({
         </div>
       </div>
 
-      <div className="sticky top-0 lg:top-16 z-40 lg:z-50 bg-white/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 lg:pb-4 lg:pt-4 border-b border-outline-variant/10 shadow-sm lg:hidden">
+      <div className="bg-white/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 lg:pb-4 lg:pt-4 border-b border-outline-variant/10 shadow-sm lg:hidden relative z-10">
         <div className="max-w-3xl mx-auto w-full flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate('/explorar')}
@@ -14087,7 +14087,7 @@ const ExplorePage = ({
   return (
     <div className="min-h-screen bg-surface pb-32 relative shrink-0">
       {/* Filter Bar - Top Position */}
-      <div className="lg:sticky lg:top-20 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 py-6">
+      <div className="bg-surface border-b border-outline-variant/10 py-6 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             {/* Left: Filter button */}
