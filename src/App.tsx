@@ -252,6 +252,7 @@ import { db, auth, storage } from "./lib/firebase";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
+import { CookieBanner } from "./components/CookieBanner";
 import {
   AreaChart,
   Area,
@@ -27613,6 +27614,7 @@ function App() {
           onClose={() => setIsCalendarModalOpen(false)} 
           user={user} 
         />
+        <CookieBanner />
       </div>
     </ReportContext.Provider>
   );

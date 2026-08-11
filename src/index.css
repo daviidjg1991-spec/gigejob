@@ -27,8 +27,19 @@
   
   --color-warning: #f59e0b;
   --color-error: #dc2626;
-  --color-error-container: #fee2e2;
 }
+
+:root {
+  /* Variables de la barra emergente de cookies (personalizables) */
+  --cookie-banner-bg: #ffffff;
+  --cookie-banner-text: #2c2f30;
+  --cookie-btn-primary-bg: #00675b;
+  --cookie-btn-primary-text: #ffffff;
+  --cookie-btn-secondary-bg: #e5e9e9;
+  --cookie-btn-secondary-text: #2c2f30;
+  --cookie-banner-font: "Inter", sans-serif;
+}
+
 
 @layer base {
   html, body, #root {
