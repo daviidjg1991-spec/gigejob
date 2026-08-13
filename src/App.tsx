@@ -22686,7 +22686,7 @@ const AuthPage = ({
           const authResult = await FirebaseAuthentication.signInWithApple();
           const credential = new OAuthProvider('apple.com').credential({
             idToken: authResult.credential?.idToken,
-            rawNonce: authResult.credential?.rawNonce,
+            rawNonce: (authResult.credential as any)?.rawNonce,
           });
           const result = await signInWithCredential(auth, credential);
           user = result.user;
