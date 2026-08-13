@@ -6979,6 +6979,7 @@ const AdminPage = ({
                   <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Total Facturado</th>
                   <th className="px-2 lg:px-4 py-3 hidden lg:table-cell">Última contratación</th>
                   <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Fecha Publicación</th>
+                  <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Última activación</th>
                   <th className="px-2 lg:px-4 py-3">Estado</th>
                   <th className="px-2 lg:px-4 py-3">Reservas</th>
                 </tr>
@@ -7001,7 +7002,58 @@ const AdminPage = ({
                       const listingTotalBilled = bookings
                         .filter((b: any) => b.listingId === l.id && (b.status === "accepted" || b.status === "completed"))
                         .reduce((sum: number, b: any) => sum + (Number(b.totalAmount || b.totalCost || b.price) || 0), 0);
-                      
+
+                      // Compute "Última contratación": date when the request was sent for the last accepted booking
+                      const acceptedListingBookings = bookings.filter((b: any) => {
+                        const matchesListing = b.listingId === l.id || 
+                          (b.listingTitle === l.title && (b.professionalId === l.author?.id || b.professionalId === l.author?.email));
+                        return matchesListing && (b.status === "accepted" || b.status === "completed");
+                      });
+
+                      const getBookingRequestTime = (b: any): number => {
+                        const ts = b.createdAt || b.createdAtDate;
+                        if (!ts) return 0;
+                        if (typeof ts === "number") return ts;
+                        if (ts.seconds) return ts.seconds * 1000;
+                        if (ts.toDate && typeof ts.toDate === "function") return ts.toDate().getTime();
+                        const parsed = new Date(ts).getTime();
+                        return isNaN(parsed) ? 0 : parsed;
+                      };
+
+                      let lastHiringFormatted = "-";
+                      if (acceptedListingBookings.length > 0) {
+                        acceptedListingBookings.sort((a: any, b: any) => getBookingRequestTime(b) - getBookingRequestTime(a));
+                        const reqTime = getBookingRequestTime(acceptedListingBookings[0]);
+                        if (reqTime > 0) {
+                          lastHiringFormatted = new Date(reqTime).toLocaleDateString("es-ES");
+                        }
+                      } else if (l.lastBooked) {
+                        const fallbackTime = l.lastBooked.seconds ? l.lastBooked.seconds * 1000 : new Date(l.lastBooked).getTime();
+                        if (!isNaN(fallbackTime) && fallbackTime > 0) {
+                          lastHiringFormatted = new Date(fallbackTime).toLocaleDateString("es-ES");
+                        }
+                      }
+
+                      // Compute "Última activación": date when the listing was reactivated after expiring
+                      const getTimestampMs = (ts: any): number => {
+                        if (!ts) return 0;
+                        if (typeof ts === "number") return ts;
+                        if (ts.seconds) return ts.seconds * 1000;
+                        if (ts.toDate && typeof ts.toDate === "function") return ts.toDate().getTime();
+                        const parsed = new Date(ts).getTime();
+                        return isNaN(parsed) ? 0 : parsed;
+                      };
+
+                      const pubTimeMs = getTimestampMs(l.publishedAt || l.createdAt);
+                      const reactivatedTimeMs = getTimestampMs(l.reactivatedAt);
+
+                      let lastReactivationFormatted = "-";
+                      if (reactivatedTimeMs > 0 && pubTimeMs > 0 && (reactivatedTimeMs - pubTimeMs > 60000)) {
+                        lastReactivationFormatted = new Date(reactivatedTimeMs).toLocaleDateString("es-ES");
+                      } else if (reactivatedTimeMs > 0 && pubTimeMs === 0) {
+                        lastReactivationFormatted = new Date(reactivatedTimeMs).toLocaleDateString("es-ES");
+                      }
+
                       return (
                       <React.Fragment key={l.id}>
                         <tr
@@ -7020,13 +7072,7 @@ const AdminPage = ({
                             {listingTotalBilled}€
                           </td>
                           <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden lg:table-cell">
-                            {l.lastBooked
-                              ? new Date(
-                                  l.lastBooked.seconds
-                                    ? l.lastBooked.seconds * 1000
-                                    : l.lastBooked,
-                                ).toLocaleDateString()
-                              : "N/A"}
+                            {lastHiringFormatted}
                           </td>
                           <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
                             {l.createdAt
@@ -7034,8 +7080,11 @@ const AdminPage = ({
                                   l.createdAt.seconds
                                     ? l.createdAt.seconds * 1000
                                     : l.createdAt,
-                                ).toLocaleDateString()
+                                ).toLocaleDateString("es-ES")
                               : "N/A"}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
+                            {lastReactivationFormatted}
                           </td>
                           <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-medium">
                             <select
@@ -21353,7 +21402,6 @@ const CreateListing = ({
           `https://picsum.photos/seed/${Math.random()}/800/600`,
         createdAt: creationDate.toISOString(),
         publishedAt: creationDate.toISOString(),
-        reactivatedAt: creationDate.toISOString(),
         expiresAt: expirationDate.toISOString(),
         status: "active",
         tags: tagsString
