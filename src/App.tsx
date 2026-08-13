@@ -274,6 +274,7 @@ import {
   signInWithCredential,
   GoogleAuthProvider,
   FacebookAuthProvider,
+  OAuthProvider,
   updateEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
@@ -22667,14 +22668,9 @@ const AuthPage = ({
     }
   };
 
-  const handleSocialLogin = async (providerName: "google" | "facebook") => {
+  const handleSocialLogin = async (providerName: "google" | "facebook" | "apple") => {
     setErrors({});
     try {
-      const provider =
-        providerName === "google"
-          ? new GoogleAuthProvider()
-          : new FacebookAuthProvider();
-
       let user: any;
       const isMobileWeb = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
@@ -22684,14 +22680,42 @@ const AuthPage = ({
         const credential = GoogleAuthProvider.credential(authResult.credential?.idToken);
         const result = await signInWithCredential(auth, credential);
         user = result.user;
+      } else if (Capacitor.isNativePlatform() && providerName === "apple") {
+        try {
+          const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+          const authResult = await FirebaseAuthentication.signInWithApple();
+          const credential = new OAuthProvider('apple.com').credential({
+            idToken: authResult.credential?.idToken,
+            rawNonce: authResult.credential?.rawNonce,
+          });
+          const result = await signInWithCredential(auth, credential);
+          user = result.user;
+        } catch (nativeErr: any) {
+          console.warn("Native Apple Sign-In fallback:", nativeErr);
+          const provider = new OAuthProvider("apple.com");
+          await signInWithRedirect(auth, provider);
+          return;
+        }
       } else if (Capacitor.isNativePlatform() && providerName === "facebook") {
+        const provider = new FacebookAuthProvider();
         await signInWithRedirect(auth, provider);
         return;
       } else if (isMobileWeb) {
-        // On mobile web view, popup windows are restricted or throw domain/popup errors; use redirect
+        const provider =
+          providerName === "google"
+            ? new GoogleAuthProvider()
+            : providerName === "apple"
+            ? new OAuthProvider("apple.com")
+            : new FacebookAuthProvider();
         await signInWithRedirect(auth, provider);
         return;
       } else {
+        const provider =
+          providerName === "google"
+            ? new GoogleAuthProvider()
+            : providerName === "apple"
+            ? new OAuthProvider("apple.com")
+            : new FacebookAuthProvider();
         try {
           const result = await signInWithPopup(auth, provider);
           user = result.user;
@@ -23101,6 +23125,22 @@ const AuthPage = ({
                       Google
                     </span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSocialLogin("apple")}
+                    className="flex items-center justify-center gap-3 w-full py-5 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-neutral-800 hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all group"
+                  >
+                    <svg
+                      className="w-5 h-5 fill-current group-hover:scale-110 transition-transform"
+                      viewBox="0 0 170 170"
+                    >
+                      <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.17-1.92-14.49-6.14-3.32-2.6-7.22-7.22-11.71-13.88-6.19-9.17-11.13-19.5-14.81-30.98-3.68-11.48-5.52-22.18-5.52-32.1 0-14.54 3.73-26.4 11.19-35.58 7.46-9.18 16.7-13.84 27.72-13.98 4.79 0 9.87 1.17 15.24 3.51 5.37 2.34 9.21 3.51 11.53 3.51 2.09 0 6.04-1.22 11.85-3.66 5.8-2.44 10.63-3.6 14.48-3.48 10.49.62 19.33 4.54 26.52 11.76-9.49 5.74-14.12 13.91-13.89 24.51.24 8.09 3.32 15.02 9.24 20.78 5.92 5.76 13.1 9.07 21.54 9.93-2.19 6.44-4.8 12.6-7.83 18.48zm-29.27-104.91c0 6.08-2.28 11.83-6.84 17.25-4.56 5.42-10.22 8.78-16.98 10.08-.24-1.46-.36-2.73-.36-3.81 0-6.14 2.45-12.04 7.35-17.7 4.9-5.66 10.74-9 17.52-10.02.12 1.4.31 2.8.31 4.2z" />
+                    </svg>
+                    <span className="text-[10px] font-black uppercase tracking-widest">
+                      iOS / Apple
+                    </span>
+                  </button>
                 </div>
 
                 {errors.login && (
@@ -23251,7 +23291,7 @@ const AuthPage = ({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4">
                           <button
                             type="button"
                             onClick={() => handleSocialLogin("google")}
@@ -23267,6 +23307,21 @@ const AuthPage = ({
                             </span>
                           </button>
 
+                          <button
+                            type="button"
+                            onClick={() => handleSocialLogin("apple")}
+                            className="flex items-center justify-center gap-3 py-4 px-6 bg-black text-white hover:bg-neutral-800 rounded-2xl transition-all group"
+                          >
+                            <svg
+                              className="w-5 h-5 fill-current group-hover:scale-110 transition-transform"
+                              viewBox="0 0 170 170"
+                            >
+                              <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.34.13-9.17-1.92-14.49-6.14-3.32-2.6-7.22-7.22-11.71-13.88-6.19-9.17-11.13-19.5-14.81-30.98-3.68-11.48-5.52-22.18-5.52-32.1 0-14.54 3.73-26.4 11.19-35.58 7.46-9.18 16.7-13.84 27.72-13.98 4.79 0 9.87 1.17 15.24 3.51 5.37 2.34 9.21 3.51 11.53 3.51 2.09 0 6.04-1.22 11.85-3.66 5.8-2.44 10.63-3.6 14.48-3.48 10.49.62 19.33 4.54 26.52 11.76-9.49 5.74-14.12 13.91-13.89 24.51.24 8.09 3.32 15.02 9.24 20.78 5.92 5.76 13.1 9.07 21.54 9.93-2.19 6.44-4.8 12.6-7.83 18.48zm-29.27-104.91c0 6.08-2.28 11.83-6.84 17.25-4.56 5.42-10.22 8.78-16.98 10.08-.24-1.46-.36-2.73-.36-3.81 0-6.14 2.45-12.04 7.35-17.7 4.9-5.66 10.74-9 17.52-10.02.12 1.4.31 2.8.31 4.2z" />
+                            </svg>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                              Apple / iOS
+                            </span>
+                          </button>
                         </div>
                       </>
                     )}
