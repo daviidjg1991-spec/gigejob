@@ -165,6 +165,8 @@ export interface UserProfile {
   isVerified?: boolean;
   emailVerified?: boolean;
   recommendationsCount?: number;
+  referredBy?: string;
+  recommendationRegistrationsCount?: number;
   documents?: {
     name: string;
     status: string;

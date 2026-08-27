@@ -6657,6 +6657,9 @@ const AdminPage = ({
                     Promo
                   </th>
                   <th className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                    Recomendaciones
+                  </th>
+                  <th className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
                     Permisos
                   </th>
                 </tr>
@@ -6913,6 +6916,31 @@ const AdminPage = ({
                             <Minus className="w-4 h-4" />
                           </span>
                         )}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                        {(() => {
+                          const regCount = users.filter(
+                            (otherUser) =>
+                              otherUser.referredBy &&
+                              (otherUser.referredBy === u.id ||
+                                (u.customId && otherUser.referredBy === u.customId) ||
+                                (u.email && otherUser.referredBy === u.email))
+                          ).length;
+                          const totalRegs = Math.max(regCount, u.recommendationRegistrationsCount || 0);
+
+                          return (
+                            <span
+                              className={`inline-flex max-w-fit items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                                totalRegs > 0
+                                  ? "bg-primary/10 text-primary"
+                                  : "text-on-surface-variant/40"
+                              }`}
+                              title={`${totalRegs} usuarios registrados mediante recomendación`}
+                            >
+                              {totalRegs}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
                         {u.acceptPromotions ? (
@@ -17182,6 +17210,8 @@ const ProfilePage = ({
     const targetUserId = isOwnProfile ? user?.id : profileUser?.id || id;
 
     if (refParam && targetUserId) {
+      localStorage.setItem("gigejob_referred_by", targetUserId);
+
       const sessionKey = `rec_tracked_${targetUserId}`;
       if (!sessionStorage.getItem(sessionKey)) {
         sessionStorage.setItem(sessionKey, "true");
@@ -22633,6 +22663,7 @@ const AuthPage = ({
       const firebaseUid = userCredential.user.uid;
 
       let hasClaimedPromo = false;
+      const referredBy = localStorage.getItem("gigejob_referred_by") || undefined;
 
       const finalUser: UserProfile = {
         id: firebaseUid,
@@ -22649,6 +22680,7 @@ const AuthPage = ({
         acceptPromotions,
         acceptTerms,
         hasClaimedPromotion: hasClaimedPromo,
+        ...(referredBy ? { referredBy } : {}),
         settings: {
           smartSuggestions: true,
           locationRadius: 15,
@@ -22668,6 +22700,18 @@ const AuthPage = ({
       }
 
       await setDoc(doc(db, "users", firebaseUid), finalUser);
+
+      if (referredBy) {
+        try {
+          const referrerRef = doc(db, "users", referredBy);
+          await updateDoc(referrerRef, {
+            recommendationRegistrationsCount: increment(1),
+          });
+          localStorage.removeItem("gigejob_referred_by");
+        } catch (err) {
+          console.error("Error updating referrer count:", err);
+        }
+      }
 
       try {
         if (auth.currentUser) {
@@ -22856,6 +22900,8 @@ const AuthPage = ({
           }
         }
 
+        const referredBy = localStorage.getItem("gigejob_referred_by") || undefined;
+
         finalUserData = {
           id: user.uid,
           username:
@@ -22880,6 +22926,7 @@ const AuthPage = ({
           photoUrl:
             user.photoURL ||
             `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+          ...(referredBy ? { referredBy } : {}),
           settings: {
             smartSuggestions: true,
             locationRadius: 15,
@@ -22893,6 +22940,19 @@ const AuthPage = ({
         sessionStorage.setItem("is_first_login_session", "true");
         // Always ensure the user doc exists for new users (google/facebook sign in)
         await setDoc(doc(db, "users", user.uid), finalUserData, { merge: true });
+
+        const referredBy = (finalUserData as any).referredBy;
+        if (referredBy) {
+          try {
+            const referrerRef = doc(db, "users", referredBy);
+            await updateDoc(referrerRef, {
+              recommendationRegistrationsCount: increment(1),
+            });
+            localStorage.removeItem("gigejob_referred_by");
+          } catch (err) {
+            console.error("Error updating referrer count:", err);
+          }
+        }
       }
 
       setUser(finalUserData);
