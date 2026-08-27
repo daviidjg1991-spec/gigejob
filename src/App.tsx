@@ -14136,6 +14136,15 @@ const HomePage = ({
       </div>
       <div className="h-20 shrink-0 w-full lg:hidden block" aria-hidden="true" />
     </div>
+    <PermissionModal
+      isOpen={isLocationModalOpen}
+      type="location"
+      onConfirm={handleConfirmLocationPermission}
+      onCancel={() => {
+        setIsLocationModalOpen(false);
+        localStorage.setItem("GigeJob_location_prompted", "true");
+      }}
+    />
     </>
   );
 };
@@ -14643,16 +14652,6 @@ const ExplorePage = ({
           </div>
         )}
       </div>
-
-      <PermissionModal
-        isOpen={isLocationModalOpen}
-        type="location"
-        onConfirm={handleConfirmLocationPermission}
-        onCancel={() => {
-          setIsLocationModalOpen(false);
-          localStorage.setItem("GigeJob_location_prompted", "true");
-        }}
-      />
     </div>
   );
 };
