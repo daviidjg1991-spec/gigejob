@@ -17446,8 +17446,8 @@ const ProfilePage = ({
                 </div>
               </div>
 
-              {/* Botón RECOMENDAR con enlace personalizado y contador */}
-              <div className="mb-8 sm:mb-10 text-center space-y-2">
+              {/* Botón RECOMENDAR con enlace personalizado */}
+              <div className="mb-8 sm:mb-10 text-center">
                 <button
                   type="button"
                   onClick={handleRecommendClick}
@@ -17465,14 +17465,6 @@ const ProfilePage = ({
                     </>
                   )}
                 </button>
-                {recommendationsCount > 0 && (
-                  <p className="text-[10px] sm:text-xs text-on-surface-variant/50 font-medium pt-1">
-                    {recommendationsCount}{" "}
-                    {recommendationsCount === 1
-                      ? "persona ha accedido por recomendación"
-                      : "personas han accedido por recomendación"}
-                  </p>
-                )}
               </div>
 
               {(isOwnProfile
