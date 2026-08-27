@@ -4773,7 +4773,8 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
                 userRangeEnd: 100,
                 planDurationMonths: 12,
                 planType: "Premium Pro",
-                targetAudience: "professional"
+                targetAudience: "professional",
+                minRecommendations: 0
               });
               setEditingPromoId("new");
             }}
@@ -4797,10 +4798,18 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">{promo.name || "Promoción"}</h3>
-                    <p className="text-sm text-on-surface-variant flex items-center gap-2 mt-1">
+                    <p className="text-sm text-on-surface-variant flex flex-wrap items-center gap-2 mt-1">
                       <Users className="w-4 h-4" /> {claimedUsersCount} / {promo.userRangeEnd - promo.userRangeStart + 1} usuarios (Rango: {promo.userRangeStart} - {promo.userRangeEnd})
-                      <span className="mx-2">•</span>
+                      <span className="mx-1">•</span>
                       <Crown className="w-4 h-4" /> {promo.planType} ({promo.planDurationMonths} meses)
+                      {promo.minRecommendations > 0 && (
+                        <>
+                          <span className="mx-1">•</span>
+                          <span className="inline-flex items-center gap-1 font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full text-xs">
+                            <Share2 className="w-3.5 h-3.5" /> Mín. {promo.minRecommendations} recomendaciones
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -4911,6 +4920,26 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
                 <option value="user">Solo Particulares</option>
                 <option value="both">Ambos (Profesionales y Particulares)</option>
               </select>
+
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Recomendaciones Mínimas Requeridas
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.minRecommendations || 0}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    minRecommendations: Math.max(0, parseInt(e.target.value) || 0),
+                  })
+                }
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mb-1"
+                placeholder="0 (Sin mínimo)"
+              />
+              <p className="text-[10px] text-on-surface-variant/60 mb-4">
+                Número de usuarios registrados por recomendación (columna Recomendaciones) que debe alcanzar el usuario para desbloquear esta promoción.
+              </p>
 
               <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
                 Tipo de Plan
@@ -10126,9 +10155,22 @@ const SettingsView = ({
           if (promoConfigSnap.exists()) {
             const promoConfig = promoConfigSnap.data();
             if (promoConfig.promotions) {
-              const activePromo = promoConfig.promotions.find((p: any) => p.isActive && (p.targetAudience === "user" || p.targetAudience === "both"));
+              const usersSnap = await getDocs(collection(db, "users"));
+              const userRecs = usersSnap.docs.filter((d: any) => {
+                const uData = d.data();
+                return uData?.referredBy && (uData.referredBy === user.id || (user.customId && uData.referredBy === user.customId) || (user.email && uData.referredBy === user.email));
+              }).length || (user.recommendationRegistrationsCount || 0);
+
+              const activePromo = promoConfig.promotions.find((p: any) => {
+                if (!p.isActive) return false;
+                const matchesAudience = p.targetAudience === "user" || p.targetAudience === "both";
+                if (!matchesAudience) return false;
+                if (p.minRecommendations && p.minRecommendations > 0 && userRecs < p.minRecommendations) {
+                  return false;
+                }
+                return true;
+              });
               if (activePromo) {
-                const usersSnap = await getDocs(collection(db, "users"));
                 const claimedUsersCount = usersSnap.docs.filter((d: any) => {
                   const u = d.data();
                   return u.hasClaimedPromotion && (u.claimedPromotionId === activePromo.id || activePromo.id === "default");
@@ -21558,7 +21600,21 @@ const CreateListing = ({
           if (promoConfigSnap.exists()) {
             const promoConfig = promoConfigSnap.data();
             if (promoConfig.promotions) {
-              const activePromo = promoConfig.promotions.find((p: any) => p.isActive && (p.targetAudience === "professional" || p.targetAudience === "both" || !p.targetAudience));
+              const usersSnap = await getDocs(collection(db, "users"));
+              const userRecs = usersSnap.docs.filter((d: any) => {
+                const uData = d.data();
+                return uData?.referredBy && (uData.referredBy === user.id || (user.customId && uData.referredBy === user.customId) || (user.email && uData.referredBy === user.email));
+              }).length || (user.recommendationRegistrationsCount || 0);
+
+              const activePromo = promoConfig.promotions.find((p: any) => {
+                if (!p.isActive) return false;
+                const matchesAudience = p.targetAudience === "professional" || p.targetAudience === "both" || !p.targetAudience;
+                if (!matchesAudience) return false;
+                if (p.minRecommendations && p.minRecommendations > 0 && userRecs < p.minRecommendations) {
+                  return false;
+                }
+                return true;
+              });
               if (activePromo) {
                 const usersSnap = await getDocs(collection(db, "users"));
                 const claimedUsersCount = usersSnap.docs.filter((d: any) => {
