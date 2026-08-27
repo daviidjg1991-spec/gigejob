@@ -13985,6 +13985,7 @@ const HomePage = ({
 
   const filteredListings = useMemo(() => {
     if (!Array.isArray(listings)) return [];
+    const blockedList = Array.isArray(user?.blockedUsers) ? user.blockedUsers : [];
     return listings.filter((l) => {
       if (
         !l ||
@@ -13994,6 +13995,9 @@ const HomePage = ({
         !l.author
       )
         return false;
+      if (blockedList.length > 0 && l.author && (blockedList.includes(l.author.id) || (l.author.email && blockedList.includes(l.author.email)))) {
+        return false;
+      }
       const matchesSearch = isSearchMatch(search, l);
       const matchesTab = activeTab === "all" || l.type === activeTab;
       const matchesCategory =
@@ -14012,7 +14016,7 @@ const HomePage = ({
       const dateB = new Date(b.createdAt || 0).getTime();
       return dateB - dateA;
     });
-  }, [listings, search, activeTab, selectedCategory, userLocation]);
+  }, [listings, search, activeTab, selectedCategory, userLocation, user?.blockedUsers]);
 
   const popularCategories = [
     { name: "Limpieza", icon: Sparkles, color: "bg-primary/5 text-primary" },
@@ -14280,6 +14284,7 @@ const ExplorePage = ({
 
   const filteredListings = useMemo(() => {
     if (!Array.isArray(listings)) return [];
+    const blockedList = Array.isArray(user?.blockedUsers) ? user.blockedUsers : [];
     return listings.filter((l) => {
       if (
         !l ||
@@ -14289,6 +14294,9 @@ const ExplorePage = ({
         !l.author
       )
         return false;
+      if (blockedList.length > 0 && l.author && (blockedList.includes(l.author.id) || (l.author.email && blockedList.includes(l.author.email)))) {
+        return false;
+      }
       if (l.status && l.status !== 'active') return false;
       
       const matchesType = type === "all" || l.type === type;
@@ -16367,12 +16375,13 @@ const ListingDetail = ({
     ? user.professionalInfo?.availability || listing.availability
     : listing.availability;
 
-  const displayGallery = isOwnListing
-    ? user.gallery || listing.author?.gallery
-    : listing.author?.gallery;
+  const rawGallery = isOwnListing
+    ? (Array.isArray(user?.gallery) ? user.gallery : Array.isArray(listing.author?.gallery) ? listing.author.gallery : [])
+    : (Array.isArray(listing.author?.gallery) ? listing.author.gallery : []);
 
-  const filteredGallery =
-    displayGallery?.filter((p) => p.category === listing.category) || [];
+  const displayGallery = Array.isArray(rawGallery) ? rawGallery : [];
+
+  const filteredGallery = displayGallery.filter((p) => p && typeof p === "object" && p.category === listing.category);
 
   return (
     <div className="w-full bg-surface">
@@ -17941,15 +17950,16 @@ const ProfilePage = ({
                   </div>
 
                   {(() => {
-                    const gallery = isOwnProfile
-                      ? user?.gallery || fetchedGallery
-                      : fetchedGallery;
+                    const rawGallery = isOwnProfile
+                      ? (Array.isArray(user?.gallery) ? user.gallery : Array.isArray(fetchedGallery) ? fetchedGallery : [])
+                      : (Array.isArray(fetchedGallery) ? fetchedGallery : []);
+                    const gallery = Array.isArray(rawGallery) ? rawGallery : [];
                     const filteredGallery =
                       galleryFilter === "all"
                         ? gallery
-                        : gallery?.filter((p: any) => p.category === galleryFilter);
+                        : gallery.filter((p: any) => p && typeof p === "object" && p.category === galleryFilter);
 
-                    return filteredGallery?.length > 0 ? (
+                    return Array.isArray(filteredGallery) && filteredGallery.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
                         {filteredGallery.map((photo: any, i: number) => (
                           <div
@@ -19880,18 +19890,21 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           // 24h filter removed per user request
 
           // Filter out conversations with blocked users
-          if (user?.blockedUsers && user.blockedUsers.length > 0) {
-            convs = convs.filter((chat: any) => {
+          const blockedList = Array.isArray(user?.blockedUsers) ? user.blockedUsers : [];
+          if (blockedList.length > 0) {
+            convs = (Array.isArray(convs) ? convs : []).filter((chat: any) => {
+              if (!chat || !Array.isArray(chat.participants)) return false;
               const otherId = chat.participants.find(
                 (p: string) => p !== firebaseUser.uid,
               );
-              return !user.blockedUsers!.includes(otherId);
+              return otherId ? !blockedList.includes(otherId) : true;
             });
           }
 
           // Filter out conversations deleted by the current user
-          convs = convs.filter((chat: any) => {
-            return !chat.deletedBy?.includes(firebaseUser.uid);
+          convs = (Array.isArray(convs) ? convs : []).filter((chat: any) => {
+            if (!chat) return false;
+            return !Array.isArray(chat.deletedBy) || !chat.deletedBy.includes(firebaseUser.uid);
           });
 
           console.log(
@@ -26414,11 +26427,12 @@ function App() {
             const data = doc.data();
 
             // Filter out conversations with blocked users
-            if (currentUser?.blockedUsers && currentUser.blockedUsers.length > 0) {
-              const otherId = data.participants?.find(
-                (p: string) => p !== firebaseUser.uid,
-              );
-              if (otherId && currentUser.blockedUsers.includes(otherId)) {
+            const blockedList = Array.isArray(currentUser?.blockedUsers) ? currentUser.blockedUsers : [];
+            if (blockedList.length > 0) {
+              const otherId = Array.isArray(data?.participants)
+                ? data.participants.find((p: string) => p !== firebaseUser.uid)
+                : null;
+              if (otherId && blockedList.includes(otherId)) {
                 return;
               }
             }
