@@ -164,6 +164,7 @@ export interface UserProfile {
   banReason?: string;
   isVerified?: boolean;
   emailVerified?: boolean;
+  recommendationsCount?: number;
   documents?: {
     name: string;
     status: string;

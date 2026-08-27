@@ -17069,6 +17069,7 @@ const ProfilePage = ({
 }) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { openReportModal } = React.useContext(ReportContext);
   const [activeTab, setActiveTab] = useState<
     "listings" | "stats" | "wallet" | "gallery" | "reviews" | "notifications"
@@ -17150,6 +17151,78 @@ const ProfilePage = ({
       : (profileUser?.rating || 0) > 0
         ? Number(profileUser?.rating).toFixed(1)
         : "0.0";
+  const [copiedRecommendLink, setCopiedRecommendLink] = useState(false);
+  const [recommendationsCount, setRecommendationsCount] = useState<number>(0);
+
+  useEffect(() => {
+    const targetUserId = isOwnProfile ? user?.id : profileUser?.id || id;
+    if (!targetUserId) return;
+
+    const userRef = doc(db, "users", targetUserId);
+    const unsub = onSnapshot(
+      userRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setRecommendationsCount(docSnap.data().recommendationsCount || 0);
+        } else {
+          setRecommendationsCount((profileUser as any)?.recommendationsCount || 0);
+        }
+      },
+      (err) => {
+        console.error("Error fetching user recommendations count:", err);
+        setRecommendationsCount((profileUser as any)?.recommendationsCount || 0);
+      }
+    );
+
+    return () => unsub();
+  }, [isOwnProfile, user?.id, profileUser?.id, id]);
+
+  useEffect(() => {
+    const refParam = searchParams.get("ref");
+    const targetUserId = isOwnProfile ? user?.id : profileUser?.id || id;
+
+    if (refParam && targetUserId) {
+      const sessionKey = `rec_tracked_${targetUserId}`;
+      if (!sessionStorage.getItem(sessionKey)) {
+        sessionStorage.setItem(sessionKey, "true");
+        const userRef = doc(db, "users", targetUserId);
+        updateDoc(userRef, {
+          recommendationsCount: increment(1),
+        }).catch((err) => {
+          console.error("Error incrementing recommendation count:", err);
+        });
+      }
+    }
+  }, [searchParams, isOwnProfile, user?.id, profileUser?.id, id]);
+
+  const handleRecommendClick = async () => {
+    const targetUserId = isOwnProfile ? user?.id : profileUser?.id || id;
+    if (!targetUserId) return;
+
+    const link = `${window.location.origin}/perfil/${targetUserId}?ref=${user?.id || "rec"}`;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedRecommendLink(true);
+      setTimeout(() => setCopiedRecommendLink(false), 3000);
+    } catch (err) {
+      console.error("Error copying link:", err);
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Perfil de ${profileName} en Gigejob`,
+          text: `¡Mira el perfil de ${profileName} en Gigejob!`,
+          url: link,
+        });
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Error sharing:", err);
+        }
+      }
+    }
+  };
 
   const handleProfilePhotoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -17354,7 +17427,7 @@ const ProfilePage = ({
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-8 sm:mb-10">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
                 <div className="bg-surface-container-low/50 p-4 sm:p-5 rounded-2xl sm:rounded-3xl">
                   <p className="text-xl sm:text-2xl font-display font-black text-on-surface">
                     {realRating}
@@ -17371,6 +17444,39 @@ const ProfilePage = ({
                     Anuncios
                   </p>
                 </div>
+              </div>
+
+              {/* Botón RECOMENDAR con enlace personalizado y contador */}
+              <div className="mb-8 sm:mb-10 bg-gradient-to-r from-primary/10 via-primary/5 to-surface-container-low p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-primary/20 text-center space-y-3 shadow-sm">
+                <div className="flex items-center justify-center gap-2">
+                  <Share2 className="w-4 h-4 text-primary" />
+                  <span className="text-xs sm:text-sm font-black text-on-surface uppercase tracking-wider">
+                    Recomendar usuario
+                  </span>
+                </div>
+                <p className="text-[10px] sm:text-xs text-on-surface-variant/70 font-medium">
+                  {recommendationsCount}{" "}
+                  {recommendationsCount === 1
+                    ? "persona ha accedido mediante recomendación"
+                    : "personas han accedido mediante recomendación"}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRecommendClick}
+                  className="w-full py-3 px-4 rounded-xl sm:rounded-2xl primary-gradient text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                  {copiedRecommendLink ? (
+                    <>
+                      <Check className="w-4 h-4 text-white" />
+                      ¡ENLACE COPIADO!
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4 text-white" />
+                      RECOMENDAR
+                    </>
+                  )}
+                </button>
               </div>
 
               {(isOwnProfile
