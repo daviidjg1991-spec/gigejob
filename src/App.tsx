@@ -17447,36 +17447,32 @@ const ProfilePage = ({
               </div>
 
               {/* Botón RECOMENDAR con enlace personalizado y contador */}
-              <div className="mb-8 sm:mb-10 bg-gradient-to-r from-primary/10 via-primary/5 to-surface-container-low p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-primary/20 text-center space-y-3 shadow-sm">
-                <div className="flex items-center justify-center gap-2">
-                  <Share2 className="w-4 h-4 text-primary" />
-                  <span className="text-xs sm:text-sm font-black text-on-surface uppercase tracking-wider">
-                    Recomendar usuario
-                  </span>
-                </div>
-                <p className="text-[10px] sm:text-xs text-on-surface-variant/70 font-medium">
-                  {recommendationsCount}{" "}
-                  {recommendationsCount === 1
-                    ? "persona ha accedido mediante recomendación"
-                    : "personas han accedido mediante recomendación"}
-                </p>
+              <div className="mb-8 sm:mb-10 text-center space-y-2">
                 <button
                   type="button"
                   onClick={handleRecommendClick}
-                  className="w-full py-3 px-4 rounded-xl sm:rounded-2xl primary-gradient text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3.5 sm:py-4 px-6 rounded-full bg-white text-gray-500 font-bold text-xs sm:text-sm tracking-[0.15em] uppercase shadow-[0_4px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.09)] hover:bg-gray-50/90 active:scale-[0.99] transition-all flex items-center justify-center gap-3 border border-gray-100/80"
                 >
                   {copiedRecommendLink ? (
                     <>
-                      <Check className="w-4 h-4 text-white" />
-                      ¡ENLACE COPIADO!
+                      <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 stroke-[2]" />
+                      <span className="text-emerald-600">¡ENLACE COPIADO!</span>
                     </>
                   ) : (
                     <>
-                      <Share2 className="w-4 h-4 text-white" />
-                      RECOMENDAR
+                      <Share2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 stroke-[1.8]" />
+                      <span>RECOMENDAR</span>
                     </>
                   )}
                 </button>
+                {recommendationsCount > 0 && (
+                  <p className="text-[10px] sm:text-xs text-on-surface-variant/50 font-medium pt-1">
+                    {recommendationsCount}{" "}
+                    {recommendationsCount === 1
+                      ? "persona ha accedido por recomendación"
+                      : "personas han accedido por recomendación"}
+                  </p>
+                )}
               </div>
 
               {(isOwnProfile
