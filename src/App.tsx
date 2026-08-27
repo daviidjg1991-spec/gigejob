@@ -111,7 +111,10 @@ import {
   Github,
   MoreVertical,
   Info,
+  ShieldOff,
+  UserX,
 } from "lucide-react";
+import { PermissionModal } from "./components/PermissionModal";
 import {
   MapContainer,
   TileLayer,
@@ -281,6 +284,7 @@ import {
   updatePassword,
   sendEmailVerification,
   sendPasswordResetEmail,
+  deleteUser,
 } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -9840,6 +9844,51 @@ const SettingsView = ({
   const [newPassword, setNewPassword] = useState("");
   const [transactions, setTransactions] = useState<any[]>([]);
 
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+
+  const handleExecuteAccountDeletion = async () => {
+    if (!user || !user.id) return;
+    if (deleteConfirmInput.trim().toUpperCase() !== "ELIMINAR") {
+      alert('Escribe "ELIMINAR" en el campo para confirmar la eliminación permanente.');
+      return;
+    }
+
+    try {
+      setIsDeletingAccount(true);
+      const userId = user.id;
+
+      await deleteDoc(doc(db, "users", userId)).catch(async () => {
+        await updateDoc(doc(db, "users", userId), {
+          status: "deleted",
+          deletedAt: serverTimestamp(),
+          firstName: "Usuario",
+          lastName1: "Eliminado",
+          email: `deleted_${userId}@gigejob.com`,
+        });
+      });
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await deleteUser(currentUser).catch((err) => {
+          console.warn("Auth user deletion warning:", err);
+        });
+      }
+
+      localStorage.removeItem("GigeJob_user");
+      setUser(null);
+      setShowDeleteConfirmModal(false);
+      alert("Tu cuenta y todos tus datos personales asociados han sido eliminados permanentemente.");
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error eliminando cuenta:", error);
+      alert("Ocurrió un error al eliminar tu cuenta. Por favor, vuelve a intentarlo.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   useEffect(() => {
     if (!user?.id) return;
     const uid = user.id;
@@ -10986,27 +11035,90 @@ const SettingsView = ({
                   </button>
                 </div>
               ) : (
-                <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-error/10 space-y-6 shadow-sm">
+                <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-error/20 space-y-6 shadow-sm">
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <h4 className="text-sm lg:text-base font-black text-error">Eliminar cuenta</h4>
-                      <p className="text-[10px] lg:text-xs text-on-surface-variant/60 font-medium">
-                        Al eliminar tu cuenta, todos tus datos, mensajes y configuraciones serán borrados permanentemente. Esta acción no se puede deshacer.
+                      <div className="flex items-center gap-2 text-error">
+                        <AlertCircle className="w-5 h-5 shrink-0" />
+                        <h4 className="text-sm lg:text-base font-black uppercase tracking-wider">
+                          Eliminar cuenta y datos permanentemente
+                        </h4>
+                      </div>
+                      <p className="text-[10px] lg:text-xs text-on-surface-variant/70 font-medium leading-relaxed pt-1">
+                        Al confirmar esta acción, tu perfil, todos tus datos personales, publicaciones, fotos de galería y registros de actividad serán borrados definitivamente de nuestra base de datos en cumplimiento con las directivas de privacidad (RGPD / App Store / Google Play). Esta acción es <strong className="text-error font-bold">irreversible</strong>.
                       </p>
                     </div>
                   </div>
+
                   <button
                     onClick={() => {
-                      if (window.confirm("¿Estás seguro de que deseas eliminar tu cuenta permanentemente? Esta acción no se puede deshacer.")) {
-                        alert("Cuenta eliminada correctamente.");
-                        window.location.href = "/";
-                      }
+                      setDeleteConfirmInput("");
+                      setShowDeleteConfirmModal(true);
                     }}
-                    className="w-full py-3.5 lg:py-5 bg-error text-white rounded-xl lg:rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-xs shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                    className="w-full py-3.5 lg:py-5 bg-error text-white rounded-xl lg:rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-xs shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    Eliminar Cuenta Permanentemente
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    Eliminar cuenta y datos permanentemente
                   </button>
+
+                  {/* Confirmation Modal */}
+                  {showDeleteConfirmModal && (
+                    <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-surface rounded-[2.5rem] p-6 lg:p-8 max-w-md w-full border border-error/30 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3 text-error">
+                            <div className="p-3 bg-error/10 rounded-2xl">
+                              <AlertCircle className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-display font-black text-on-surface">
+                              Confirmación requerida
+                            </h3>
+                          </div>
+                          <button
+                            onClick={() => setShowDeleteConfirmModal(false)}
+                            className="p-2 hover:bg-surface-container rounded-full text-on-surface-variant"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-xs text-on-surface-variant font-medium leading-relaxed">
+                            Para evitar borrados accidentales, confirma que deseas eliminar tu cuenta permanentemente escribiendo la palabra <strong className="text-error font-black">ELIMINAR</strong> a continuación:
+                          </p>
+                          <input
+                            type="text"
+                            value={deleteConfirmInput}
+                            onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                            placeholder='Escribe "ELIMINAR"'
+                            className="w-full px-4 py-3.5 bg-surface-container-low rounded-xl font-mono font-bold text-center border border-outline-variant/30 text-sm focus:outline-none focus:border-error"
+                          />
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setShowDeleteConfirmModal(false)}
+                            disabled={isDeletingAccount}
+                            className="flex-1 py-3.5 bg-surface-container-low hover:bg-surface-container text-on-surface-variant font-bold text-xs rounded-xl transition-all disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={handleExecuteAccountDeletion}
+                            disabled={isDeletingAccount || deleteConfirmInput.trim().toUpperCase() !== "ELIMINAR"}
+                            className="flex-1 py-3.5 bg-error text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                          >
+                            {isDeletingAccount ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                            Confirmar Borrado
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -13825,8 +13937,18 @@ const HomePage = ({
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
   useEffect(() => {
+    const hasPromptedLocation = localStorage.getItem("GigeJob_location_prompted");
+    if (!hasPromptedLocation && "geolocation" in navigator) {
+      setIsLocationModalOpen(true);
+    }
+  }, []);
+
+  const handleConfirmLocationPermission = () => {
+    setIsLocationModalOpen(false);
+    localStorage.setItem("GigeJob_location_prompted", "true");
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -13840,7 +13962,7 @@ const HomePage = ({
         }
       );
     }
-  }, []);
+  };
 
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371; // km
@@ -14521,6 +14643,16 @@ const ExplorePage = ({
           </div>
         )}
       </div>
+
+      <PermissionModal
+        isOpen={isLocationModalOpen}
+        type="location"
+        onConfirm={handleConfirmLocationPermission}
+        onCancel={() => {
+          setIsLocationModalOpen(false);
+          localStorage.setItem("GigeJob_location_prompted", "true");
+        }}
+      />
     </div>
   );
 };
@@ -16103,6 +16235,28 @@ const ListingDetail = ({
     }
   };
 
+  const handleBlockAuthor = async (authorId: string) => {
+    if (!user || !user.id) {
+      alert("Debes iniciar sesión para bloquear a un usuario.");
+      return;
+    }
+    if (!confirm("¿Estás seguro de que deseas bloquear a este usuario? No volverás a ver sus anuncios ni mensajes.")) return;
+
+    try {
+      const userRef = doc(db, "users", user.id);
+      const currentBlocked = user.blockedUsers || [];
+      if (!currentBlocked.includes(authorId)) {
+        const updated = [...currentBlocked, authorId];
+        await updateDoc(userRef, { blockedUsers: updated });
+      }
+      alert("Usuario bloqueado con éxito.");
+      navigate("/");
+    } catch (e) {
+      console.error("Error al bloquear usuario:", e);
+      alert("Ocurrió un error al bloquear el usuario.");
+    }
+  };
+
   useEffect(() => {
     if (!listing?.author?.id) return;
     const qReviews = query(
@@ -16409,12 +16563,29 @@ const ListingDetail = ({
                     "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
                     !user 
                       ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
-                      : "bg-surface-container-low text-on-surface-variant hover:text-warning"
+                      : "bg-surface-container-low text-on-surface-variant hover:text-warning hover:bg-warning/10"
                   )}
+                  title={!user ? "Debes iniciar sesión para denunciar" : "Denunciar contenido"}
                 >
                   <AlertTriangle className="w-4 h-4" />
-                  Reportar
+                  Denunciar contenido
                 </button>
+                {!isOwnListing && (
+                  <button
+                    onClick={() => handleBlockAuthor(listing.author.id)}
+                    disabled={!user}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
+                      !user 
+                        ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                        : "bg-surface-container-low text-on-surface-variant hover:text-error hover:bg-error/10"
+                    )}
+                    title={!user ? "Debes iniciar sesión para bloquear usuario" : "Bloquear usuario"}
+                  >
+                    <ShieldOff className="w-4 h-4" />
+                    Bloquear usuario
+                  </button>
+                )}
                 {isOwner && listing && (
                   <div className="flex items-center gap-2 ml-auto">
                     {onEdit && (
@@ -17213,6 +17384,28 @@ const ProfilePage = ({
   }, [isOwnProfile ? user?.id : profileUser?.id]);
 
   const activeReviews = reviews.filter((r) => !r.deleted);
+
+  const handleBlockUserInProfile = async (targetUserId: string) => {
+    if (!user || !user.id) {
+      alert("Debes iniciar sesión para bloquear a un usuario.");
+      return;
+    }
+    if (!confirm("¿Estás seguro de que deseas bloquear a este usuario? No verás sus publicaciones ni mensajes.")) return;
+
+    try {
+      const userRef = doc(db, "users", user.id);
+      const currentBlocked = user.blockedUsers || [];
+      if (!currentBlocked.includes(targetUserId)) {
+        const updated = [...currentBlocked, targetUserId];
+        await updateDoc(userRef, { blockedUsers: updated });
+      }
+      alert("Usuario bloqueado con éxito.");
+      navigate("/");
+    } catch (e) {
+      console.error("Error al bloquear usuario:", e);
+      alert("Ocurrió un error al bloquear el usuario.");
+    }
+  };
   const realRating =
     activeReviews.length > 0
       ? (
@@ -17537,6 +17730,39 @@ const ProfilePage = ({
                     </>
                   )}
                 </button>
+
+                {!isOwnProfile && profileUser?.id && (
+                  <div className="mt-4 pt-4 border-t border-outline-variant/10 flex flex-wrap items-center justify-center gap-3">
+                    <button
+                      onClick={() => openReportModal(profileUser.id)}
+                      disabled={!user}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
+                        !user
+                          ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                          : "bg-surface-container-low text-on-surface-variant hover:text-warning hover:bg-warning/10"
+                      )}
+                      title={!user ? "Debes iniciar sesión para denunciar" : "Denunciar usuario"}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      Denunciar usuario
+                    </button>
+                    <button
+                      onClick={() => handleBlockUserInProfile(profileUser.id)}
+                      disabled={!user}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
+                        !user
+                          ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                          : "bg-surface-container-low text-on-surface-variant hover:text-error hover:bg-error/10"
+                      )}
+                      title={!user ? "Debes iniciar sesión para bloquear usuario" : "Bloquear usuario"}
+                    >
+                      <ShieldOff className="w-3.5 h-3.5" />
+                      Bloquear usuario
+                    </button>
+                  </div>
+                )}
               </div>
 
               {(isOwnProfile
