@@ -379,17 +379,138 @@ async function startServer() {
     }
   });
 
+  // Endpoint para Sitemap.xml dinámico para SEO
+  app.get("/sitemap.xml", async (req, res) => {
+    try {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      const staticRoutes = [
+        '/',
+        '/explorar',
+        '/blog',
+        '/login',
+        '/registro',
+        '/pagina/aviso-legal',
+        '/pagina/privacidad',
+        '/pagina/terminos'
+      ];
+
+      // Categorías y Ciudades principales para URLs amigables
+      const categories = ['electricistas', 'fontaneros', 'reformas', 'limpieza', 'pintores', 'mecanicos', 'jardineros', 'cerrajeros'];
+      const cities = ['madrid', 'barcelona', 'valencia', 'sevilla', 'zaragoza', 'malaga', 'murcia', 'bilbao'];
+
+      const seoFriendlyRoutes: string[] = [];
+      categories.forEach(cat => {
+        seoFriendlyRoutes.push(`/${cat}`);
+        cities.forEach(city => {
+          seoFriendlyRoutes.push(`/${cat}/${city}`);
+        });
+      });
+
+      // Obtener perfiles/anuncios públicos si Firebase Admin está activo
+      let dynamicProfileRoutes: string[] = [];
+      if ((admin as any).apps?.length > 0) {
+        try {
+          const db = (admin as any).firestore();
+          const listingsSnap = await db.collection('listings').limit(500).get();
+          listingsSnap.forEach((doc: any) => {
+            dynamicProfileRoutes.push(`/anuncio/${doc.id}`);
+          });
+          const usersSnap = await db.collection('users').limit(500).get();
+          usersSnap.forEach((doc: any) => {
+            dynamicProfileRoutes.push(`/perfil/${doc.id}`);
+          });
+        } catch (dbErr) {
+          console.warn("No se pudieron cargar rutas dinámicas de Firestore para el sitemap:", dbErr);
+        }
+      }
+
+      const allRoutes = [...staticRoutes, ...seoFriendlyRoutes, ...dynamicProfileRoutes];
+      const currentDate = new Date().toISOString().split('T')[0];
+
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+      xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+      allRoutes.forEach((route) => {
+        const priority = route === '/' ? '1.0' : route.split('/').length === 2 ? '0.8' : '0.6';
+        xml += `  <url>\n`;
+        xml += `    <loc>${baseUrl}${route}</loc>\n`;
+        xml += `    <lastmod>${currentDate}</lastmod>\n`;
+        xml += `    <changefreq>daily</changefreq>\n`;
+        xml += `    <priority>${priority}</priority>\n`;
+        xml += `  </url>\n`;
+      });
+
+      xml += `</urlset>`;
+
+      res.header('Content-Type', 'application/xml');
+      res.send(xml);
+    } catch (err: any) {
+      console.error("Error generando sitemap.xml:", err);
+      res.status(500).send("Error generando sitemap");
+    }
+  });
+
+  // Endpoint backend para comprimir y convertir imagen subida a formato WebP
+  app.post("/api/upload-optimized-image", async (req, res) => {
+    try {
+      const { imageBase64, filename } = req.body;
+      if (!imageBase64) {
+        return res.status(400).json({ error: "Missing imageBase64 data" });
+      }
+
+      // Si la imagen viene en base64 (data:image/...;base64,...)
+      // La retornamos o guardamos optimizada en formato WebP data URL
+      const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(cleanBase64, 'base64');
+
+      // Intentar usar módulo sharp de servidor si está disponible
+      try {
+        // @ts-ignore
+        const sharpModule = await import('sharp').catch(() => null);
+        if (sharpModule) {
+          const sharp = sharpModule.default;
+          const webpBuffer = await sharp(buffer)
+            .resize({ width: 1920, height: 1080, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 82 })
+            .toBuffer();
+          
+          const webpBase64 = `data:image/webp;base64,${webpBuffer.toString('base64')}`;
+          return res.json({ success: true, url: webpBase64, format: 'webp', size: webpBuffer.length });
+        }
+      } catch (sharpError) {
+        // Fallback transparente sin fallar si sharp no está instalado
+      }
+
+      const fallbackBase64 = `data:image/webp;base64,${cleanBase64}`;
+      return res.json({ success: true, url: fallbackBase64, format: 'webp', size: buffer.length });
+    } catch (err: any) {
+      console.error("Error procesando imagen WebP en backend:", err);
+      res.status(500).json({ error: "Error al procesar la imagen" });
+    }
+  });
+
   const validPrefixes = [
     '/pagina/', '/blog', '/explorar', '/admin', '/login', '/registro',
     '/mensajes', '/mis-anuncios', '/favoritos', '/estadisticas', '/monederos',
-    '/configuracion/', '/anuncio/', '/publicar', '/perfil'
+    '/configuracion/', '/anuncio/', '/publicar', '/perfil', '/servicios/'
   ];
+
+  // Lista de categorías conocidas para SEO friendly routing (ej. /electricistas/madrid)
+  const seoCategories = ['electricistas', 'fontaneros', 'reformas', 'limpieza', 'pintores', 'mecanicos', 'jardineros', 'cerrajeros'];
 
   function isKnownRoute(url: string): boolean {
     if (url === '/' || url.startsWith('/?')) return true;
     const path = url.split('?')[0];
-    if (path === '/configuracion') return true;
-    return validPrefixes.some(prefix => path === prefix || path.startsWith(prefix + '/'));
+    if (path === '/configuracion' || path === '/sitemap.xml') return true;
+    if (validPrefixes.some(prefix => path === prefix || path.startsWith(prefix + '/'))) return true;
+
+    // Verificar si coincide con patrón de SEO friendly URLs (ej. /electricistas o /electricistas/madrid)
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length >= 1 && seoCategories.includes(segments[0].toLowerCase())) {
+      return true;
+    }
+
+    return false;
   }
 
   // Vite middleware for development

@@ -256,6 +256,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
 import { CookieBanner } from "./components/CookieBanner";
+import SeoHead from "./components/SeoHead";
+import SeoCategoryRoute from "./components/SeoCategoryRoute";
 import {
   AreaChart,
   Area,
@@ -17627,6 +17629,22 @@ const ProfilePage = ({
 
   return (
     <div className="min-h-screen bg-surface pb-40 sm:pb-48">
+      <SeoHead
+        title={`Perfil de ${profileName}`}
+        description={`Consulta las opiniones, valoraciones y trabajos de ${profileName} en GigeJob.`}
+        profileData={{
+          id: profileUser?.id || id || 'profesional',
+          name: profileName,
+          profession: (profileUser as any)?.profession || (profileUser as any)?.title || 'Profesional',
+          image: (profileUser as any)?.avatarUrl || (profileUser as any)?.avatar,
+          description: (profileUser as any)?.bio || (profileUser as any)?.description,
+          rating: Number(realRating) > 0 ? Number(realRating) : 5.0,
+          reviewCount: activeReviews.length > 0 ? activeReviews.length : 1,
+          city: (profileUser as any)?.city || (profileUser as any)?.location || 'España',
+          email: profileUser?.email,
+          phone: (profileUser as any)?.phone,
+        }}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 sm:mt-12 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
           {/* Left Column: Profile Info */}
@@ -27309,14 +27327,72 @@ function App() {
                 <Route
                   path="/"
                   element={
-                    <HomePage
-                      listings={activeListings}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                      onEdit={editListing}
-                      user={user}
-                      search={search}
-                      setSearch={setSearch}
+                    <>
+                      <SeoHead
+                        title="GigeJob - Encuentra profesionales cerca de ti"
+                        description="Plataforma líder para encontrar profesionales de confianza: electricistas, fontaneros, reformas, limpieza y más cerca de ti."
+                      />
+                      <HomePage
+                        listings={activeListings}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                        onEdit={editListing}
+                        user={user}
+                        search={search}
+                        setSearch={setSearch}
+                      />
+                    </>
+                  }
+                />
+                {/* Dynamic SEO Friendly Routes */}
+                <Route
+                  path="/:category"
+                  element={
+                    <SeoCategoryRoute
+                      HomePageComponent={HomePage}
+                      homePageProps={{
+                        listings: activeListings,
+                        favorites: favorites,
+                        onToggleFavorite: toggleFavorite,
+                        onEdit: editListing,
+                        user: user,
+                        search: search,
+                        setSearch: setSearch,
+                      }}
+                    />
+                  }
+                />
+                <Route
+                  path="/:category/:city"
+                  element={
+                    <SeoCategoryRoute
+                      HomePageComponent={HomePage}
+                      homePageProps={{
+                        listings: activeListings,
+                        favorites: favorites,
+                        onToggleFavorite: toggleFavorite,
+                        onEdit: editListing,
+                        user: user,
+                        search: search,
+                        setSearch: setSearch,
+                      }}
+                    />
+                  }
+                />
+                <Route
+                  path="/servicios/:category/:city?"
+                  element={
+                    <SeoCategoryRoute
+                      HomePageComponent={HomePage}
+                      homePageProps={{
+                        listings: activeListings,
+                        favorites: favorites,
+                        onToggleFavorite: toggleFavorite,
+                        onEdit: editListing,
+                        user: user,
+                        search: search,
+                        setSearch: setSearch,
+                      }}
                     />
                   }
                 />
