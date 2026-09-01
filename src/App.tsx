@@ -22877,7 +22877,9 @@ const AuthPage = ({
       if (
         !personalData.address.streetName ||
         !personalData.address.number ||
-        !personalData.address.postalCode
+        !personalData.address.postalCode ||
+        !personalData.address.locality ||
+        !personalData.address.province
       ) {
         newErrors.address = "La dirección principal es obligatoria";
       }
@@ -22909,6 +22911,15 @@ const AuthPage = ({
         !validatePhone(professionalData.billing.phone)
       ) {
         newErrors.billingPhone = "Teléfono fiscal no válido";
+      }
+      if (
+        !professionalData.billing.address.streetName ||
+        !professionalData.billing.address.number ||
+        !professionalData.billing.address.postalCode ||
+        !professionalData.billing.address.locality ||
+        !professionalData.billing.address.province
+      ) {
+        newErrors.billingAddress = "La dirección fiscal es obligatoria";
       }
     }
 
@@ -24017,8 +24028,11 @@ const AuthPage = ({
                           }
                         />
                         <input
-                          placeholder="Localidad"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="Localidad *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.locality && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.locality}
                           onChange={(e) =>
                             setPersonalData({
@@ -24031,8 +24045,11 @@ const AuthPage = ({
                           }
                         />
                         <input
-                          placeholder="Provincia"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="Provincia *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.province && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.province}
                           onChange={(e) =>
                             setPersonalData({
@@ -24592,8 +24609,11 @@ const AuthPage = ({
                             }
                           />
                           <input
-                            placeholder="Localidad"
-                            className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                            placeholder="Localidad *"
+                            className={cn(
+                              "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                              errors.billingAddress && !professionalData.billing.address.locality && "ring-2 ring-red-500"
+                            )}
                             value={professionalData.billing.address.locality}
                             onChange={(e) =>
                               setProfessionalData({
@@ -24609,8 +24629,11 @@ const AuthPage = ({
                             }
                           />
                           <input
-                            placeholder="Provincia"
-                            className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                            placeholder="Provincia *"
+                            className={cn(
+                              "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                              errors.billingAddress && !professionalData.billing.address.province && "ring-2 ring-red-500"
+                            )}
                             value={professionalData.billing.address.province}
                             onChange={(e) =>
                               setProfessionalData({
