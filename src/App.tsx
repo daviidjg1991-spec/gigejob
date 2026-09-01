@@ -24957,6 +24957,25 @@ const EmailVerificationScreen = ({ user, auth, isModal, setUser }: { user: UserP
 
   const navigate = useNavigate();
 
+  const checkVerification = async () => {
+    if (!auth.currentUser) return;
+    try {
+      await auth.currentUser.reload();
+      if (auth.currentUser.emailVerified) {
+        window.location.reload();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkVerification();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const handleResend = async () => {
     if (!auth.currentUser) return;
     setIsSending(true);
@@ -24977,11 +24996,16 @@ const EmailVerificationScreen = ({ user, auth, isModal, setUser }: { user: UserP
 
   const handleCheck = async () => {
     if (!auth.currentUser) return;
-    await auth.currentUser.reload();
-    if (auth.currentUser.emailVerified) {
-      window.location.reload();
-    } else {
-      setMessage("Todavía no se ha verificado el correo. Revisa tu bandeja de entrada o spam.");
+    try {
+      await auth.currentUser.reload();
+      if (auth.currentUser.emailVerified) {
+        window.location.reload();
+      } else {
+        setMessage("Todavía no se ha verificado el correo. Revisa tu bandeja de entrada o spam.");
+      }
+    } catch (e) {
+      console.error(e);
+      setMessage("Hubo un error al comprobar la verificación.");
     }
   };
 
