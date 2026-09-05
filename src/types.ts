@@ -59,16 +59,16 @@ export const PRO_PLANS = [
   },
   {
     "limits": {
-      "maxListingsPerAccount": 2,
+      "maxListingsPerAccount": 999,
       "maxConcurrentBookings": 4,
       "maxBookingsPerDay": 999,
       "activeDaysPerListing": 30
     },
     "features": [
       "Perfil Premium Pro",
-      "Publicación hasta 2 categoría",
+      "Publicación hasta 999 categorías",
       "Reserva sin limite",
-      "Hasta 2 reservas misma franja horaria"
+      "Hasta 4 reservas misma franja horaria"
     ],
     "price": 15,
     "name": "Plan Premium Pro",
