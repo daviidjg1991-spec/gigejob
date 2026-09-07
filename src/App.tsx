@@ -520,21 +520,6 @@ export const checkIsListingExpired = (listing: any, authorUser?: any, plans: any
   if (!listing) return false;
   if (listing.status === "expired") return true;
 
-  // Use dynamic active days limit from plan exclusively to ensure updates to plan propagate immediately
-
-  // Check dynamic active days limit from plan based on publication or last reactivation date
-  const activeDays = getListingActiveDays(authorUser || listing.author, plans);
-  const startDateStr = listing.reactivatedAt || listing.publishedAt || listing.createdAt;
-  if (startDateStr) {
-    const startMs = new Date(startDateStr).getTime();
-    if (!isNaN(startMs) && startMs > 0) {
-      const expirationMs = startMs + activeDays * 24 * 60 * 60 * 1000;
-      if (Date.now() >= expirationMs) {
-        return true;
-      }
-    }
-  }
-
   return false;
 };
 
