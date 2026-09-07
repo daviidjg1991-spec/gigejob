@@ -4423,7 +4423,7 @@ const BlogListPage = () => {
           return (
             <Link
               key={post.id}
-              to={`/blog/${post.id}`}
+              to={`/blog/${post.slug || post.id}`}
               className={cn(
                 "group flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 isFeatured ? "md:col-span-2 lg:col-span-2 row-span-2" : "",
@@ -4519,14 +4519,14 @@ const AmazonLinkPreview = ({ href, children }: { href: string; children: React.R
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="not-prose inline-flex items-center gap-4 p-4 border border-outline-variant/30 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors shadow-sm w-full max-w-sm my-4 no-underline group"
+      className="not-prose flex items-stretch gap-4 p-4 border border-outline-variant/30 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors shadow-sm w-full max-w-sm my-4 no-underline group"
     >
       {imageUrl ? (
-        <div className="w-16 h-16 shrink-0 bg-white rounded-xl flex items-center justify-center p-1 border border-outline-variant/10 overflow-hidden relative">
+        <div className="w-24 h-24 shrink-0 bg-white rounded-xl flex items-center justify-center p-2 border border-outline-variant/10 overflow-hidden relative">
           <img
             src={imageUrl}
             alt="Amazon Product"
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain mix-blend-multiply"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = "none";
               const next = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
@@ -4534,27 +4534,27 @@ const AmazonLinkPreview = ({ href, children }: { href: string; children: React.R
             }}
           />
           <div className="hidden absolute inset-0 bg-[#FF9900]/10 items-center justify-center text-[#FF9900]">
-            <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+            <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor">
               <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" />
             </svg>
           </div>
         </div>
       ) : (
-        <div className="w-16 h-16 shrink-0 bg-[#FF9900]/10 rounded-xl flex items-center justify-center text-[#FF9900]">
-          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+        <div className="w-24 h-24 shrink-0 bg-[#FF9900]/10 rounded-xl flex items-center justify-center text-[#FF9900]">
+          <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" />
           </svg>
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <span className="block text-[10px] font-black text-on-surface-variant/70 uppercase tracking-widest mb-0.5">
-          Acceso Directo
-        </span>
-        <span className="block text-sm font-bold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+      <div className="flex flex-col justify-center flex-1 min-w-0">
+        <span className="block text-sm font-bold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors mb-2">
           {children}
         </span>
+        <div className="inline-flex items-center justify-center gap-2 bg-[#FF9900] text-white text-xs font-black px-4 py-2 rounded-lg mt-auto self-start shadow-sm group-hover:bg-[#FF9900]/90 transition-colors uppercase tracking-wider w-full">
+          Ver ahora
+          <ExternalLink className="w-3.5 h-3.5" />
+        </div>
       </div>
-      <ExternalLink className="w-5 h-5 text-on-surface-variant/50 shrink-0 group-hover:text-primary group-hover:scale-110 transition-all" />
     </a>
   );
 };
@@ -4568,10 +4568,19 @@ const BlogPostPage = () => {
     const fetchPost = async () => {
       if (!id) return;
       try {
-        const docRef = doc(db, "blog_posts", id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setPost({ ...docSnap.data(), id: docSnap.id } as BlogPost);
+        // Try fetching by slug first
+        const q = query(collection(db, "blog_posts"), where("slug", "==", id));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          setPost({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id } as BlogPost);
+        } else {
+          // Fallback to fetch by document ID
+          const docRef = doc(db, "blog_posts", id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setPost({ ...docSnap.data(), id: docSnap.id } as BlogPost);
+          }
         }
       } catch (err) {
         console.error("Error fetching blog post:", err);
@@ -9261,7 +9270,7 @@ const AdminPage = ({
                       if (currentBlogPost.id) {
                         await setDoc(
                           doc(db, "blog_posts", currentBlogPost.id),
-                          { ...currentBlogPost },
+                          { ...currentBlogPost, slug: currentBlogPost.slug || createSlug(currentBlogPost.title) },
                           { merge: true },
                         );
                       } else {
@@ -9269,6 +9278,7 @@ const AdminPage = ({
                         await setDoc(newRef, {
                           ...currentBlogPost,
                           id: newRef.id,
+                          slug: createSlug(currentBlogPost.title),
                           authorId: user?.id || "admin",
                           authorName: user?.username || "Admin GigeJob",
                           createdAt: Date.now(),

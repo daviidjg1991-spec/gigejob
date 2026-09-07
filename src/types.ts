@@ -257,6 +257,7 @@ export interface BlogPost {
   createdAt: number;
   published: boolean;
   category?: string;
+  slug?: string;
 }
 
 export interface FooterConfig {
