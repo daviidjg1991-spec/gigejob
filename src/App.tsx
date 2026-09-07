@@ -113,6 +113,7 @@ import {
   Info,
   ShieldOff,
   UserX,
+  ExternalLink,
 } from "lucide-react";
 import { PermissionModal } from "./components/PermissionModal";
 import {
@@ -4581,7 +4582,70 @@ const BlogPostPage = () => {
       )}
 
       <div className="prose prose-lg md:prose-xl prose-p:leading-relaxed prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight max-w-none prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-3xl prose-img:shadow-xl mt-8">
-        <Markdown>{post.content}</Markdown>
+        <Markdown
+          components={{
+            a: ({ node, ...props }) => {
+              const href = props.href || "";
+              const isAmazon =
+                href.includes("amazon.com") ||
+                href.includes("amzn.to") ||
+                href.includes("amazon.es");
+
+              if (isAmazon) {
+                const asinMatch = href.match(/\/(?:dp|gp\/product|ASIN)\/([a-zA-Z0-9]{10})/i);
+                const asin = asinMatch ? asinMatch[1] : null;
+
+                return (
+                  <a
+                    {...props}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="not-prose inline-flex items-center gap-4 p-4 border border-outline-variant/30 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors shadow-sm w-full max-w-sm my-4 no-underline group"
+                  >
+                    {asin ? (
+                      <div className="w-16 h-16 shrink-0 bg-white rounded-xl flex items-center justify-center p-1 border border-outline-variant/10 overflow-hidden relative">
+                        <img
+                          src={`https://images-na.ssl-images-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_.jpg`}
+                          alt="Amazon Product"
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                            const next = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                            if (next) next.style.display = "flex";
+                          }}
+                        />
+                        <div className="hidden absolute inset-0 bg-[#FF9900]/10 items-center justify-center text-[#FF9900]">
+                          <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" />
+                          </svg>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 shrink-0 bg-[#FF9900]/10 rounded-xl flex items-center justify-center text-[#FF9900]">
+                        <svg className="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <span className="block text-[10px] font-black text-on-surface-variant/70 uppercase tracking-widest mb-0.5">
+                        Acceso Directo
+                      </span>
+                      <span className="block text-sm font-bold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                        {props.children}
+                      </span>
+                    </div>
+                    <ExternalLink className="w-5 h-5 text-on-surface-variant/50 shrink-0 group-hover:text-primary group-hover:scale-110 transition-all" />
+                  </a>
+                );
+              }
+
+              return <a {...props} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" />;
+            },
+          }}
+        >
+          {post.content}
+        </Markdown>
       </div>
     </div>
   );
