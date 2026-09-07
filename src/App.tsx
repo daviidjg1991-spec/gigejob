@@ -5877,8 +5877,7 @@ const AdminPage = ({
     }
   };
 
-  const [adminSearchEnabled, setAdminSearchEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS,
-  createSlug);
+  const [adminSearchEnabled, setAdminSearchEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
 
   useEffect(() => {
     if (!isAdminAuthReady) return;
@@ -26042,11 +26041,9 @@ function App() {
   const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState<boolean>(() => {
     try {
       const cached = localStorage.getItem("app_search_enabled");
-      return cached ? JSON.parse(cached) : ENABLE_SEARCH_PROFESSIONALS,
-  createSlug;
+      return cached ? JSON.parse(cached) : ENABLE_SEARCH_PROFESSIONALS;
     } catch {
-      return ENABLE_SEARCH_PROFESSIONALS,
-  createSlug;
+      return ENABLE_SEARCH_PROFESSIONALS;
     }
   });
   useEffect(() => {
