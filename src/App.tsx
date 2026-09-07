@@ -4423,7 +4423,7 @@ const BlogListPage = () => {
           return (
             <Link
               key={post.id}
-              to={`/blog/${post.slug || post.id}`}
+              to={`/blog/${post.slug || (post.title ? createSlug(post.title) : post.id)}`}
               className={cn(
                 "group flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 isFeatured ? "md:col-span-2 lg:col-span-2 row-span-2" : "",
@@ -4575,11 +4575,29 @@ const BlogPostPage = () => {
         if (!querySnapshot.empty) {
           setPost({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id } as BlogPost);
         } else {
-          // Fallback to fetch by document ID
-          const docRef = doc(db, "blog_posts", id);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            setPost({ ...docSnap.data(), id: docSnap.id } as BlogPost);
+          // If slug was not found directly via where, let's see if it's an old post that needs auto-migration
+          const allPostsQ = query(collection(db, "blog_posts"));
+          const allPostsSnap = await getDocs(allPostsQ);
+          const matchedPost = allPostsSnap.docs.find(d => {
+            const data = d.data();
+            return data.title && createSlug(data.title) === id;
+          });
+          
+          if (matchedPost) {
+            // Auto-migrate the post to have the slug
+            try {
+              await updateDoc(doc(db, "blog_posts", matchedPost.id), { slug: id });
+            } catch (e) {
+              console.error("Auto-migrate slug failed:", e);
+            }
+            setPost({ ...matchedPost.data(), id: matchedPost.id, slug: id } as BlogPost);
+          } else {
+            // Fallback to fetch by document ID
+            const docRef = doc(db, "blog_posts", id);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              setPost({ ...docSnap.data(), id: docSnap.id } as BlogPost);
+            }
           }
         }
       } catch (err) {
