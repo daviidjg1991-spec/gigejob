@@ -129,6 +129,7 @@ import { io, Socket } from "socket.io-client";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // Fix Leaflet marker icons
 // @ts-ignore
@@ -4654,6 +4655,7 @@ const BlogPostPage = () => {
 
       <div className="prose prose-lg md:prose-xl prose-p:leading-relaxed prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight max-w-none prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-3xl prose-img:shadow-xl mt-8">
         <Markdown
+          remarkPlugins={[remarkGfm]}
           components={{
             a: ({ node, ...props }) => {
               const href = props.href || "";
