@@ -451,7 +451,8 @@ import {
   isSearchMatch,
   Review,
   DEFAULT_REVIEW_MODAL_CONFIG,
-  ENABLE_SEARCH_PROFESSIONALS
+  ENABLE_SEARCH_PROFESSIONALS,
+  createSlug
 } from "./types";
 
 export type DynamicAppConfig = {
@@ -1229,7 +1230,7 @@ const AdminUserEditModal = ({
                   alt="Profile"
                   className="w-16 h-16 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={() =>
-                    window.open(`/perfil/${editedUser.id}`, "_blank")
+                    window.open(`/perfil/${createSlug((editedUser.firstName + " " + editedUser.lastName1).trim() || editedUser.username || editedUser.id)}`, "_blank")
                   }
                   title="Ir al perfil público"
                 />
@@ -1237,7 +1238,7 @@ const AdminUserEditModal = ({
                 <div
                   className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors"
                   onClick={() =>
-                    window.open(`/perfil/${editedUser.id}`, "_blank")
+                    window.open(`/perfil/${createSlug((editedUser.firstName + " " + editedUser.lastName1).trim() || editedUser.username || editedUser.id)}`, "_blank")
                   }
                   title="Ir al perfil público"
                 >
@@ -5876,7 +5877,8 @@ const AdminPage = ({
     }
   };
 
-  const [adminSearchEnabled, setAdminSearchEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
+  const [adminSearchEnabled, setAdminSearchEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS,
+  createSlug);
 
   useEffect(() => {
     if (!isAdminAuthReady) return;
@@ -13689,7 +13691,7 @@ const ListingCard = ({
       )}
     >
       <Link
-        to={`/anuncio/${listing.id}`}
+        to={`/perfil/${createSlug(listing.author?.name || "usuario")}/${createSlug(listing.title)}`}
         className="relative block aspect-[4/3] overflow-hidden"
       >
         <img
@@ -13762,7 +13764,7 @@ const ListingCard = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                navigate(`/perfil/${listing.author?.id || ""}`);
+                navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`);
               }}
             >
               {listing.author?.photoUrl ? (
@@ -13779,7 +13781,7 @@ const ListingCard = ({
               )}
             </div>
             <div className="flex flex-col min-w-0">
-              <Link to={`/anuncio/${listing.id}`}>
+              <Link to={`/perfil/${createSlug(listing.author?.name || "usuario")}/${createSlug(listing.title)}`}>
                 <h3 className="text-xs sm:text-base font-display font-black text-on-surface hover:text-primary transition-colors line-clamp-1 leading-tight">
                   {listing.title || "Sin título"}
                 </h3>
@@ -13790,7 +13792,7 @@ const ListingCard = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    navigate(`/perfil/${listing.author?.id || ""}`);
+                    navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`);
                   }}
                 >
                   {listing.author.name || "Anónimo"}
@@ -14223,7 +14225,7 @@ const MapView = ({
                     <div
                       className="flex items-center gap-2 mb-2 cursor-pointer group"
                       onClick={() =>
-                        navigate(`/perfil/${listing.author?.id || ""}`)
+                        navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`)
                       }
                     >
                       <img
@@ -14236,7 +14238,7 @@ const MapView = ({
                       </span>
                     </div>
                     <Link
-                      to={`/anuncio/${listing.id}`}
+                      to={`/perfil/${createSlug(listing.author?.name || "usuario")}/${createSlug(listing.title)}`}
                       className="block w-full py-2 bg-primary text-white text-center rounded-lg font-black uppercase tracking-widest text-[8px] mt-2"
                     >
                       Ver Detalles
@@ -16195,11 +16197,21 @@ const ListingDetail = ({
   onEdit?: (listing: JobListing) => void;
   user: UserProfile | null;
 }) => {
-  const { id } = useParams();
+  const { id, username, serviceTitle } = useParams();
   const navigate = useNavigate();
   const { openReportModal } = React.useContext(ReportContext);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const listing = listings.find((l) => l && l.id === id);
+  
+  const listing = listings.find((l) => {
+    if (!l) return false;
+    if (id && l.id === id) return true;
+    if (username && serviceTitle && l.author) {
+      const authorMatch = createSlug(l.author.name) === username || l.author.id === username;
+      const titleMatch = createSlug(l.title) === serviceTitle;
+      return authorMatch && titleMatch;
+    }
+    return false;
+  });
   const isOwner = !!(user && listing?.author && (user.id === listing.author.id || user.email === listing.author.email));
 
   const checkPersonalDataComplete = (u: UserProfile | null) => {
@@ -16424,7 +16436,7 @@ const ListingDetail = ({
                   <div
                     className="w-2/3 flex items-center gap-2 cursor-pointer"
                     onClick={() =>
-                      navigate(`/perfil/${listing.author?.id || ""}`)
+                      navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`)
                     }
                   >
                     <div className="w-8 h-8 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-[10px] overflow-hidden">
@@ -16834,7 +16846,7 @@ const ListingDetail = ({
                 <div
                   className="flex flex-col items-center text-center mb-10 cursor-pointer group"
                   onClick={() =>
-                    navigate(`/perfil/${listing.author?.id || ""}`)
+                    navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`)
                   }
                 >
                   <div className="relative mb-4">
@@ -17331,13 +17343,13 @@ const ProfilePage = ({
 
   // Determine if this is my own profile
   const isOwnProfile =
-    !id || id === "me" || (user && (id === user.email || id === user.id));
+    !id || id === "me" || (user && (id === user.email || id === user.id || id === createSlug(user.username || "") || id === createSlug((user.firstName + " " + (user.lastName1 || "")).trim())));
 
   // If not own profile, find the user from listings
   const profileUser = isOwnProfile
     ? user
     : listings.find(
-        (l) => l && l.author && (l.author.id === id || l.author.email === id),
+        (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id),
       )?.author;
 
   const profileName = isOwnProfile
@@ -25616,7 +25628,7 @@ const EditListingPage = ({
         const cleanedData = cleanUndefinedData(dataToUpdate);
         await setDoc(doc(db, "listings", id), cleanedData, { merge: true });
       }
-      navigate(`/anuncio/${id}`);
+      navigate(`/perfil/${createSlug(listing?.author?.name || "usuario")}/${createSlug(listing?.title || "")}`);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Error al actualizar el anuncio");
@@ -26030,9 +26042,11 @@ function App() {
   const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState<boolean>(() => {
     try {
       const cached = localStorage.getItem("app_search_enabled");
-      return cached ? JSON.parse(cached) : ENABLE_SEARCH_PROFESSIONALS;
+      return cached ? JSON.parse(cached) : ENABLE_SEARCH_PROFESSIONALS,
+  createSlug;
     } catch {
-      return ENABLE_SEARCH_PROFESSIONALS;
+      return ENABLE_SEARCH_PROFESSIONALS,
+  createSlug;
     }
   });
   useEffect(() => {
@@ -27627,6 +27641,20 @@ function App() {
                   }
                 />
 
+                <Route
+                  path="/perfil/:username/:serviceTitle"
+                  element={
+                    <ListingDetail
+                      listings={listings}
+                      setListings={setListings}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                      onDelete={deleteListing}
+                      onEdit={editListing}
+                      user={user}
+                    />
+                  }
+                />
                 <Route
                   path="/anuncio/:id"
                   element={

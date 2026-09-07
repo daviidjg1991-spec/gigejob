@@ -427,3 +427,16 @@ export const DEFAULT_REVIEW_MODAL_CONFIG: ReviewModalConfig = {
   photoLabel: 'Adjuntar foto (opcional)',
   submitButtonText: 'Enviar valoración'
 };
+
+export function createSlug(text: string): string {
+  if (!text) return "";
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^\w\-]+/g, "")
+    .replace(/\-\-+/g, "-");
+}
