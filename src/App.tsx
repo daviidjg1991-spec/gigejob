@@ -5834,9 +5834,13 @@ const AdminReviewConfig = () => {
 
 const joditConfig = {
   readonly: false,
+  language: "es",
   height: 500,
   uploader: {
     insertImageAsBase64URI: true,
+  },
+  image: {
+    defaultMargin: 16,
   },
 };
 

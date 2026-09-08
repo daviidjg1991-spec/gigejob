@@ -153,3 +153,10 @@ body {
   animation: pulse-heartbeat 1.4s ease-in-out infinite;
 }
 
+
+/* Fix Jodit images in prose */
+.prose img {
+  display: inline-block;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
