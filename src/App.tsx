@@ -5832,6 +5832,14 @@ const AdminReviewConfig = () => {
   );
 };
 
+const joditConfig = {
+  readonly: false,
+  height: 500,
+  uploader: {
+    insertImageAsBase64URI: true,
+  },
+};
+
 const AdminPage = ({
   user,
   listings,
@@ -9224,14 +9232,14 @@ const AdminPage = ({
                   </label>
                   <JoditEditor
                     value={currentBlogPost.content || ""}
-                    config={{
-                      readonly: false,
-                      height: 500,
-                      uploader: {
-                        insertImageAsBase64URI: true,
-                      },
-                    }}
+                    config={joditConfig}
                     onBlur={(newContent) =>
+                      setCurrentBlogPost({
+                        ...currentBlogPost,
+                        content: newContent,
+                      })
+                    }
+                    onChange={(newContent) =>
                       setCurrentBlogPost({
                         ...currentBlogPost,
                         content: newContent,
