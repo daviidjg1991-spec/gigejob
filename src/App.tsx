@@ -5842,6 +5842,16 @@ const joditConfig = {
   image: {
     defaultMargin: 16,
   },
+  buttons: [
+    "source", "|",
+    "bold", "strikethrough", "underline", "italic", "|",
+    "ul", "ol", "|",
+    "outdent", "indent", "|",
+    "font", "fontsize", "brush", "paragraph", "|",
+    "image", "video", "table", "link", "|",
+    "align", "undo", "redo", "|",
+    "hr", "eraser", "copyformat", "fullsize"
+  ],
 };
 
 const AdminPage = ({
