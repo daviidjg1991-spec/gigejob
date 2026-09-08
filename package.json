@@ -34,6 +34,8 @@
     "express": "^4.21.2",
     "firebase": "^12.15.0",
     "firebase-admin": "^14.1.0",
+    "jodit": "^4.14.2",
+    "jodit-react": "^5.5.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "leaflet": "^1.9.4",
