@@ -130,6 +130,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
 
 // Fix Leaflet marker icons
 // @ts-ignore
@@ -4683,6 +4684,7 @@ const BlogPostPage = () => {
       <div className="prose prose-lg md:prose-xl prose-p:leading-relaxed prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight max-w-none prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-3xl prose-img:shadow-xl mt-8">
         <Markdown
           remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw]}
           components={{
             a: ({ node, ...props }) => {
               const href = props.href || "";
@@ -5857,6 +5859,7 @@ const AdminPage = ({
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [isEditingBlogPost, setIsEditingBlogPost] = useState(false);
   const [currentBlogPost, setCurrentBlogPost] = useState<Partial<BlogPost>>({});
+  const [blogImageLayout, setBlogImageLayout] = useState<"default" | "float-left" | "float-right" | "columns-2">("default");
   const [isAdminAuthReady, setIsAdminAuthReady] = useState(false);
 
   useEffect(() => {
@@ -9211,43 +9214,62 @@ const AdminPage = ({
                   />
                 </div>
                 <div>
-                  <div className="flex justify-between items-end mb-1">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-1 gap-2">
                     <label className="block text-sm font-bold text-on-surface">
-                      Contenido (Markdown)
+                      Contenido (Markdown o HTML)
                     </label>
-                    <label className="text-xs font-bold text-primary hover:text-primary/80 cursor-pointer bg-primary/10 px-3 py-1 rounded-lg transition-colors flex items-center gap-1">
-                      <Upload className="w-3 h-3" /> Insertar imagen
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onloadend = async () => {
-                            try {
-                              const optimizedUrl = await compressImage(
-                                reader.result as string,
-                                1200,
-                                800,
-                                0.7,
-                              );
-                              const imgMarkdown = `\n![Imagen](${optimizedUrl})\n`;
-                              setCurrentBlogPost((prev) => ({
-                                ...prev,
-                                content: (prev.content || "") + imgMarkdown,
-                              }));
-                              e.target.value = "";
-                            } catch (err) {
-                              console.error("Error upload markdown img", err);
-                              alert("Error al comprimir la imagen.");
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }}
-                      />
-                    </label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select 
+                        value={blogImageLayout}
+                        onChange={(e) => setBlogImageLayout(e.target.value as any)}
+                        className="text-xs bg-surface-container border border-outline-variant/20 rounded-lg px-2 py-1 text-on-surface"
+                      >
+                        <option value="default">Por defecto (100% ancho)</option>
+                        <option value="float-left">Flotar a la Izquierda</option>
+                        <option value="float-right">Flotar a la Derecha</option>
+                        <option value="columns-2">2 Columnas (Imagen + Texto)</option>
+                      </select>
+                      <label className="text-xs font-bold text-primary hover:text-primary/80 cursor-pointer bg-primary/10 px-3 py-1 rounded-lg transition-colors flex items-center gap-1">
+                        <Upload className="w-3 h-3" /> Insertar imagen
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onloadend = async () => {
+                              try {
+                                const optimizedUrl = await compressImage(
+                                  reader.result as string,
+                                  1200,
+                                  800,
+                                  0.7,
+                                );
+                                let imgMarkdown = `\n![Imagen](${optimizedUrl})\n`;
+                                if (blogImageLayout === "float-left") {
+                                  imgMarkdown = `\n<img src="${optimizedUrl}" class="float-left w-1/2 md:w-1/3 mr-6 mb-4 rounded-3xl shadow-xl" alt="Imagen" />\n`;
+                                } else if (blogImageLayout === "float-right") {
+                                  imgMarkdown = `\n<img src="${optimizedUrl}" class="float-right w-1/2 md:w-1/3 ml-6 mb-4 rounded-3xl shadow-xl" alt="Imagen" />\n`;
+                                } else if (blogImageLayout === "columns-2") {
+                                  imgMarkdown = `\n<div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start my-8">\n  <div>\n    <img src="${optimizedUrl}" class="w-full rounded-3xl shadow-xl m-0" alt="Imagen" />\n  </div>\n  <div>\n    <p class="mt-0">Reemplaza este texto con el contenido de la columna. Puedes seguir añadiendo texto aquí.</p>\n  </div>\n</div>\n<div class="clear-both"></div>\n`;
+                                }
+                                setCurrentBlogPost((prev) => ({
+                                  ...prev,
+                                  content: (prev.content || "") + imgMarkdown,
+                                }));
+                                e.target.value = "";
+                              } catch (err) {
+                                console.error("Error upload markdown img", err);
+                                alert("Error al comprimir la imagen.");
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                   <textarea
                     className="w-full h-64 bg-surface-container p-3 rounded-xl border border-outline-variant/20"
