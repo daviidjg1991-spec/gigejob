@@ -9230,7 +9230,7 @@ const AdminPage = ({
                     placeholder="Un breve resumen que aparecerá en la portada..."
                   />
                 </div>
-                <div className="prose max-w-none">
+                <div className="w-full">
                   <label className="block text-sm font-bold text-on-surface mb-1">
                     Contenido
                   </label>
