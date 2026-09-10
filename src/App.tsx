@@ -4663,13 +4663,7 @@ const BlogPostPage = () => {
             {post.summary}
           </p>
         )}
-        <div className="flex items-center gap-4 text-sm font-bold text-on-surface-variant border-y border-outline-variant/10 py-4 uppercase tracking-wider">
-          <span>
-            Por: <span className="text-on-surface">{post.authorName}</span>
-          </span>
-          <span className="w-1 h-1 rounded-full bg-outline-variant/30"></span>
-          <span>{formatDate(post.createdAt)}</span>
-        </div>
+
       </div>
 
       {post.imageUrl && (
@@ -4708,6 +4702,13 @@ const BlogPostPage = () => {
             {post.content}
           </Markdown>
         )}
+        <div className="flex items-center gap-4 text-[10px] text-gray-400 mt-12 pt-4 border-t border-outline-variant/10 uppercase tracking-wider font-bold">
+          <span>
+            Por: <span>{post.authorName}</span>
+          </span>
+          <span className="w-1 h-1 rounded-full bg-gray-400"></span>
+          <span>{formatDate(post.createdAt)}</span>
+        </div>
       </div>
     </div>
   );
