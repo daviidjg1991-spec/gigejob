@@ -9401,7 +9401,6 @@ const AdminPage = ({
                       }
                       setIsEditingBlogPost(false);
                       setCurrentBlogPost({});
-                      setBlogImageFile(null);
                     } catch (err: any) {
                       console.error(err);
                       alert("Error al guardar: " + (err.message || ""));
