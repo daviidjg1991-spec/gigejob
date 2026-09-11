@@ -5896,7 +5896,7 @@ const AdminPage = ({
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [isEditingBlogPost, setIsEditingBlogPost] = useState(false);
   const [currentBlogPost, setCurrentBlogPost] = useState<Partial<BlogPost>>({});
-  const [isSavingBlogPost, setIsSavingBlogPost] = useState(false);
+  const [isSavingBlogPost, setIsSavingBlogPost] = useState<boolean | string>(false);
   const [blogImageLayout, setBlogImageLayout] = useState<"default" | "float-left" | "float-right" | "columns-2">("default");
   const [isAdminAuthReady, setIsAdminAuthReady] = useState(false);
 
@@ -9292,12 +9292,12 @@ const AdminPage = ({
                   </label>
                 </div>
                 <button
-                  disabled={isSavingBlogPost}
+                  disabled={!!isSavingBlogPost}
                   onClick={async () => {
                     if (!currentBlogPost.title || !currentBlogPost.content)
                       return alert("Título y contenido requeridos");
                     try {
-                      setIsSavingBlogPost(true);
+                      setIsSavingBlogPost("Preparando...");
                       const cleanPost = Object.fromEntries(
                         Object.entries(currentBlogPost).filter(([_, v]) => v !== undefined)
                       );
@@ -9318,6 +9318,7 @@ const AdminPage = ({
                         for (let i = 0; i < imgArray.length; i++) {
                           const img = imgArray[i];
                           if (img.src && img.src.startsWith("data:image/")) {
+                            setIsSavingBlogPost(`Subiendo imagen ${i + 1} de ${imgArray.length}...`);
                             try {
                               const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
                               
@@ -9327,6 +9328,7 @@ const AdminPage = ({
                                 timeout(15000, "Tiempo de espera agotado al subir imagen")
                               ]);
                               
+                              setIsSavingBlogPost(`Obteniendo URL de imagen ${i + 1}...`);
                               const url = await Promise.race([
                                 getDownloadURL(imageRef),
                                 timeout(10000, "Tiempo de espera agotado al obtener URL")
@@ -9342,6 +9344,7 @@ const AdminPage = ({
                         cleanPost.content = tempDiv.innerHTML;
                       }
 
+                      setIsSavingBlogPost("Guardando post en base de datos...");
                       if (currentBlogPost.id) {
                         await Promise.race([
                           setDoc(
@@ -9368,6 +9371,7 @@ const AdminPage = ({
                       }
                       setIsEditingBlogPost(false);
                       setCurrentBlogPost({});
+                      setBlogImageFile(null);
                     } catch (err: any) {
                       console.error(err);
                       alert("Error al guardar: " + (err.message || ""));
@@ -9377,7 +9381,7 @@ const AdminPage = ({
                   }}
                   className="w-full py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50"
                 >
-                  {isSavingBlogPost ? "Guardando..." : "Guardar"}
+                  {isSavingBlogPost ? (typeof isSavingBlogPost === 'string' ? isSavingBlogPost : "Guardando...") : "Guardar"}
                 </button>
               </div>
             </div>
