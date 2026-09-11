@@ -5840,6 +5840,15 @@ const joditConfig = {
   uploader: {
     insertImageAsBase64URI: true,
   },
+  events: {
+    beforeInsertImage: (url: string) => {
+      // Limit to ~1.5MB (aprox 2,000,000 characters in base64)
+      if (url && url.startsWith("data:image/") && url.length > 2000000) {
+        alert("La imagen es demasiado grande (máximo 1.5MB). Por favor, reduce su tamaño antes de añadirla.");
+        return false;
+      }
+    }
+  },
   image: {
     defaultMargin: 16,
   },
@@ -9321,6 +9330,7 @@ const AdminPage = ({
                               img.src = url;
                             } catch (uploadErr) {
                               console.error("Error al subir imagen embebida", uploadErr);
+                              throw new Error("No se pudo procesar una de las imágenes. Por favor, revisa que no sea excesivamente grande y vuelve a intentarlo.");
                             }
                           }
                         }
