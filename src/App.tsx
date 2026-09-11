@@ -9332,17 +9332,37 @@ const AdminPage = ({
                               for (let j = 0; j < byteString.length; j++) {
                                 ia[j] = byteString.charCodeAt(j);
                               }
-                              const blob = new Blob([ab], { type: mime });
+                              // Upload using the Firebase Storage REST API directly to bypass SDK bugs/hangs in Capacitor
+                              const bucket = storage.app.options.storageBucket;
+                              const fileName = `blog_images/post_${Date.now()}_${i}`;
+                              const encodedName = encodeURIComponent(fileName);
+                              const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodedName}`;
                               
-                              // Upload the blob
+                              const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+                              const headers: HeadersInit = { 'Content-Type': mime };
+                              if (token) {
+                                headers['Authorization'] = `Bearer ${token}`;
+                              }
+                              
+                              const uploadPromise = fetch(uploadUrl, {
+                                method: 'POST',
+                                headers: headers,
+                                body: ab
+                              }).then(async (res) => {
+                                if (!res.ok) {
+                                  const errText = await res.text();
+                                  throw new Error(`HTTP ${res.status}: ${errText}`);
+                                }
+                                return res;
+                              });
+                              
                               await Promise.race([
-                                uploadBytes(imageRef, blob),
-                                timeout(15000, "Tiempo de espera agotado al subir imagen")
+                                uploadPromise,
+                                timeout(15000, "Tiempo de espera agotado al subir imagen por REST")
                               ]);
                               
-                              // Construct the public URL manually to bypass getDownloadURL hanging bugs
-                              const bucket = storage.app.options.storageBucket;
-                              const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(imageRef.fullPath)}?alt=media`;
+                              // Construct the public URL manually
+                              const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedName}?alt=media`;
                               
                               img.src = url;
                             } catch (uploadErr: any) {
