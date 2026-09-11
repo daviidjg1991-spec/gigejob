@@ -9286,29 +9286,33 @@ const AdminPage = ({
                     if (!currentBlogPost.title || !currentBlogPost.content)
                       return alert("Título y contenido requeridos");
                     try {
+                      const cleanPost = Object.fromEntries(
+                        Object.entries(currentBlogPost).filter(([_, v]) => v !== undefined)
+                      );
+                      
                       if (currentBlogPost.id) {
                         await setDoc(
                           doc(db, "blog_posts", currentBlogPost.id),
-                          { ...currentBlogPost, slug: currentBlogPost.slug || createSlug(currentBlogPost.title) },
+                          { ...cleanPost, slug: cleanPost.slug || createSlug(cleanPost.title as string) },
                           { merge: true },
                         );
                       } else {
                         const newRef = doc(collection(db, "blog_posts"));
                         await setDoc(newRef, {
-                          ...currentBlogPost,
+                          ...cleanPost,
                           id: newRef.id,
-                          slug: createSlug(currentBlogPost.title),
+                          slug: createSlug(cleanPost.title as string),
                           authorId: user?.id || "admin",
                           authorName: user?.username || "Admin GigeJob",
                           createdAt: Date.now(),
-                          published: currentBlogPost.published || false,
+                          published: cleanPost.published || false,
                         });
                       }
                       setIsEditingBlogPost(false);
                       setCurrentBlogPost({});
-                    } catch (err) {
+                    } catch (err: any) {
                       console.error(err);
-                      alert("Error al guardar");
+                      alert("Error al guardar: " + (err.message || ""));
                     }
                   }}
                   className="w-full py-3 bg-primary text-white rounded-xl font-bold"
