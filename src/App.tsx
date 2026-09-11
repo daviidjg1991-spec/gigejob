@@ -292,7 +292,7 @@ import {
   sendPasswordResetEmail,
   deleteUser,
 } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
 
 enum OperationType {
   CREATE = "create",
@@ -9302,6 +9302,10 @@ const AdminPage = ({
                         Object.entries(currentBlogPost).filter(([_, v]) => v !== undefined)
                       );
                       
+                      // Helper for timeouts
+                      const timeout = (ms: number, msg: string) => 
+                        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms));
+
                       // Process embedded base64 images
                       if (cleanPost.content) {
                         const tempDiv = document.createElement("div");
@@ -9317,15 +9321,21 @@ const AdminPage = ({
                             try {
                               const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
                               
-                              // Use Firebase's native uploadString which is optimized for data URIs
-                              const { uploadString } = await import("firebase/storage");
-                              await uploadString(imageRef, img.src, 'data_url');
+                              // Use Firebase's native uploadString which is optimized for data URIs, with a 15s timeout
+                              await Promise.race([
+                                uploadString(imageRef, img.src, 'data_url'),
+                                timeout(15000, "Tiempo de espera agotado al subir imagen")
+                              ]);
                               
-                              const url = await getDownloadURL(imageRef);
+                              const url = await Promise.race([
+                                getDownloadURL(imageRef),
+                                timeout(10000, "Tiempo de espera agotado al obtener URL")
+                              ]) as string;
+                              
                               img.src = url;
-                            } catch (uploadErr) {
+                            } catch (uploadErr: any) {
                               console.error("Error al subir imagen embebida", uploadErr);
-                              throw new Error("No se pudo procesar una de las imágenes. Por favor, revisa que no sea excesivamente grande y vuelve a intentarlo.");
+                              throw new Error(`No se pudo procesar una de las imágenes (${uploadErr.message || "Error desconocido"}). Por favor, reduce su tamaño e inténtalo de nuevo.`);
                             }
                           }
                         }
@@ -9333,22 +9343,28 @@ const AdminPage = ({
                       }
 
                       if (currentBlogPost.id) {
-                        await setDoc(
-                          doc(db, "blog_posts", currentBlogPost.id),
-                          { ...cleanPost, slug: cleanPost.slug || createSlug(cleanPost.title as string) },
-                          { merge: true },
-                        );
+                        await Promise.race([
+                          setDoc(
+                            doc(db, "blog_posts", currentBlogPost.id),
+                            { ...cleanPost, slug: cleanPost.slug || createSlug(cleanPost.title as string) },
+                            { merge: true }
+                          ),
+                          timeout(10000, "Tiempo de espera agotado al guardar en base de datos")
+                        ]);
                       } else {
                         const newRef = doc(collection(db, "blog_posts"));
-                        await setDoc(newRef, {
-                          ...cleanPost,
-                          id: newRef.id,
-                          slug: createSlug(cleanPost.title as string),
-                          authorId: user?.id || "admin",
-                          authorName: user?.username || "Admin GigeJob",
-                          createdAt: Date.now(),
-                          published: cleanPost.published || false,
-                        });
+                        await Promise.race([
+                          setDoc(newRef, {
+                            ...cleanPost,
+                            id: newRef.id,
+                            slug: createSlug(cleanPost.title as string),
+                            authorId: user?.id || "admin",
+                            authorName: user?.username || "Admin GigeJob",
+                            createdAt: Date.now(),
+                            published: cleanPost.published || false,
+                          }),
+                          timeout(10000, "Tiempo de espera agotado al guardar en base de datos")
+                        ]);
                       }
                       setIsEditingBlogPost(false);
                       setCurrentBlogPost({});
