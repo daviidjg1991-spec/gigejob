@@ -9303,8 +9303,18 @@ const AdminPage = ({
                           const img = images[i];
                           if (img.src && img.src.startsWith("data:image/")) {
                             try {
-                              const response = await fetch(img.src);
-                              const blob = await response.blob();
+                              // Capacitor fetch() on data: URIs hangs, so we use atob directly
+                              const parts = img.src.split(";");
+                              const mime = parts[0].split(":")[1];
+                              const data = parts[1].split(",")[1];
+                              const byteString = atob(data);
+                              const ab = new ArrayBuffer(byteString.length);
+                              const ia = new Uint8Array(ab);
+                              for (let j = 0; j < byteString.length; j++) {
+                                ia[j] = byteString.charCodeAt(j);
+                              }
+                              const blob = new Blob([ab], { type: mime });
+                              
                               const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
                               await uploadBytes(imageRef, blob);
                               const url = await getDownloadURL(imageRef);
