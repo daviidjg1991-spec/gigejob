@@ -9318,21 +9318,21 @@ const AdminPage = ({
                         for (let i = 0; i < imgArray.length; i++) {
                           const img = imgArray[i];
                           if (img.src && img.src.startsWith("data:image/")) {
-                            setIsSavingBlogPost(`Subiendo imagen ${i + 1} de ${imgArray.length}...`);
                             try {
                               const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
                               
-                              // Use Firebase's native uploadString which is optimized for data URIs, with a 15s timeout
-                              await Promise.race([
-                                uploadString(imageRef, img.src, 'data_url'),
+                              setIsSavingBlogPost(`Subiendo imagen ${i + 1} de ${imgArray.length}...`);
+                              
+                              // Convert base64 to blob using fetch, which is standard across the app
+                              const fetchRes = await fetch(img.src);
+                              const blob = await fetchRes.blob();
+                              
+                              const uploadPromise = uploadBytes(imageRef, blob).then(snapshot => getDownloadURL(snapshot.ref));
+                              
+                              const url = await Promise.race([
+                                uploadPromise,
                                 timeout(15000, "Tiempo de espera agotado al subir imagen")
                               ]);
-                              
-                              setIsSavingBlogPost(`Obteniendo URL de imagen ${i + 1}...`);
-                              const url = await Promise.race([
-                                getDownloadURL(imageRef),
-                                timeout(10000, "Tiempo de espera agotado al obtener URL")
-                              ]) as string;
                               
                               img.src = url;
                             } catch (uploadErr: any) {
