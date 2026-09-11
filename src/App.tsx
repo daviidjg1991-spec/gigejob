@@ -5887,6 +5887,7 @@ const AdminPage = ({
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [isEditingBlogPost, setIsEditingBlogPost] = useState(false);
   const [currentBlogPost, setCurrentBlogPost] = useState<Partial<BlogPost>>({});
+  const [isSavingBlogPost, setIsSavingBlogPost] = useState(false);
   const [blogImageLayout, setBlogImageLayout] = useState<"default" | "float-left" | "float-right" | "columns-2">("default");
   const [isAdminAuthReady, setIsAdminAuthReady] = useState(false);
 
@@ -9282,14 +9283,40 @@ const AdminPage = ({
                   </label>
                 </div>
                 <button
+                  disabled={isSavingBlogPost}
                   onClick={async () => {
                     if (!currentBlogPost.title || !currentBlogPost.content)
                       return alert("Título y contenido requeridos");
                     try {
+                      setIsSavingBlogPost(true);
                       const cleanPost = Object.fromEntries(
                         Object.entries(currentBlogPost).filter(([_, v]) => v !== undefined)
                       );
                       
+                      // Process embedded base64 images
+                      if (cleanPost.content) {
+                        const tempDiv = document.createElement("div");
+                        tempDiv.innerHTML = cleanPost.content as string;
+                        const images = tempDiv.getElementsByTagName("img");
+                        
+                        for (let i = 0; i < images.length; i++) {
+                          const img = images[i];
+                          if (img.src && img.src.startsWith("data:image/")) {
+                            try {
+                              const response = await fetch(img.src);
+                              const blob = await response.blob();
+                              const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
+                              await uploadBytes(imageRef, blob);
+                              const url = await getDownloadURL(imageRef);
+                              img.src = url;
+                            } catch (uploadErr) {
+                              console.error("Error al subir imagen embebida", uploadErr);
+                            }
+                          }
+                        }
+                        cleanPost.content = tempDiv.innerHTML;
+                      }
+
                       if (currentBlogPost.id) {
                         await setDoc(
                           doc(db, "blog_posts", currentBlogPost.id),
@@ -9313,11 +9340,13 @@ const AdminPage = ({
                     } catch (err: any) {
                       console.error(err);
                       alert("Error al guardar: " + (err.message || ""));
+                    } finally {
+                      setIsSavingBlogPost(false);
                     }
                   }}
-                  className="w-full py-3 bg-primary text-white rounded-xl font-bold"
+                  className="w-full py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50"
                 >
-                  Guardar
+                  {isSavingBlogPost ? "Guardando..." : "Guardar"}
                 </button>
               </div>
             </div>
