@@ -9308,24 +9308,19 @@ const AdminPage = ({
                         tempDiv.innerHTML = cleanPost.content as string;
                         const images = tempDiv.getElementsByTagName("img");
                         
-                        for (let i = 0; i < images.length; i++) {
-                          const img = images[i];
+                        // We convert the live HTMLCollection to an array to avoid mutation issues during iteration
+                        const imgArray = Array.from(images);
+                        
+                        for (let i = 0; i < imgArray.length; i++) {
+                          const img = imgArray[i];
                           if (img.src && img.src.startsWith("data:image/")) {
                             try {
-                              // Capacitor fetch() on data: URIs hangs, so we use atob directly
-                              const parts = img.src.split(";");
-                              const mime = parts[0].split(":")[1];
-                              const data = parts[1].split(",")[1];
-                              const byteString = atob(data);
-                              const ab = new ArrayBuffer(byteString.length);
-                              const ia = new Uint8Array(ab);
-                              for (let j = 0; j < byteString.length; j++) {
-                                ia[j] = byteString.charCodeAt(j);
-                              }
-                              const blob = new Blob([ab], { type: mime });
-                              
                               const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
-                              await uploadBytes(imageRef, blob);
+                              
+                              // Use Firebase's native uploadString which is optimized for data URIs
+                              const { uploadString } = await import("firebase/storage");
+                              await uploadString(imageRef, img.src, 'data_url');
+                              
                               const url = await getDownloadURL(imageRef);
                               img.src = url;
                             } catch (uploadErr) {
