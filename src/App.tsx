@@ -9318,21 +9318,31 @@ const AdminPage = ({
                         for (let i = 0; i < imgArray.length; i++) {
                           const img = imgArray[i];
                           if (img.src && img.src.startsWith("data:image/")) {
+                            setIsSavingBlogPost(`Subiendo imagen ${i + 1} de ${imgArray.length}...`);
                             try {
                               const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
                               
-                              setIsSavingBlogPost(`Subiendo imagen ${i + 1} de ${imgArray.length}...`);
+                              // Manual base64 to Blob conversion (fast for <1.5MB and avoids Capacitor fetch/Blob bugs)
+                              const parts = img.src.split(";");
+                              const mime = parts[0].split(":")[1];
+                              const b64Data = parts[1].split(",")[1];
+                              const byteString = atob(b64Data);
+                              const ab = new ArrayBuffer(byteString.length);
+                              const ia = new Uint8Array(ab);
+                              for (let j = 0; j < byteString.length; j++) {
+                                ia[j] = byteString.charCodeAt(j);
+                              }
+                              const blob = new Blob([ab], { type: mime });
                               
-                              // Convert base64 to blob using fetch, which is standard across the app
-                              const fetchRes = await fetch(img.src);
-                              const blob = await fetchRes.blob();
-                              
-                              const uploadPromise = uploadBytes(imageRef, blob).then(snapshot => getDownloadURL(snapshot.ref));
-                              
-                              const url = await Promise.race([
-                                uploadPromise,
+                              // Upload the blob
+                              await Promise.race([
+                                uploadBytes(imageRef, blob),
                                 timeout(15000, "Tiempo de espera agotado al subir imagen")
                               ]);
+                              
+                              // Construct the public URL manually to bypass getDownloadURL hanging bugs
+                              const bucket = storage.app.options.storageBucket;
+                              const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(imageRef.fullPath)}?alt=media`;
                               
                               img.src = url;
                             } catch (uploadErr: any) {
