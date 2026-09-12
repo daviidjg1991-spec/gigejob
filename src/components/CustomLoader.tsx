@@ -9,7 +9,7 @@ interface CustomLoaderProps {
 export const CustomLoader: React.FC<CustomLoaderProps> = ({ className, size }) => {
   return (
     <img 
-      src="/logo.png?v=2" 
+      src="/logo.png?v=3" 
       alt="Cargando..." 
       className={cn("custom-loader-icon object-contain", className)}
       style={size ? { width: size, height: size } : undefined}

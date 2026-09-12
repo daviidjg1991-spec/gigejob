@@ -476,9 +476,9 @@ export type DynamicAppConfig = {
 export const defaultDynamicAppConfig: DynamicAppConfig = {
   logoText1: "Gige",
   logoText2: "Job",
-  faviconUrl: "/favicon.png",
+  faviconUrl: "/favicon.png?v=3",
   appTitle: "GigeJob: Encuentra profesiones",
-  logoImageUrl: "/logo.png",
+  logoImageUrl: "/logo.png?v=3",
   homeTitle1: "Encuentra profesionales",
   homeTitle2: "cerca de ti",
   homeSubtitle: "La forma más sencilla de conectar con expertos locales.",
@@ -4386,7 +4386,7 @@ const BlogListPage = () => {
     return (
       <div className="flex-1 flex flex-col justify-center items-center min-h-[50vh] p-4">
         <img
-          src="/logo.png"
+          src="/logo.png?v=3"
           alt="Cargando..."
           className="w-24 h-24 object-contain animate-heartbeat"
         />
@@ -4617,7 +4617,7 @@ const BlogPostPage = () => {
     return (
       <div className="flex-1 flex flex-col justify-center items-center min-h-[50vh] p-4">
         <img
-          src="/logo.png"
+          src="/logo.png?v=3"
           alt="Cargando..."
           className="w-24 h-24 object-contain animate-heartbeat"
         />
@@ -13492,7 +13492,7 @@ const Navbar = ({
             {/* Desktop/Tablet Logo */}
             <div className="hidden lg:flex items-center gap-8 shrink-0">
               <Link to="/" className="flex items-center gap-3">
-                <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                <img src="/logo.png?v=3" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
                 <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
                   {config.logoText1}<span className="text-primary">{config.logoText2}</span>
                 </span>
@@ -27439,7 +27439,7 @@ function App() {
                 <div className="flex flex-col gap-8">
                   <div className="flex flex-col gap-4">
                     <div className="flex items-center gap-3">
-                      <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                      <img src="/logo.png?v=3" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
                       <span className="text-xl font-display font-bold tracking-tight text-on-surface">
                         {config.logoText1}<span className="text-primary">{config.logoText2}</span>
                       </span>
@@ -27940,7 +27940,7 @@ function App() {
               <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
                 <div className="flex flex-col gap-4 md:w-1/4">
                   <Link to="/" className="flex items-center gap-3">
-                    <img src="/logo.png" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                    <img src="/logo.png?v=3" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
                     <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
                       {config.logoText1}<span className="text-primary">{config.logoText2}</span>
                     </span>
