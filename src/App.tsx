@@ -259,6 +259,8 @@ import { db, auth, storage } from "./lib/firebase";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
+import { CustomLoader } from "./components/CustomLoader";
+import PullToRefresh from 'react-simple-pull-to-refresh';
 import { CookieBanner } from "./components/CookieBanner";
 import SeoHead from "./components/SeoHead";
 import SeoCategoryRoute from "./components/SeoCategoryRoute";
@@ -4235,7 +4237,7 @@ const PageEditorModal = ({
                             disabled={isUploading}
                           >
                             {isUploading && targetIndex === index ? (
-                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <CustomLoader className="w-5 h-5" />
                             ) : (
                               <Upload className="w-5 h-5" />
                             )}
@@ -5084,7 +5086,7 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
               disabled={isSaving}
               className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center gap-2"
             >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {isSaving ? <CustomLoader className="w-4 h-4" /> : <Save className="w-4 h-4" />}
               Guardar Cambios
             </button>
           </div>
@@ -11228,7 +11230,7 @@ const SettingsView = ({
                     className="w-full py-3.5 lg:py-5 primary-gradient text-white rounded-xl lg:rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-xs shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
                   >
                     {isUpdatingPassword ? (
-                      <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                      <CustomLoader className="w-4 h-4 shrink-0" />
                     ) : (
                       <Lock className="w-4 h-4 shrink-0" />
                     )}
@@ -11312,7 +11314,7 @@ const SettingsView = ({
                             className="flex-1 py-3.5 bg-error text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40 disabled:hover:scale-100 flex items-center justify-center gap-2"
                           >
                             {isDeletingAccount ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <CustomLoader className="w-4 h-4" />
                             ) : (
                               <Trash2 className="w-4 h-4" />
                             )}
@@ -22902,7 +22904,7 @@ const LegalTextModal = ({
         <div className="p-6 overflow-y-auto whitespace-pre-wrap text-sm text-on-surface-variant leading-relaxed">
           {loading ? (
             <div className="flex justify-center py-10">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <CustomLoader className="w-12 h-12 text-primary" />
             </div>
           ) : (
             contentFields[type] || "Aún no se ha configurado este documento."
@@ -27559,7 +27561,22 @@ function App() {
             );
             return (
               <div className="flex-1 shrink-0 flex flex-col">
-                <Routes>
+                <PullToRefresh
+                  onRefresh={async () => {
+                    window.location.reload();
+                  }}
+                  pullingContent={
+                    <div className="flex justify-center items-center py-4">
+                      <CustomLoader className="w-8 h-8" />
+                    </div>
+                  }
+                  refreshingContent={
+                    <div className="flex justify-center items-center py-4">
+                      <CustomLoader className="w-8 h-8" />
+                    </div>
+                  }
+                >
+                  <Routes>
                 <Route
                   path="/pagina/:slug"
                   element={
@@ -27912,6 +27929,7 @@ function App() {
                 <Route path="*" element={<NotFoundPage />} />
 
               </Routes>
+            </PullToRefresh>
               </div>
             );
           })()}

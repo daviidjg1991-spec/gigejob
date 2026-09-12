@@ -169,3 +169,18 @@ body {
   margin-right: auto !important;
   padding: 2rem !important;
 }
+
+@keyframes custom-loader-anim {
+  0% { transform: scale(1) rotate(0deg); }
+  10% { transform: scale(1.15) rotate(0deg); }
+  20% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.15) rotate(0deg); }
+  40% { transform: scale(1) rotate(0deg); }
+  100% { transform: scale(1) rotate(-360deg); }
+}
+
+.custom-loader-icon {
+  animation: custom-loader-anim 2s infinite ease-in-out;
+  transform-origin: center center;
+}
+

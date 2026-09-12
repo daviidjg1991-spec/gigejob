@@ -107,4 +107,4 @@ export const CookieBanner: React.FC = () => {
   );
 };
 
-export default CookieBanner;
+export default CookieBanner
