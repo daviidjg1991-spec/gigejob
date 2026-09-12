@@ -583,7 +583,7 @@ export const AppConfigProvider = ({ children }: { children: React.ReactNode }) =
       document.getElementsByTagName('head')[0].appendChild(link);
     }
     if (config.faviconUrl) {
-      link.href = config.faviconUrl;
+      link.href = config.faviconUrl.includes('?') ? config.faviconUrl : `${config.faviconUrl}?v=4`;
     }
   }, [config.appTitle, config.logoText1, config.logoText2, config.faviconUrl]);
 
