@@ -4388,7 +4388,7 @@ const BlogListPage = () => {
         <img
           src="/logo.png?v=3"
           alt="Cargando..."
-          className="w-24 h-24 object-contain animate-heartbeat"
+          className="w-24 h-24 object-contain custom-loader-icon"
         />
       </div>
     );
@@ -4619,7 +4619,7 @@ const BlogPostPage = () => {
         <img
           src="/logo.png?v=3"
           alt="Cargando..."
-          className="w-24 h-24 object-contain animate-heartbeat"
+          className="w-24 h-24 object-contain custom-loader-icon"
         />
       </div>
     );
