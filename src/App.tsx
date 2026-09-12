@@ -582,9 +582,8 @@ export const AppConfigProvider = ({ children }: { children: React.ReactNode }) =
       link.rel = 'icon';
       document.getElementsByTagName('head')[0].appendChild(link);
     }
-    if (config.faviconUrl) {
-      link.href = config.faviconUrl.includes('?') ? config.faviconUrl : `${config.faviconUrl}?v=4`;
-    }
+    // Hardcoded per project rules to avoid database overriding the local file
+    link.href = "/favicon.png?v=5";
   }, [config.appTitle, config.logoText1, config.logoText2, config.faviconUrl]);
 
   return <AppConfigContext.Provider value={{ config, updateConfig }}>{children}</AppConfigContext.Provider>;
@@ -901,7 +900,7 @@ const AdminSidebar = ({
     <aside className="fixed left-0 top-16 h-[calc(100vh-64px)] w-72 bg-surface-container-low p-4 flex flex-col gap-2 z-40 overflow-hidden">
       <div className="mb-4 px-2">
         {config.logoImageUrl ? (
-          <img src={config.logoImageUrl} alt="App Logo" className="h-8 w-auto object-contain" />
+          <img src="/logo.png?v=5" alt="App Logo" className="h-8 w-auto object-contain" />
         ) : (
           <>
             <span className="text-lg font-extrabold tracking-tight text-primary">
