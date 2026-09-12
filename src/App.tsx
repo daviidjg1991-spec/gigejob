@@ -898,20 +898,7 @@ const AdminSidebar = ({
 
   return (
     <aside className="fixed left-0 top-16 h-[calc(100vh-64px)] w-72 bg-surface-container-low p-4 flex flex-col gap-2 z-40 overflow-hidden">
-      <div className="mb-4 px-2">
-        {config.logoImageUrl ? (
-          <img src="/logo.png?v=5" alt="App Logo" className="h-8 w-auto object-contain" />
-        ) : (
-          <>
-            <span className="text-lg font-extrabold tracking-tight text-primary">
-              {config.logoText1}
-            </span>
-            <span className="text-lg font-extrabold tracking-tight text-on-surface">
-              {config.logoText2}
-            </span>
-          </>
-        )}
-      </div>
+
 
       <div className="flex items-center gap-3 px-2 mb-4">
         <div className="w-10 h-10 rounded-full bg-surface-container-highest flex-shrink-0 overflow-hidden">
@@ -6630,10 +6617,7 @@ const AdminPage = ({
                     <h2 className="text-xl font-bold font-display tracking-tight">
                       Crecimiento de Usuarios
                     </h2>
-                    <div className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                      {users.length} en tiempo real
-                    </div>
+
                   </div>
                   <div className="flex bg-surface-container rounded-full p-1">
                     {["24h", "7d", "1m", "3m", "1Y", "All"].map((range) => (
