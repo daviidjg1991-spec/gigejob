@@ -9960,9 +9960,7 @@ const SettingsView = ({
   };
 
   const [activeType, setActiveType] = useState<string | null>(
-    typeof window !== "undefined" && window.innerWidth < 1024
-      ? (pathSegment ? mapPathToType(pathSegment) : null)
-      : mapPathToType(initialType) || "general",
+    searchParams.get("tab") || pathSegment ? mapPathToType(searchParams.get("tab") || pathSegment) : null
   );
   const [user, setUser] = useState<UserProfile | null>(globalUser);
   const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
@@ -9976,13 +9974,10 @@ const SettingsView = ({
 
   useEffect(() => {
     setShowSaveToast(false);
-    // On mobile, default to the menu unless we have a specific sub-page that isn't 'general'
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      if (!initialType || initialType === "general") {
-        setActiveType(null);
-      }
+    if (!searchParams.get("tab") && !pathSegment) {
+      setActiveType(null);
     }
-  }, [initialType]);
+  }, [searchParams, pathSegment]);
 
   useEffect(() => {
     const checkoutStatus = searchParams.get("checkout");
