@@ -1254,6 +1254,7 @@ const AdminUserEditModal = ({
                 "reseña",
                 "estado",
                 "info",
+                "bloqueados",
               ].map((tab) => (
                 <button
                   key={tab}
@@ -3180,6 +3181,44 @@ const AdminUserEditModal = ({
                       </span>
                     </div>
                   </label>
+                </div>
+              </div>
+            )}
+            {activeTab === "bloqueados" && (
+              <div className="space-y-6">
+                <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-widest mb-4">
+                  Usuarios Bloqueados
+                </h4>
+                <div className="space-y-4">
+                  {(!editedUser.blockedUsers || editedUser.blockedUsers.length === 0) ? (
+                    <p className="text-sm text-on-surface-variant">No hay usuarios bloqueados.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {editedUser.blockedUsers.map((blockedId: string) => (
+                        <div key={blockedId} className="flex justify-between items-center p-4 bg-surface-container rounded-xl border border-outline-variant/10">
+                          <div>
+                            <p className="font-bold text-sm text-on-surface">ID: {blockedId}</p>
+                            <p className="text-xs text-on-surface-variant">
+                              Bloqueado el: {editedUser.blockedUsersDates?.[blockedId] ? new Date(editedUser.blockedUsersDates[blockedId]).toLocaleString() : "Fecha no disponible"}
+                            </p>
+                          </div>
+                          <button
+                            className="px-3 py-1.5 bg-error text-white rounded-lg text-xs font-bold shadow-sm hover:scale-105 transition-transform"
+                            onClick={() => {
+                              if(confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
+                                const newBlocked = editedUser.blockedUsers.filter((id: string) => id !== blockedId);
+                                const newDates = { ...editedUser.blockedUsersDates };
+                                delete newDates[blockedId];
+                                setEditedUser({ ...editedUser, blockedUsers: newBlocked, blockedUsersDates: newDates });
+                              }
+                            }}
+                          >
+                            Desbloquear
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -11094,6 +11133,17 @@ const SettingsView = ({
                   Seguridad
                 </button>
                 <button
+                  onClick={() => setSecurityTab("blocked")}
+                  className={cn(
+                    "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                    securityTab === "blocked"
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-on-surface-variant/40",
+                  )}
+                >
+                  Bloqueados
+                </button>
+                <button
                   onClick={() => setSecurityTab("account")}
                   className={cn(
                     "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
@@ -11221,6 +11271,53 @@ const SettingsView = ({
                       ? "Actualizando..."
                       : "Actualizar Contraseña"}
                   </button>
+                </div>
+              ) : securityTab === "blocked" ? (
+                <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/10 space-y-6 shadow-sm">
+                  <div className="space-y-4">
+                    <h4 className="text-sm lg:text-base font-black uppercase tracking-wider text-on-surface-variant">
+                      Usuarios Bloqueados
+                    </h4>
+                    {(!user?.blockedUsers || user.blockedUsers.length === 0) ? (
+                      <p className="text-sm text-on-surface-variant">No tienes usuarios bloqueados.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {user.blockedUsers.map((blockedId: string) => (
+                          <div key={blockedId} className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-4 bg-white rounded-xl border border-outline-variant/10 shadow-sm">
+                            <div>
+                              <p className="font-bold text-sm text-on-surface">ID: {blockedId}</p>
+                              <p className="text-xs text-on-surface-variant">
+                                Bloqueado el: {user.blockedUsersDates?.[blockedId] ? new Date(user.blockedUsersDates[blockedId]).toLocaleString() : "Fecha no disponible"}
+                              </p>
+                            </div>
+                            <button
+                              className="px-4 py-2 bg-error text-white rounded-xl text-xs font-bold shadow-sm hover:scale-105 transition-transform"
+                              onClick={async () => {
+                                if (confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
+                                  const newBlocked = user.blockedUsers!.filter((id: string) => id !== blockedId);
+                                  const newDates = { ...(user.blockedUsersDates || {}) };
+                                  delete newDates[blockedId];
+                                  try {
+                                    await updateDoc(doc(db, "users", user.id), {
+                                      blockedUsers: newBlocked,
+                                      blockedUsersDates: newDates
+                                    });
+                                    // Update local state if needed (usually handled by listener, but we force it just in case)
+                                    setUser({ ...user, blockedUsers: newBlocked, blockedUsersDates: newDates });
+                                  } catch (e) {
+                                    console.error("Error al desbloquear", e);
+                                    alert("Error al desbloquear el usuario.");
+                                  }
+                                }
+                              }}
+                            >
+                              Desbloquear
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-error/20 space-y-6 shadow-sm">
@@ -16452,7 +16549,12 @@ const ListingDetail = ({
       const currentBlocked = user.blockedUsers || [];
       if (!currentBlocked.includes(authorId)) {
         const updated = [...currentBlocked, authorId];
-        await updateDoc(userRef, { blockedUsers: updated });
+        const newBlockedUsersDates = { ...(user.blockedUsersDates || {}) };
+        newBlockedUsersDates[authorId] = new Date().toISOString();
+        await updateDoc(userRef, { 
+          blockedUsers: updated,
+          blockedUsersDates: newBlockedUsersDates
+        });
       }
       alert("Usuario bloqueado con éxito.");
       navigate("/");
@@ -17603,7 +17705,12 @@ const ProfilePage = ({
       const currentBlocked = user.blockedUsers || [];
       if (!currentBlocked.includes(targetUserId)) {
         const updated = [...currentBlocked, targetUserId];
-        await updateDoc(userRef, { blockedUsers: updated });
+        const newBlockedUsersDates = { ...(user.blockedUsersDates || {}) };
+        newBlockedUsersDates[targetUserId] = new Date().toISOString();
+        await updateDoc(userRef, { 
+          blockedUsers: updated,
+          blockedUsersDates: newBlockedUsersDates
+        });
       }
       alert("Usuario bloqueado con éxito.");
       navigate("/");
@@ -20684,8 +20791,12 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       const userRef = doc(db, "users", myActualId);
       const currentBlocked = user?.blockedUsers || [];
       if (!currentBlocked.includes(otherParticipantId)) {
+        const updated = [...currentBlocked, otherParticipantId];
+        const newBlockedUsersDates = { ...(user?.blockedUsersDates || {}) };
+        newBlockedUsersDates[otherParticipantId] = new Date().toISOString();
         await updateDoc(userRef, {
-          blockedUsers: [...currentBlocked, otherParticipantId],
+          blockedUsers: updated,
+          blockedUsersDates: newBlockedUsersDates
         });
       }
       alert("Usuario bloqueado con éxito.");

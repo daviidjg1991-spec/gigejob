@@ -120,6 +120,7 @@ export interface UserProfile {
   hasClaimedPromotion?: boolean;
   claimedPromotionId?: string;
   blockedUsers?: string[];
+  blockedUsersDates?: Record<string, string>;
   certifications?: {
     serviceGuarantee: boolean;
     professionalInsurance: boolean;
