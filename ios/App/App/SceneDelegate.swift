@@ -9,28 +9,17 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let _ = (scene as? UIWindowScene) else { return }
     }
 
-    func sceneWillResignActive(_ scene: UIScene) {
-        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
-    }
-
-    func sceneDidEnterBackground(_ scene: UIScene) {
-        NotificationCenter.default.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
-    }
-
-    func sceneWillEnterForeground(_ scene: UIScene) {
-        NotificationCenter.default.post(name: UIApplication.willEnterForegroundNotification, object: nil)
-    }
-
-    func sceneDidBecomeActive(_ scene: UIScene) {
-        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
-    }
-
+    func sceneDidDisconnect(_ scene: UIScene) {}
+    func sceneDidBecomeActive(_ scene: UIScene) {}
+    func sceneWillResignActive(_ scene: UIScene) {}
+    func sceneWillEnterForeground(_ scene: UIScene) {}
+    func sceneDidEnterBackground(_ scene: UIScene) {}
+    
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        if let url = URLContexts.first?.url {
-            ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:])
-        }
+        guard let url = URLContexts.first?.url else { return }
+        ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:])
     }
-
+    
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
     }
