@@ -61,11 +61,6 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
-	<key>UIApplicationSceneManifest</key>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<false/>
-	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Necesitamos acceso a la cámara para tomar fotos para tu anuncio o perfil.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
