@@ -8,9 +8,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
-        FirebaseApp.configure()
-        
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+        } else {
+            print("WARNING: GoogleService-Info.plist not found in bundle. Skipping FirebaseApp.configure()")
+        }
         #if targetEnvironment(simulator) || DEBUG
         if #available(macOS 13.3, iOS 16.4, tvOS 16.4, *) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {

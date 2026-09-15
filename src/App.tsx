@@ -10519,10 +10519,15 @@ const SettingsView = ({
   useEffect(() => {
     if (initialType) {
       if (
-        initialType === "personal" ||
-        initialType === "general"
+        (initialType === "personal" || initialType === "general") &&
+        (typeof window === "undefined" || window.innerWidth >= 1024 || searchParams.get("tab") || pathSegment)
       ) {
         setActiveType("general");
+        setGeneralTab(null);
+      } else if (
+        (initialType === "personal" || initialType === "general")
+      ) {
+        setActiveType(null);
         setGeneralTab(null);
       } else if (
         initialType === "profesional" ||
