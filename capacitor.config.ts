@@ -7,8 +7,6 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     hostname: 'localhost',
-    iosScheme: 'https',
-    androidScheme: 'https',
     allowNavigation: ['gigejob.com', '*.gigejob.com']
   },
   ios: {
@@ -21,7 +19,7 @@ const config: CapacitorConfig = {
     },
     SplashScreen: {
       launchShowDuration: 3000,
-      launchAutoHide: false,
+      launchAutoHide: true,
       backgroundColor: "#ffffffff",
       showSpinner: true,
       androidSpinnerStyle: "large",
