@@ -5907,7 +5907,51 @@ const AdminPage = ({
   unreadMessagesCount: number;
 }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const location = useLocation();
+
+  const getInitialTab = () => {
+    const path = location.pathname.replace('/admin', '').replace(/^\//, '');
+    if (!path) return "dashboard";
+    const tabMap: Record<string, string> = {
+      'resumen': 'dashboard',
+      'usuarios': 'personal',
+      'servicios': 'professional',
+      'planes-pro': 'planes-pro',
+      'promociones': 'promociones',
+      'moderacion': 'ads',
+      'reportes': 'reports',
+      'administradores': 'admins',
+      'logos': 'logos',
+      'inicio': 'inicio',
+      'blog': 'blog',
+      'popup': 'popup',
+      'configuracion': 'security'
+    };
+    return tabMap[path.toLowerCase()] || path;
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab());
+
+  useEffect(() => {
+    const reverseMap: Record<string, string> = {
+      'dashboard': 'Resumen',
+      'personal': 'usuarios',
+      'professional': 'servicios',
+      'planes-pro': 'planes-pro',
+      'promociones': 'promociones',
+      'ads': 'moderacion',
+      'reports': 'reportes',
+      'admins': 'administradores',
+      'logos': 'logos',
+      'inicio': 'inicio',
+      'blog': 'blog',
+      'popup': 'popup',
+      'security': 'configuracion'
+    };
+    const pathSegment = reverseMap[activeTab] || activeTab;
+    navigate(`/admin/${pathSegment}`, { replace: true });
+  }, [activeTab, navigate]);
+
   const { plans: proPlans } = useProPlansConfig();
   const [searchTerm, setSearchTerm] = useState("");
   const [users, setUsers] = useState<any[]>([]);
@@ -27778,7 +27822,7 @@ function App() {
                   }
                 />
                 <Route
-                  path="/admin"
+                  path="/admin/*"
                   element={
                     (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") ? (
                       <AdminPage
