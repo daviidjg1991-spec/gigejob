@@ -9390,15 +9390,39 @@ const AdminPage = ({
                             try {
                               const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
                               
-                              const uploadPromise = uploadString(imageRef, img.src, 'data_url');
+                              // Usamos la API REST pero enviando un Blob para evitar errores de fetch en Capacitor
+                              const response = await fetch(img.src);
+                              const blob = await response.blob();
+                              
+                              const bucket = storage.app.options.storageBucket;
+                              const fileName = `blog_images/post_${Date.now()}_${i}`;
+                              const encodedName = encodeURIComponent(fileName);
+                              const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodedName}`;
+                              
+                              const token = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+                              const headers: HeadersInit = { 'Content-Type': blob.type || 'image/jpeg' };
+                              if (token) {
+                                headers['Authorization'] = `Bearer ${token}`;
+                              }
+                              
+                              const uploadPromise = fetch(uploadUrl, {
+                                method: 'POST',
+                                headers: headers,
+                                body: blob
+                              }).then(async (res) => {
+                                if (!res.ok) {
+                                  const errText = await res.text();
+                                  throw new Error(`HTTP ${res.status}: ${errText}`);
+                                }
+                                return res;
+                              });
                               
                               await Promise.race([
                                 uploadPromise,
-                                timeout(15000, "Tiempo de espera agotado al subir imagen")
+                                timeout(15000, "Tiempo de espera agotado al subir imagen por REST")
                               ]);
                               
-                              const url = await getDownloadURL(imageRef);
-                              
+                              const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodedName}?alt=media`;
                               img.src = url;
                             } catch (uploadErr: any) {
                               console.error("Error al subir imagen embebida", uploadErr);
