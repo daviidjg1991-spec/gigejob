@@ -9221,12 +9221,12 @@ const AdminPage = ({
                         )}
 
                         {popupConfig.buttonText && (
-                          <div className="w-full space-y-2 mt-2">
-                            <button className="w-full bg-primary text-white font-bold py-3.5 px-6 rounded-xl shadow-lg pointer-events-none">
+                          <div className="w-full flex flex-col items-center mt-2">
+                            <button className="w-full bg-primary text-white font-bold py-3.5 px-6 rounded-xl shadow-lg pointer-events-none mb-1.5">
                               {popupConfig.buttonText}
                             </button>
                             {popupConfig.showDontShowAgain && (
-                              <button className="text-xs text-on-surface-variant/80 hover:text-on-surface-variant transition-colors mt-2 font-medium underline-offset-4 hover:underline pointer-events-none pt-2">
+                              <button className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline pointer-events-none">
                                 No mostrar más
                               </button>
                             )}
@@ -28803,11 +28803,11 @@ function App() {
                     )}
 
                     {globalPopupConfig.buttonText && (
-                      <div className="w-full space-y-3 mt-4">
+                      <div className="w-full flex flex-col items-center mt-4">
                         <button
                           onClick={handlePopupSubmit}
                           disabled={isSubmittingPopup}
-                          className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all text-sm disabled:opacity-50"
+                          className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all text-sm disabled:opacity-50 mb-1.5"
                         >
                           {isSubmittingPopup
                             ? "Enviando..."
@@ -28825,7 +28825,7 @@ function App() {
                               localStorage.setItem("dismissed_popups", JSON.stringify(dismissed));
                               setIsPopupOpen(false);
                             }}
-                            className="text-xs text-on-surface-variant/80 hover:text-on-surface-variant transition-colors mt-2 font-medium underline-offset-4 hover:underline pt-2"
+                            className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline"
                           >
                             No mostrar más
                           </button>
