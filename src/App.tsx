@@ -27117,7 +27117,7 @@ function App() {
     }
   });
   
-  const getActivePopupConfig = () => {
+  const getActivePopupConfig = (): any => {
     if (!globalPopupsConfig) return null;
     
     const popups = Object.values(globalPopupsConfig).filter((p: any) => p && p.active);
