@@ -8642,7 +8642,7 @@ const AdminPage = ({
                           <h3 className="font-bold text-lg">{p.name || "Pop-up sin título"}</h3>
                           <div className="flex gap-2 mt-2 text-sm text-on-surface-variant items-center">
                             <span className="bg-surface p-1 px-2 rounded-lg border border-outline-variant/20">
-                              Audiencia: {p.targetAudience === "all" ? "Todos" : p.targetAudience === "guests" ? "No registrados" : "Primer login"}
+                              Audiencia: {p.targetAudience === "all" ? "Todos" : p.targetAudience === "guests" ? "No registrados" : p.targetAudience === "first_login" ? "Primer login" : p.targetAudience === "registered_returning" ? "Usuarios recurrentes" : p.targetAudience}
                             </span>
                             {p.showInWeb && <span className="bg-blue-500/10 text-blue-500 font-bold p-1 px-2 rounded-lg">Web</span>}
                             {p.showInApp && <span className="bg-green-500/10 text-green-500 font-bold p-1 px-2 rounded-lg">App</span>}
@@ -8774,7 +8774,31 @@ const AdminPage = ({
                         <option value="first_login">
                           Mostrar a usuarios que inician sesión por primera vez
                         </option>
+                        <option value="registered_returning">
+                          Mostrar a usuarios ya registrados (recurrente)
+                        </option>
                       </select>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={popupConfig.showDontShowAgain || false}
+                          onChange={(e) =>
+                            setPopupConfig({
+                              ...popupConfig,
+                              showDontShowAgain: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          id="dont-show-again-check"
+                        />
+                        <label
+                          htmlFor="dont-show-again-check"
+                          className="text-sm font-bold cursor-pointer text-on-surface"
+                        >
+                          Añadir botón "No mostrar más" al final del Pop-up
+                        </label>
+                      </div>
 
                       {popupConfig.targetAudience === "guests" && (
                         <div className="mt-3 flex items-center gap-2">
@@ -27099,9 +27123,16 @@ function App() {
     const popups = Object.values(globalPopupsConfig).filter((p: any) => p && p.active);
     if (popups.length === 0) return null;
 
+    const dismissedPopupsStr = typeof window !== 'undefined' ? localStorage.getItem("dismissed_popups") : null;
+    let dismissedPopups: string[] = [];
+    if (dismissedPopupsStr) {
+      try { dismissedPopups = JSON.parse(dismissedPopupsStr); } catch {}
+    }
+
     const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
     
     const platformPopups = popups.filter((p: any) => {
+      if (dismissedPopups.includes(p.id)) return false;
       if (isNative && p.showInApp) return true;
       if (!isNative && p.showInWeb) return true;
       if (p.showInApp === undefined && p.showInWeb === undefined) return true;
@@ -27113,6 +27144,10 @@ function App() {
     if (user && sessionStorage.getItem("is_first_login_session") === "true") {
       const firstLogin = platformPopups.find((p: any) => p.targetAudience === "first_login");
       if (firstLogin) return firstLogin;
+    }
+    if (user && sessionStorage.getItem("is_first_login_session") !== "true") {
+      const returning = platformPopups.find((p: any) => p.targetAudience === "registered_returning");
+      if (returning) return returning;
     }
     if (!user) {
       const guests = platformPopups.find((p: any) => p.targetAudience === "guests");
@@ -28761,15 +28796,34 @@ function App() {
                     )}
 
                     {globalPopupConfig.buttonText && (
-                      <button
-                        onClick={handlePopupSubmit}
-                        disabled={isSubmittingPopup}
-                        className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all mt-4 text-sm disabled:opacity-50"
-                      >
-                        {isSubmittingPopup
-                          ? "Enviando..."
-                          : globalPopupConfig.buttonText}
-                      </button>
+                      <div className="w-full space-y-3 mt-4">
+                        <button
+                          onClick={handlePopupSubmit}
+                          disabled={isSubmittingPopup}
+                          className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all text-sm disabled:opacity-50"
+                        >
+                          {isSubmittingPopup
+                            ? "Enviando..."
+                            : globalPopupConfig.buttonText}
+                        </button>
+                        {globalPopupConfig.showDontShowAgain && (
+                          <button
+                            onClick={() => {
+                              const dismissedStr = localStorage.getItem("dismissed_popups");
+                              let dismissed: string[] = [];
+                              if (dismissedStr) {
+                                try { dismissed = JSON.parse(dismissedStr); } catch {}
+                              }
+                              dismissed.push(globalPopupConfig.id);
+                              localStorage.setItem("dismissed_popups", JSON.stringify(dismissed));
+                              setIsPopupOpen(false);
+                            }}
+                            className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-bold py-3 px-6 rounded-2xl transition-all text-xs border border-outline-variant/20"
+                          >
+                            No mostrar más
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
