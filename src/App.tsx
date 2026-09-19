@@ -8639,7 +8639,7 @@ const AdminPage = ({
                     {Object.values(popupsConfig).map((p: any) => (
                       <div key={p.id} className="bg-surface-container flex items-center justify-between p-4 rounded-2xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
                         <div>
-                          <h3 className="font-bold text-lg">{p.title || "Pop-up sin título"}</h3>
+                          <h3 className="font-bold text-lg">{p.name || "Pop-up sin título"}</h3>
                           <div className="flex gap-2 mt-2 text-sm text-on-surface-variant items-center">
                             <span className="bg-surface p-1 px-2 rounded-lg border border-outline-variant/20">
                               Audiencia: {p.targetAudience === "all" ? "Todos" : p.targetAudience === "guests" ? "No registrados" : "Primer login"}
@@ -8725,6 +8725,19 @@ const AdminPage = ({
                   </div>
 
                   <div className="space-y-4">
+                    <div className="space-y-3">
+                      <label className="block text-sm font-bold text-on-surface mb-2">
+                        Título del Pop-up (Para el listado interno)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20 font-medium"
+                        value={popupConfig.name || ""}
+                        onChange={(e) => setPopupConfig({ ...popupConfig, name: e.target.value })}
+                        placeholder="Ej. Promoción de Verano Web"
+                      />
+                    </div>
+
                     <div className="space-y-3">
                       <label className="block text-sm font-bold text-on-surface mb-2">
                         A quién mostrar
