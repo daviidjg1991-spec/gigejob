@@ -9246,11 +9246,6 @@ const AdminPage = ({
                             <button className="w-full bg-primary text-white font-bold py-3.5 px-6 rounded-xl shadow-lg pointer-events-none mb-1.5">
                               {popupConfig.buttonText}
                             </button>
-                            {popupConfig.showDontShowAgain && (
-                              <button className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline pointer-events-none">
-                                No mostrar más
-                              </button>
-                            )}
                           </div>
                         )}
                         {popupConfig.showRecommendationLink && (
@@ -9266,6 +9261,13 @@ const AdminPage = ({
                                 <Copy className="w-4 h-4" />
                               </button>
                             </div>
+                          </div>
+                        )}
+                        {popupConfig.showDontShowAgain && (
+                          <div className="w-full flex justify-center mt-3">
+                            <button className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline pointer-events-none">
+                              No mostrar más
+                            </button>
                           </div>
                         )}
                       </div>
@@ -28882,23 +28884,6 @@ function App() {
                             ? "Enviando..."
                             : globalPopupConfig.buttonText}
                         </button>
-                        {globalPopupConfig.showDontShowAgain && (
-                          <button
-                            onClick={() => {
-                              const dismissedStr = localStorage.getItem("dismissed_popups");
-                              let dismissed: string[] = [];
-                              if (dismissedStr) {
-                                try { dismissed = JSON.parse(dismissedStr); } catch {}
-                              }
-                              dismissed.push(globalPopupConfig.id);
-                              localStorage.setItem("dismissed_popups", JSON.stringify(dismissed));
-                              setIsPopupOpen(false);
-                            }}
-                            className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline"
-                          >
-                            No mostrar más
-                          </button>
-                        )}
                       </div>
                     )}
                     
@@ -28921,6 +28906,26 @@ function App() {
                             <Copy className="w-4 h-4" />
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {globalPopupConfig.showDontShowAgain && (
+                      <div className="w-full flex justify-center mt-3">
+                        <button
+                          onClick={() => {
+                            const dismissedStr = localStorage.getItem("dismissed_popups");
+                            let dismissed: string[] = [];
+                            if (dismissedStr) {
+                              try { dismissed = JSON.parse(dismissedStr); } catch {}
+                            }
+                            dismissed.push(globalPopupConfig.id);
+                            localStorage.setItem("dismissed_popups", JSON.stringify(dismissed));
+                            setIsPopupOpen(false);
+                          }}
+                          className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline"
+                        >
+                          No mostrar más
+                        </button>
                       </div>
                     )}
                   </div>
