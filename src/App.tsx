@@ -9221,9 +9221,16 @@ const AdminPage = ({
                         )}
 
                         {popupConfig.buttonText && (
-                          <button className="w-full bg-primary text-white font-bold py-3.5 px-6 rounded-xl shadow-lg mt-2 pointer-events-none">
-                            {popupConfig.buttonText}
-                          </button>
+                          <div className="w-full space-y-2 mt-2">
+                            <button className="w-full bg-primary text-white font-bold py-3.5 px-6 rounded-xl shadow-lg pointer-events-none">
+                              {popupConfig.buttonText}
+                            </button>
+                            {popupConfig.showDontShowAgain && (
+                              <button className="text-xs text-on-surface-variant/80 hover:text-on-surface-variant transition-colors mt-2 font-medium underline-offset-4 hover:underline pointer-events-none pt-2">
+                                No mostrar más
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -28818,7 +28825,7 @@ function App() {
                               localStorage.setItem("dismissed_popups", JSON.stringify(dismissed));
                               setIsPopupOpen(false);
                             }}
-                            className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-bold py-3 px-6 rounded-2xl transition-all text-xs border border-outline-variant/20"
+                            className="text-xs text-on-surface-variant/80 hover:text-on-surface-variant transition-colors mt-2 font-medium underline-offset-4 hover:underline pt-2"
                           >
                             No mostrar más
                           </button>
