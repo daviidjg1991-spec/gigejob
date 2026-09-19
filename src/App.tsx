@@ -185,11 +185,10 @@ const generateCustomId = (
 };
 
 const validateUsername = (username: string): string | null => {
-  // Remove space constraint from here as it's handled in input, but still good to have.
   if (username.includes(" "))
     return "El nombre de usuario no puede contener espacios";
-  if (username.length <= 4)
-    return "El nombre de usuario debe tener más de 4 caracteres";
+  if (username.length < 7)
+    return "El nombre de usuario debe tener un mínimo de 7 caracteres";
   return null;
 };
 
@@ -8800,6 +8799,27 @@ const AdminPage = ({
                         </label>
                       </div>
 
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={popupConfig.showRecommendationLink || false}
+                          onChange={(e) =>
+                            setPopupConfig({
+                              ...popupConfig,
+                              showRecommendationLink: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          id="show-recommendation-link-check"
+                        />
+                        <label
+                          htmlFor="show-recommendation-link-check"
+                          className="text-sm font-bold cursor-pointer text-on-surface"
+                        >
+                          Incluir bloque para Recomendar Perfil
+                        </label>
+                      </div>
+
                       {popupConfig.targetAudience === "guests" && (
                         <div className="mt-3 flex items-center gap-2">
                           <input
@@ -9230,6 +9250,21 @@ const AdminPage = ({
                                 No mostrar más
                               </button>
                             )}
+                          </div>
+                        )}
+                        {popupConfig.showRecommendationLink && (
+                          <div className="w-full mt-4 p-4 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col items-center">
+                            <span className="text-xs font-bold text-on-surface-variant mb-2">Tu Enlace de Recomendación</span>
+                            <div className="flex items-center gap-2 w-full">
+                              <input 
+                                disabled 
+                                value="https://gigejob.com/perfil/@usuario" 
+                                className="flex-1 text-xs px-3 py-2 bg-white rounded border border-outline-variant/30 truncate pointer-events-none" 
+                              />
+                              <button className="bg-primary text-white p-2 rounded hover:bg-primary/90 pointer-events-none">
+                                <Copy className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -11792,8 +11827,9 @@ const SettingsView = ({
                           Nombre de Usuario
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5 disabled:opacity-50 disabled:cursor-not-allowed"
                           value={user.username || ""}
+                          disabled={true}
                           onChange={(e) =>
                             setUser({ ...user, username: e.target.value })
                           }
@@ -17804,18 +17840,53 @@ const ProfilePage = ({
   const isOwnProfile =
     !id || id === "me" || (user && (id === user.email || id === user.id || id === createSlug(user.username || "") || id === createSlug((user.firstName + " " + (user.lastName1 || "")).trim())));
 
-  // If not own profile, find the user from listings
+  const [fetchedUser, setFetchedUser] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchUserFromDB = async () => {
+      if (!isOwnProfile && id) {
+        const inListings = listings.find(
+          (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id || l.author.username === id),
+        )?.author;
+        if (inListings) return;
+
+        try {
+          const usersRef = collection(db, "users");
+          const qUser = query(usersRef, where("username", "==", id.startsWith("@") ? id : `@${id}`));
+          const snap = await getDocs(qUser);
+          if (!snap.empty) {
+            setFetchedUser({ id: snap.docs[0].id, ...snap.docs[0].data() });
+            return;
+          }
+          const qId = query(usersRef, where("id", "==", id));
+          const snapId = await getDocs(qId);
+          if (!snapId.empty) {
+            setFetchedUser({ id: snapId.docs[0].id, ...snapId.docs[0].data() });
+            return;
+          }
+          const docRef = await getDoc(doc(db, "users", id));
+          if (docRef.exists()) {
+            setFetchedUser({ id: docRef.id, ...docRef.data() });
+          }
+        } catch (e) {
+          console.error("Error fetching user profile:", e);
+        }
+      }
+    };
+    fetchUserFromDB();
+  }, [id, isOwnProfile, listings]);
+
   const profileUser = isOwnProfile
     ? user
     : listings.find(
-        (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id),
-      )?.author;
+        (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id || l.author.username === id),
+      )?.author || fetchedUser;
 
   const profileName = isOwnProfile
     ? `${user?.firstName || ""} ${user?.lastName1 || ""}`.trim() ||
       user?.username ||
       "Usuario"
-    : profileUser?.name || "Usuario";
+    : profileUser?.name || profileUser?.username || "Usuario";
 
   const canEditProfile =
     isOwnProfile || (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
@@ -17924,10 +17995,9 @@ const ProfilePage = ({
   }, [isOwnProfile, user?.id, profileUser?.id, id]);
 
   useEffect(() => {
-    const refParam = searchParams.get("ref");
-    const targetUserId = isOwnProfile ? user?.id : profileUser?.id || id;
+    const targetUserId = isOwnProfile ? null : (profileUser?.id || id);
 
-    if (refParam && targetUserId) {
+    if (targetUserId) {
       localStorage.setItem("gigejob_referred_by", targetUserId);
 
       const sessionKey = `rec_tracked_${targetUserId}`;
@@ -17941,13 +18011,11 @@ const ProfilePage = ({
         });
       }
     }
-  }, [searchParams, isOwnProfile, user?.id, profileUser?.id, id]);
+  }, [isOwnProfile, user?.id, profileUser?.id, id]);
 
   const handleRecommendClick = async () => {
-    const targetUserId = isOwnProfile ? user?.id : profileUser?.id || id;
-    if (!targetUserId) return;
-
-    const link = `${window.location.origin}/perfil/${targetUserId}?ref=${user?.id || "rec"}`;
+    const profileIdent = isOwnProfile ? (user?.username || user?.id) : (profileUser?.username || profileUser?.id || id);
+    const link = `${window.location.origin}/perfil/${profileIdent}`;
 
     try {
       await navigator.clipboard.writeText(link);
@@ -28830,6 +28898,28 @@ function App() {
                             No mostrar más
                           </button>
                         )}
+                      </div>
+                    )}
+                    
+                    {globalPopupConfig.showRecommendationLink && user && (
+                      <div className="w-full mt-4 p-4 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col items-center">
+                        <span className="text-xs font-bold text-on-surface-variant mb-2">Tu Enlace de Recomendación</span>
+                        <div className="flex items-center gap-2 w-full">
+                          <input 
+                            disabled 
+                            value={`${window.location.origin}/perfil/${user.username || user.id}`} 
+                            className="flex-1 text-xs px-3 py-2 bg-white rounded border border-outline-variant/30 truncate" 
+                          />
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/perfil/${user.username || user.id}`);
+                              alert("¡Enlace copiado!");
+                            }}
+                            className="bg-primary text-white p-2 rounded hover:bg-primary/90 transition-colors"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
