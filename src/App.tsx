@@ -98,6 +98,7 @@ import {
   UserPlus,
   Globe,
   Edit3,
+  Copy,
   Type,
   Heading2,
   Loader2,
