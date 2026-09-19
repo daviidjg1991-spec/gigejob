@@ -6115,16 +6115,18 @@ const AdminPage = ({
   const [editingPageUrl, setEditingPageUrl] = useState<string | null>(null);
 
   const [popupsConfig, setPopupsConfig] = useState<Record<string, any>>({});
-  const [editingPopupAudience, setEditingPopupAudience] = useState<"all" | "guests" | "first_login">("all");
+  const [editingPopupId, setEditingPopupId] = useState<string | null>(null);
 
-  const popupConfig = popupsConfig[editingPopupAudience] || {
+  const defaultPopupConfig = {
     active: false,
     imageUrl: "",
     backgroundType: "image",
     backgroundColor: "#ffffff",
     triggerType: "delay",
     triggerScrollPercentage: 50,
-    targetAudience: editingPopupAudience,
+    targetAudience: "all",
+    showInWeb: true,
+    showInApp: true,
     redirectGuestsToRegister: false,
     delaySeconds: 1.5,
     backgroundImageUrl: "",
@@ -6136,11 +6138,15 @@ const AdminPage = ({
     showEmailInput: false,
   };
 
+  const popupConfig = editingPopupId ? (popupsConfig[editingPopupId] || defaultPopupConfig) : defaultPopupConfig;
+
   const setPopupConfig = (newConfig: any) => {
-    setPopupsConfig(prev => ({
-      ...prev,
-      [editingPopupAudience]: { ...newConfig, targetAudience: editingPopupAudience }
-    }));
+    if (editingPopupId) {
+      setPopupsConfig(prev => ({
+        ...prev,
+        [editingPopupId]: { ...newConfig, id: editingPopupId }
+      }));
+    }
   };
 
   useEffect(() => {
@@ -6175,12 +6181,24 @@ const AdminPage = ({
 
     const unsubPopups = onSnapshot(doc(db, "settings", "popups"), (docSnap) => {
       if (docSnap.exists()) {
-        setPopupsConfig(docSnap.data());
+        const data = docSnap.data();
+        const migratedData = Object.keys(data).reduce((acc: any, key) => {
+          acc[key] = {
+            showInWeb: true,
+            showInApp: true,
+            id: key,
+            ...data[key]
+          };
+          return acc;
+        }, {});
+        setPopupsConfig(migratedData);
       } else {
         getDocFromServer(doc(db, "settings", "popup")).then(oldSnap => {
           if (oldSnap.exists()) {
             const data = oldSnap.data();
-            setPopupsConfig({ [data.targetAudience || "all"]: data });
+            setPopupsConfig({ [data.targetAudience || "all"]: {
+              showInWeb: true, showInApp: true, id: data.targetAudience || "all", ...data
+            } });
           }
         });
       }
@@ -8595,15 +8613,90 @@ const AdminPage = ({
             </div>
 
             {popupSubTab === "design" ? (
+              !editingPopupId ? (
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-black font-display tracking-tight text-primary">
+                        Pop-ups Configurados
+                      </h2>
+                      <p className="text-sm text-on-surface-variant font-medium mt-1">
+                        Gestiona los pop-ups que se muestran en la web y app.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newId = Date.now().toString();
+                        setPopupsConfig(prev => ({ ...prev, [newId]: { ...defaultPopupConfig, id: newId } }));
+                        setEditingPopupId(newId);
+                      }}
+                      className="px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary/90 transition-colors"
+                    >
+                      Crear Nuevo Pop-up
+                    </button>
+                  </div>
+                  <div className="grid gap-4">
+                    {Object.values(popupsConfig).map((p: any) => (
+                      <div key={p.id} className="bg-surface-container flex items-center justify-between p-4 rounded-2xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+                        <div>
+                          <h3 className="font-bold text-lg">{p.title || "Pop-up sin título"}</h3>
+                          <div className="flex gap-2 mt-2 text-sm text-on-surface-variant items-center">
+                            <span className="bg-surface p-1 px-2 rounded-lg border border-outline-variant/20">
+                              Audiencia: {p.targetAudience === "all" ? "Todos" : p.targetAudience === "guests" ? "No registrados" : "Primer login"}
+                            </span>
+                            {p.showInWeb && <span className="bg-blue-500/10 text-blue-500 font-bold p-1 px-2 rounded-lg">Web</span>}
+                            {p.showInApp && <span className="bg-green-500/10 text-green-500 font-bold p-1 px-2 rounded-lg">App</span>}
+                            {!p.active && <span className="bg-red-500/10 text-red-500 font-bold p-1 px-2 rounded-lg">Inactivo</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingPopupId(p.id)}
+                            className="px-4 py-2 bg-primary/10 text-primary font-bold rounded-xl hover:bg-primary/20 transition-colors"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm("¿Eliminar este pop-up?")) {
+                                const newConfig = { ...popupsConfig };
+                                delete newConfig[p.id];
+                                setPopupsConfig(newConfig);
+                                await setDoc(doc(db, "settings", "popups"), newConfig);
+                              }
+                            }}
+                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {Object.keys(popupsConfig).length === 0 && (
+                      <p className="text-center text-on-surface-variant p-8 bg-surface-container rounded-2xl border border-outline-variant/20 border-dashed">
+                        No hay pop-ups configurados.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <div className="flex flex-col lg:flex-row gap-8 items-start">
                 <div className="flex-1 space-y-6 w-full lg:max-w-md">
-                  <div>
-                    <h2 className="text-2xl font-black font-display tracking-tight text-primary">
-                      Diseño de Pop-up
-                    </h2>
-                    <p className="text-sm text-on-surface-variant font-medium mt-1">
-                      Configura el diseño y contenido del popup global.
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setEditingPopupId(null)}
+                      className="p-2 hover:bg-surface-container rounded-xl transition-colors"
+                    >
+                      <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div>
+                      <h2 className="text-2xl font-black font-display tracking-tight text-primary">
+                        Editar Pop-up
+                      </h2>
+                      <p className="text-sm text-on-surface-variant font-medium mt-1">
+                        Configura el diseño y contenido del popup global.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between p-4 bg-surface-container rounded-xl border border-outline-variant/20">
@@ -8636,10 +8729,30 @@ const AdminPage = ({
                       <label className="block text-sm font-bold text-on-surface mb-2">
                         A quién mostrar
                       </label>
+                      <div className="flex gap-4 mb-4">
+                        <label className="flex items-center gap-2 cursor-pointer bg-surface-container px-4 py-2 rounded-xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={popupConfig.showInWeb ?? true}
+                            onChange={(e) => setPopupConfig({ ...popupConfig, showInWeb: e.target.checked })}
+                            className="w-5 h-5 rounded text-primary"
+                          />
+                          <span className="font-bold">Mostrar en Web</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer bg-surface-container px-4 py-2 rounded-xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={popupConfig.showInApp ?? true}
+                            onChange={(e) => setPopupConfig({ ...popupConfig, showInApp: e.target.checked })}
+                            className="w-5 h-5 rounded text-primary"
+                          />
+                          <span className="font-bold">Mostrar en App</span>
+                        </label>
+                      </div>
                       <select
                         className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20 font-medium"
-                        value={editingPopupAudience}
-                        onChange={(e) => setEditingPopupAudience(e.target.value as any)}
+                        value={popupConfig.targetAudience || "all"}
+                        onChange={(e) => setPopupConfig({ ...popupConfig, targetAudience: e.target.value })}
                       >
                         <option value="all">Mostrar a todos</option>
                         <option value="guests">
@@ -9080,6 +9193,7 @@ const AdminPage = ({
                   </div>
                 </div>
               </div>
+              )
             ) : (
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -26969,15 +27083,33 @@ function App() {
   const getActivePopupConfig = () => {
     if (!globalPopupsConfig) return null;
     
+    const popups = Object.values(globalPopupsConfig).filter((p: any) => p && p.active);
+    if (popups.length === 0) return null;
+
+    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
+    
+    const platformPopups = popups.filter((p: any) => {
+      if (isNative && p.showInApp) return true;
+      if (!isNative && p.showInWeb) return true;
+      if (p.showInApp === undefined && p.showInWeb === undefined) return true;
+      return false;
+    });
+
+    if (platformPopups.length === 0) return null;
+
     if (user && sessionStorage.getItem("is_first_login_session") === "true") {
-      if (globalPopupsConfig.first_login?.active) return globalPopupsConfig.first_login;
+      const firstLogin = platformPopups.find((p: any) => p.targetAudience === "first_login");
+      if (firstLogin) return firstLogin;
     }
     if (!user) {
-      if (globalPopupsConfig.guests?.active) return globalPopupsConfig.guests;
+      const guests = platformPopups.find((p: any) => p.targetAudience === "guests");
+      if (guests) return guests;
     }
-    if (globalPopupsConfig.all?.active) return globalPopupsConfig.all;
     
-    return null;
+    const all = platformPopups.find((p: any) => p.targetAudience === "all" || !p.targetAudience);
+    if (all) return all;
+    
+    return platformPopups[0];
   };
 
   const globalPopupConfig = getActivePopupConfig();
@@ -27034,7 +27166,7 @@ function App() {
         getDocFromServer(doc(db, "settings", "popup")).then((oldSnap) => {
           if (oldSnap.exists()) {
             const data = oldSnap.data();
-            const newData = { [data.targetAudience || "all"]: data };
+            const newData = { [data.targetAudience || "all"]: { id: data.targetAudience || "all", showInWeb: true, showInApp: true, ...data } };
             setGlobalPopupsConfig(newData);
             localStorage.setItem("app_popups", JSON.stringify(newData));
           } else {
