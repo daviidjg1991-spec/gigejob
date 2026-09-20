@@ -18017,13 +18017,13 @@ const ProfilePage = ({
   }, [isOwnProfile, user?.id, profileUser?.id, id]);
 
   const handleRecommendClick = async () => {
-    let profileIdent = "";
-    if (isOwnProfile && user) {
-      profileIdent = user.username || user.id || "";
-    } else if (profileUser) {
-      profileIdent = profileUser.username || profileUser.id || id || "";
-    } else {
-      profileIdent = id || "";
+    let profileIdent = id || "";
+    if (!profileIdent) {
+      if (isOwnProfile && user) {
+        profileIdent = user.username || user.id || "";
+      } else if (profileUser) {
+        profileIdent = profileUser.username || profileUser.id || "";
+      }
     }
     const link = `${window.location.origin}/perfil/${profileIdent}`;
 
