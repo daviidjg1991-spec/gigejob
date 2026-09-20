@@ -18202,19 +18202,34 @@ const ProfilePage = ({
           <div className="lg:col-span-4 space-y-6 sm:space-y-8">
             <div className="bg-surface-container-lowest rounded-[2.5rem] sm:rounded-[3.5rem] p-6 sm:p-10 md:p-12 ambient-shadow border border-outline-variant/10 text-center relative">
               {!isOwnProfile && profileUser?.id && (
-                <button
-                  onClick={() => openReportModal(profileUser.id)}
-                  disabled={!user}
-                  className={cn(
-                    "absolute top-6 right-6 p-3 rounded-full transition-all group",
-                    !user 
-                      ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
-                      : "text-on-surface-variant/30 hover:text-warning hover:bg-surface-container-high"
-                  )}
-                  title={!user ? "Debes iniciar sesión para reportar" : "Reportar usuario"}
-                >
-                  <AlertTriangle className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                </button>
+                <>
+                  <button
+                    onClick={() => handleBlockUserInProfile(profileUser.id)}
+                    disabled={!user}
+                    className={cn(
+                      "absolute top-6 left-6 p-3 rounded-full transition-all group",
+                      !user 
+                        ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                        : "text-on-surface-variant/30 hover:text-error hover:bg-surface-container-high"
+                    )}
+                    title={!user ? "Debes iniciar sesión para bloquear usuario" : "Bloquear usuario"}
+                  >
+                    <ShieldOff className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  </button>
+                  <button
+                    onClick={() => openReportModal(profileUser.id)}
+                    disabled={!user}
+                    className={cn(
+                      "absolute top-6 right-6 p-3 rounded-full transition-all group",
+                      !user 
+                        ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                        : "text-on-surface-variant/30 hover:text-warning hover:bg-surface-container-high"
+                    )}
+                    title={!user ? "Debes iniciar sesión para reportar" : "Reportar usuario"}
+                  >
+                    <AlertTriangle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  </button>
+                </>
               )}
               <div className="relative inline-block mb-6 sm:mb-8 group cursor-pointer">
                 <div className="w-32 h-32 sm:w-44 sm:h-44 rounded-[2.5rem] sm:rounded-[3.5rem] primary-gradient flex items-center justify-center text-white font-black text-5xl sm:text-7xl shadow-2xl border-4 sm:border-8 border-surface-container-lowest mx-auto overflow-hidden relative">
@@ -18308,38 +18323,7 @@ const ProfilePage = ({
                   )}
                 </button>
 
-                {!isOwnProfile && profileUser?.id && (
-                  <div className="mt-4 pt-4 border-t border-outline-variant/10 flex flex-wrap items-center justify-center gap-3">
-                    <button
-                      onClick={() => openReportModal(profileUser.id)}
-                      disabled={!user}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
-                        !user
-                          ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
-                          : "bg-surface-container-low text-on-surface-variant hover:text-warning hover:bg-warning/10"
-                      )}
-                      title={!user ? "Debes iniciar sesión para denunciar" : "Denunciar usuario"}
-                    >
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      Denunciar usuario
-                    </button>
-                    <button
-                      onClick={() => handleBlockUserInProfile(profileUser.id)}
-                      disabled={!user}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
-                        !user
-                          ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
-                          : "bg-surface-container-low text-on-surface-variant hover:text-error hover:bg-error/10"
-                      )}
-                      title={!user ? "Debes iniciar sesión para bloquear usuario" : "Bloquear usuario"}
-                    >
-                      <ShieldOff className="w-3.5 h-3.5" />
-                      Bloquear usuario
-                    </button>
-                  </div>
-                )}
+
               </div>
 
               {(isOwnProfile
