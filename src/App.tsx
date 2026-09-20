@@ -17818,20 +17818,28 @@ const ProfilePage = ({
     const fetchUserFromDB = async () => {
       if (!isOwnProfile && id) {
         try {
+          let realId = id;
+          const inListings = listings.find(
+            (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id || l.author.username === id),
+          )?.author;
+          if (inListings?.id) {
+            realId = inListings.id;
+          }
+
           const usersRef = collection(db, "users");
-          const qUser = query(usersRef, where("username", "==", id.startsWith("@") ? id : `@${id}`));
+          const qUser = query(usersRef, where("username", "==", realId.startsWith("@") ? realId : `@${realId}`));
           const snap = await getDocs(qUser);
           if (!snap.empty) {
             setFetchedUser({ id: snap.docs[0].id, ...snap.docs[0].data() });
             return;
           }
-          const qId = query(usersRef, where("id", "==", id));
+          const qId = query(usersRef, where("id", "==", realId));
           const snapId = await getDocs(qId);
           if (!snapId.empty) {
             setFetchedUser({ id: snapId.docs[0].id, ...snapId.docs[0].data() });
             return;
           }
-          const docRef = await getDoc(doc(db, "users", id));
+          const docRef = await getDoc(doc(db, "users", realId));
           if (docRef.exists()) {
             setFetchedUser({ id: docRef.id, ...docRef.data() });
           }
@@ -29001,11 +29009,13 @@ const avatarCache: Record<string, string> = {};
 const AvatarDisplay = ({ author, className, referrerPolicy }: { author: any, className?: string, referrerPolicy?: React.HTMLAttributeReferrerPolicy }) => {
   const [photoUrl, setPhotoUrl] = useState<string | null>(author?.photoUrl || null);
   const [imgError, setImgError] = useState(false);
+  const [isLoading, setIsLoading] = useState(!avatarCache[author?.id]);
 
   useEffect(() => {
     if (author?.id) {
       if (avatarCache[author.id]) {
         setPhotoUrl(avatarCache[author.id]);
+        setIsLoading(false);
         return;
       }
       const fetchAvatar = async () => {
@@ -29020,11 +29030,19 @@ const AvatarDisplay = ({ author, className, referrerPolicy }: { author: any, cla
           }
         } catch (error) {
           console.error("Error fetching avatar:", error);
+        } finally {
+          setIsLoading(false);
         }
       };
       fetchAvatar();
+    } else {
+      setIsLoading(false);
     }
   }, [author?.id]);
+
+  if (isLoading) {
+    return <div className={`animate-pulse bg-surface-container-high ${className}`}></div>;
+  }
 
   const finalUrl = imgError ? "" : (photoUrl || author?.photoUrl);
 
