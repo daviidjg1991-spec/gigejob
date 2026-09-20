@@ -3195,27 +3195,20 @@ const AdminUserEditModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       {editedUser.blockedUsers.map((blockedId: string) => (
-                        <div key={blockedId} className="flex justify-between items-center p-4 bg-surface-container rounded-xl border border-outline-variant/10">
-                          <div>
-                            <p className="font-bold text-sm text-on-surface">ID: {blockedId}</p>
-                            <p className="text-xs text-on-surface-variant">
-                              Bloqueado el: {editedUser.blockedUsersDates?.[blockedId] ? new Date(editedUser.blockedUsersDates[blockedId]).toLocaleString() : "Fecha no disponible"}
-                            </p>
-                          </div>
-                          <button
-                            className="px-3 py-1.5 bg-error text-white rounded-lg text-xs font-bold shadow-sm hover:scale-105 transition-transform"
-                            onClick={() => {
-                              if(confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
-                                const newBlocked = editedUser.blockedUsers.filter((id: string) => id !== blockedId);
-                                const newDates = { ...editedUser.blockedUsersDates };
-                                delete newDates[blockedId];
-                                setEditedUser({ ...editedUser, blockedUsers: newBlocked, blockedUsersDates: newDates });
-                              }
-                            }}
-                          >
-                            Desbloquear
-                          </button>
-                        </div>
+                        <BlockedUserItem
+                          key={blockedId}
+                          blockedId={blockedId}
+                          date={editedUser.blockedUsersDates?.[blockedId]}
+                          isDark={true}
+                          onUnblock={() => {
+                            if(confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
+                              const newBlocked = editedUser.blockedUsers.filter((id: string) => id !== blockedId);
+                              const newDates = { ...editedUser.blockedUsersDates };
+                              delete newDates[blockedId];
+                              setEditedUser({ ...editedUser, blockedUsers: newBlocked, blockedUsersDates: newDates });
+                            }
+                          }}
+                        />
                       ))}
                     </div>
                   )}
@@ -11491,37 +11484,30 @@ const SettingsView = ({
                     ) : (
                       <div className="flex flex-col gap-2">
                         {user.blockedUsers.map((blockedId: string) => (
-                          <div key={blockedId} className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-4 bg-white rounded-xl border border-outline-variant/10 shadow-sm">
-                            <div>
-                              <p className="font-bold text-sm text-on-surface">ID: {blockedId}</p>
-                              <p className="text-xs text-on-surface-variant">
-                                Bloqueado el: {user.blockedUsersDates?.[blockedId] ? new Date(user.blockedUsersDates[blockedId]).toLocaleString() : "Fecha no disponible"}
-                              </p>
-                            </div>
-                            <button
-                              className="px-4 py-2 bg-error text-white rounded-xl text-xs font-bold shadow-sm hover:scale-105 transition-transform"
-                              onClick={async () => {
-                                if (confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
-                                  const newBlocked = user.blockedUsers!.filter((id: string) => id !== blockedId);
-                                  const newDates = { ...(user.blockedUsersDates || {}) };
-                                  delete newDates[blockedId];
-                                  try {
-                                    await updateDoc(doc(db, "users", user.id), {
-                                      blockedUsers: newBlocked,
-                                      blockedUsersDates: newDates
-                                    });
-                                    // Update local state if needed (usually handled by listener, but we force it just in case)
-                                    setUser({ ...user, blockedUsers: newBlocked, blockedUsersDates: newDates });
-                                  } catch (e) {
-                                    console.error("Error al desbloquear", e);
-                                    alert("Error al desbloquear el usuario.");
-                                  }
+                          <BlockedUserItem
+                            key={blockedId}
+                            blockedId={blockedId}
+                            date={user.blockedUsersDates?.[blockedId]}
+                            isDark={false}
+                            onUnblock={async () => {
+                              if (confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
+                                const newBlocked = user.blockedUsers!.filter((id: string) => id !== blockedId);
+                                const newDates = { ...(user.blockedUsersDates || {}) };
+                                delete newDates[blockedId];
+                                try {
+                                  await updateDoc(doc(db, "users", user.id), {
+                                    blockedUsers: newBlocked,
+                                    blockedUsersDates: newDates
+                                  });
+                                  // Update local state if needed (usually handled by listener, but we force it just in case)
+                                  setUser({ ...user, blockedUsers: newBlocked, blockedUsersDates: newDates });
+                                } catch (e) {
+                                  console.error("Error al desbloquear", e);
+                                  alert("Error al desbloquear el usuario.");
                                 }
-                              }}
-                            >
-                              Desbloquear
-                            </button>
-                          </div>
+                              }
+                            }}
+                          />
                         ))}
                       </div>
                     )}
@@ -28992,6 +28978,45 @@ const NotFoundPage = () => {
           Volver al inicio
         </button>
       </motion.div>
+    </div>
+  );
+};
+
+const BlockedUserItem = ({ blockedId, date, onUnblock, isDark = false }: { blockedId: string; date?: string; onUnblock: () => void; isDark?: boolean }) => {
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, "users", blockedId));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setUserName(data.name || "Usuario sin nombre");
+        } else {
+          setUserName("Usuario no encontrado");
+        }
+      } catch (error) {
+        console.error("Error fetching blocked user:", error);
+        setUserName("Error al cargar");
+      }
+    };
+    fetchUser();
+  }, [blockedId]);
+
+  return (
+    <div className={`flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-4 rounded-xl border border-outline-variant/10 shadow-sm ${isDark ? 'bg-surface-container' : 'bg-white'}`}>
+      <div>
+        <p className="font-bold text-sm text-on-surface">ID: {userName ? `"${userName}"` : `Cargando...`}</p>
+        <p className="text-xs text-on-surface-variant">
+          Bloqueado el: {date ? new Date(date).toLocaleString() : "Fecha no disponible"}
+        </p>
+      </div>
+      <button
+        className="px-4 py-2 bg-error text-white rounded-xl text-xs font-bold shadow-sm hover:scale-105 transition-transform"
+        onClick={onUnblock}
+      >
+        Desbloquear
+      </button>
     </div>
   );
 };
