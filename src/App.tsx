@@ -20361,10 +20361,13 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const otherParticipantId = currentChat?.participants.find(
     (p: string) => p !== myActualId,
   );
-  const otherParticipant = participantsInfo[otherParticipantId] ||
-    currentChat?.participantDetails?.[otherParticipantId] || {
-      name: "Usuario",
-    };
+  const otherParticipant = {
+    id: otherParticipantId,
+    ...(participantsInfo[otherParticipantId] ||
+      currentChat?.participantDetails?.[otherParticipantId] || {
+        name: "Usuario",
+      })
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -20583,7 +20586,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           if (snapshot.exists()) {
             setParticipantsInfo((prev) => ({
               ...prev,
-              [pid]: snapshot.data(),
+              [pid]: { id: pid, ...snapshot.data() },
             }));
           }
         },
@@ -21117,8 +21120,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
               const otherId = chat.participants.find(
                 (p: string) => p !== myActualId,
               );
-              const otherInfo = participantsInfo[otherId] ||
-                chat.participantDetails?.[otherId] || { name: "Usuario" };
+              const otherInfo = { id: otherId, ...(participantsInfo[otherId] ||
+                chat.participantDetails?.[otherId] || { name: "Usuario" }) };
               const time = chat.lastUpdatedAt?.toDate
                 ? (() => {
                     const date = chat.lastUpdatedAt.toDate();
@@ -21552,8 +21555,11 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                       const isMe = msg.senderId === user?.id;
                       const sender = isMe
                         ? user
-                        : participantsInfo[msg.senderId] ||
-                          currentChat?.participantDetails?.[msg.senderId];
+                        : {
+                            id: msg.senderId,
+                            ...(participantsInfo[msg.senderId] ||
+                              currentChat?.participantDetails?.[msg.senderId] || {})
+                          };
                       const time = msg.createdAt?.toDate
                         ? msg.createdAt
                             .toDate()
