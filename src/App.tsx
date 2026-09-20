@@ -13905,7 +13905,7 @@ const Navbar = ({
                               {user?.username || user?.firstName || "Usuario"}
                             </div>
                             <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
-                              ID: {user?.customId}
+                              ID: {user?.username ? "@" + user.username : user?.customId}
                             </div>
                             <div className="text-[10px] text-on-surface-variant/40 uppercase tracking-widest font-bold mt-1">
                               {user?.email || ""}
@@ -14170,7 +14170,7 @@ const ListingCard = ({
       )}
     >
       <Link
-        to={`/perfil/${createSlug(listing.author?.name || "usuario")}/${createSlug(listing.title)}`}
+        to={`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}/${createSlug(listing.title)}`}
         className="relative block aspect-[4/3] overflow-hidden"
       >
         <img
@@ -14243,7 +14243,7 @@ const ListingCard = ({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`);
+                navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`);
               }}
             >
               {listing.author?.photoUrl ? (
@@ -14260,7 +14260,7 @@ const ListingCard = ({
               )}
             </div>
             <div className="flex flex-col min-w-0">
-              <Link to={`/perfil/${createSlug(listing.author?.name || "usuario")}/${createSlug(listing.title)}`}>
+              <Link to={`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}/${createSlug(listing.title)}`}>
                 <h3 className="text-xs sm:text-base font-display font-black text-on-surface hover:text-primary transition-colors line-clamp-1 leading-tight">
                   {listing.title || "Sin título"}
                 </h3>
@@ -14271,10 +14271,10 @@ const ListingCard = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`);
+                    navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`);
                   }}
                 >
-                  {listing.author.name || "Anónimo"}
+                  {listing.author?.username ? "@" + listing.author.username : (listing.author?.name || "Anónimo")}
                 </span>
                 {listing.author?.isVerified === true && (
                   <div className="bg-amber-500 rounded-full p-0.5 shrink-0">
@@ -14704,7 +14704,7 @@ const MapView = ({
                     <div
                       className="flex items-center gap-2 mb-2 cursor-pointer group"
                       onClick={() =>
-                        navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`)
+                        navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`)
                       }
                     >
                       <img
@@ -14717,7 +14717,7 @@ const MapView = ({
                       </span>
                     </div>
                     <Link
-                      to={`/perfil/${createSlug(listing.author?.name || "usuario")}/${createSlug(listing.title)}`}
+                      to={`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}/${createSlug(listing.title)}`}
                       className="block w-full py-2 bg-primary text-white text-center rounded-lg font-black uppercase tracking-widest text-[8px] mt-2"
                     >
                       Ver Detalles
@@ -16920,7 +16920,7 @@ const ListingDetail = ({
                   <div
                     className="w-2/3 flex items-center gap-2 cursor-pointer"
                     onClick={() =>
-                      navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`)
+                      navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`)
                     }
                   >
                     <div className="w-8 h-8 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-[10px] overflow-hidden">
@@ -16936,7 +16936,7 @@ const ListingDetail = ({
                       )}
                     </div>
                     <span className="font-black text-xs text-on-surface truncate">
-                      {listing.author?.name || "Anónimo"}
+                      {listing.author?.username ? "@" + listing.author.username : (listing.author?.name || "Anónimo")}
                     </span>
                   </div>
                   <div className="w-1/3 text-right">
@@ -17330,7 +17330,7 @@ const ListingDetail = ({
                 <div
                   className="flex flex-col items-center text-center mb-10 cursor-pointer group"
                   onClick={() =>
-                    navigate(`/perfil/${createSlug(listing.author?.name || "usuario")}`)
+                    navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`)
                   }
                 >
                   <div className="relative mb-4">
@@ -17354,7 +17354,7 @@ const ListingDetail = ({
                   </div>
 
                   <h2 className="text-2xl font-display font-black text-on-surface tracking-tight group-hover:text-primary transition-colors">
-                    {listing.author?.name || "Anónimo"}
+                    {listing.author?.username ? "@" + listing.author.username : (listing.author?.name || "Anónimo")}
                   </h2>
                   <p className="text-[10px] text-on-surface-variant/40 font-black uppercase tracking-[0.2em] mt-1 mb-4">
                     Profesional
@@ -18263,7 +18263,7 @@ const ProfilePage = ({
                   {profileName}
                 </h1>
                 <p className="text-gray-500 font-medium text-[10px] sm:text-xs tracking-tight mb-1">
-                  ID: {profileUser?.customId}
+                  ID: {profileUser?.username ? "@" + profileUser.username : profileUser?.customId}
                 </p>
                 <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight">
                   {(profileUser?.role === "admin" || profileUser?.email === "daviidjg1991@gmail.com") ? "Administrador" : (profileUser?.role === "user" ? "Usuario particular" : "Profesional Independiente")}
@@ -28982,7 +28982,7 @@ const NotFoundPage = () => {
   );
 };
 
-const BlockedUserItem = ({ blockedId, date, onUnblock, isDark = false }: { blockedId: string; date?: string; onUnblock: () => void; isDark?: boolean }) => {
+const BlockedUserItem = ({ blockedId, date, onUnblock, isDark = false }: { blockedId: string; date?: string; onUnblock: () => void; isDark?: boolean; key?: string; }) => {
   const [userName, setUserName] = useState<string | null>(null);
 
   useEffect(() => {

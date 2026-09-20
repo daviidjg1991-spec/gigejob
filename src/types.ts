@@ -211,6 +211,7 @@ export interface JobListing {
   author: {
     id: string;
     name: string;
+    username?: string;
     email: string;
     photoUrl?: string;
     rating?: number;
