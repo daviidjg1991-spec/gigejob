@@ -18263,7 +18263,10 @@ const ProfilePage = ({
                   {profileName}
                 </h1>
                 <p className="text-gray-500 font-medium text-[10px] sm:text-xs tracking-tight mb-1">
-                  ID: {profileUser?.username ? (profileUser.username.startsWith("@") ? profileUser.username : "@" + profileUser.username) : profileUser?.customId}
+                  ID:
+                </p>
+                <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight mb-1">
+                  <UsernameDisplay author={{ id: profileUser?.id, username: profileUser?.username, name: profileName }} />
                 </p>
                 <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight">
                   {(profileUser?.role === "admin" || profileUser?.email === "daviidjg1991@gmail.com") ? "Administrador" : (profileUser?.role === "user" ? "Usuario particular" : "Profesional Independiente")}
