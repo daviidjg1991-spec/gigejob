@@ -13880,9 +13880,7 @@ const Navbar = ({
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full primary-gradient flex items-center justify-center text-white font-bold shadow-sm group-hover:scale-110 transition-transform text-xs">
-                          {(user?.username || user?.firstName || "?").charAt(0)}
-                        </div>
+                        <img src="/default-avatar.svg" alt="Avatar" className="w-8 h-8 rounded-full object-cover shadow-sm group-hover:scale-110 transition-transform" />
                       )}
                       <span className="text-[9px] font-black uppercase tracking-widest">
                         Tú
@@ -18216,11 +18214,11 @@ const ProfilePage = ({
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser?.id || 'default'}`;
+                        (e.target as HTMLImageElement).src = "/default-avatar.svg";
                       }}
                     />
                   ) : (
-                    (profileUser?.name || "?").charAt(0)
+                    <img src="/default-avatar.svg" alt="Avatar" className="w-full h-full object-cover" />
                   )}
                   {canEditProfile && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -21183,21 +21181,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                       )}
                     >
                       <div className="relative shrink-0">
-                        {otherInfo.photoUrl ? (
-                          <img
-                            src={otherInfo.photoUrl}
-                            className="w-10 h-10 rounded-lg object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-black text-sm uppercase">
-                            {(
-                              otherInfo.firstName?.[0] ||
-                              otherInfo.name?.[0] ||
-                              "?"
-                            ).toUpperCase()}
-                          </div>
-                        )}
+                        <AvatarDisplay 
+                          author={otherInfo} 
+                          className="w-10 h-10 rounded-lg object-cover" 
+                        />
                       </div>
                       <div className="flex-1 text-left min-w-0">
                         <div className="flex items-center justify-between mb-0.5">
@@ -21270,21 +21257,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                {otherParticipant.photoUrl ? (
-                  <img
-                    src={otherParticipant.photoUrl}
-                    className="w-12 h-12 rounded-2xl object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black text-lg uppercase">
-                    {(
-                      otherParticipant.firstName?.[0] ||
-                      otherParticipant.name?.[0] ||
-                      "?"
-                    ).toUpperCase()}
-                  </div>
-                )}
+                <AvatarDisplay 
+                  author={otherParticipant} 
+                  className="w-12 h-12 rounded-2xl object-cover" 
+                />
                 <div
                   className="cursor-pointer group"
                   onClick={() =>
@@ -21603,19 +21579,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                                   : "bg-primary/10 text-primary",
                               )}
                             >
-                              {sender?.photoUrl ? (
-                                <img
-                                  src={sender.photoUrl}
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                (
-                                  sender?.firstName?.[0] ||
-                                  sender?.name?.[0] ||
-                                  "?"
-                                ).toUpperCase()
-                              )}
+                              <AvatarDisplay 
+                                author={sender} 
+                                className="w-full h-full object-cover" 
+                              />
                             </div>
                           )}
                           <div
@@ -21663,19 +21630,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                                   : "bg-primary/10 text-primary",
                               )}
                             >
-                              {sender?.photoUrl ? (
-                                <img
-                                  src={sender.photoUrl}
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                (
-                                  sender?.firstName?.[0] ||
-                                  sender?.name?.[0] ||
-                                  "?"
-                                ).toUpperCase()
-                              )}
+                              <AvatarDisplay 
+                                author={sender} 
+                                className="w-full h-full object-cover" 
+                              />
                             </div>
                           )}
                         </div>
@@ -23509,7 +23467,7 @@ const AuthPage = ({
         documentId: personalData.documentId,
         phoneNumber: personalData.phoneNumber,
         address: personalData.address,
-        photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${finalUsername}`,
+        photoUrl: "/default-avatar.svg",
         acceptPromotions,
         acceptTerms,
         hasClaimedPromotion: hasClaimedPromo,
@@ -23758,7 +23716,7 @@ const AuthPage = ({
           },
           photoUrl:
             user.photoURL ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+            "/default-avatar.svg",
           ...(referredBy ? { referredBy } : {}),
           settings: {
             smartSuggestions: true,
@@ -26674,7 +26632,7 @@ function App() {
                 },
                 photoUrl:
                   user.photoURL ||
-                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+                  "/default-avatar.svg",
                 settings: {
                   smartSuggestions: true,
                   locationRadius: 15,
@@ -28423,9 +28381,7 @@ function App() {
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-xl shadow-sm">
-                        {(user.username || user.firstName || "?").charAt(0)}
-                      </div>
+                      <img src="/default-avatar.svg" alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="font-display font-black text-on-surface truncate">
@@ -29007,26 +28963,50 @@ const UsernameDisplay = ({ author, prefix = "" }: { author: any, prefix?: string
 const avatarCache: Record<string, string> = {};
 
 const AvatarDisplay = ({ author, className, referrerPolicy }: { author: any, className?: string, referrerPolicy?: React.HTMLAttributeReferrerPolicy }) => {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(author?.photoUrl || null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(avatarCache[author?.id] || author?.photoUrl || null);
   const [imgError, setImgError] = useState(false);
-  const [isLoading, setIsLoading] = useState(!avatarCache[author?.id]);
+  const [isLoading, setIsLoading] = useState(!avatarCache[author?.id] && !author?.photoUrl);
+
+  // Sincronizar si la prop externa cambia (ej: el usuario sube una foto nueva)
+  useEffect(() => {
+    if (author?.photoUrl && author.photoUrl !== photoUrl) {
+      if (author?.id) avatarCache[author.id] = author.photoUrl;
+      setPhotoUrl(author.photoUrl);
+    }
+  }, [author?.photoUrl]);
 
   useEffect(() => {
     if (author?.id) {
-      if (avatarCache[author.id]) {
-        setPhotoUrl(avatarCache[author.id]);
-        setIsLoading(false);
-        return;
-      }
       const fetchAvatar = async () => {
+        let currentUrl = avatarCache[author.id] || author?.photoUrl || "";
+        const docRef = doc(db, "users", author.id);
+        
         try {
-          const docRef = doc(db, "users", author.id);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data();
+          // 1. Intentar desde caché local para evitar el parpadeo de "imagen antigua"
+          const cachedSnap = await getDocFromCache(docRef);
+          if (cachedSnap.exists()) {
+            const data = cachedSnap.data();
             const url = data.photoUrl || data.photoURL || data.profileImage || "";
-            avatarCache[author.id] = url;
-            setPhotoUrl(url);
+            if (url && url !== currentUrl) {
+              avatarCache[author.id] = url;
+              setPhotoUrl(url);
+              currentUrl = url;
+            }
+          }
+        } catch (e) {
+          // Cache miss, ignorar y proceder al servidor
+        }
+
+        try {
+          // 2. Buscar en el servidor para garantizar que tengamos la versión más reciente
+          const docSnapServer = await getDoc(docRef);
+          if (docSnapServer.exists()) {
+            const data = docSnapServer.data();
+            const serverUrl = data.photoUrl || data.photoURL || data.profileImage || "";
+            if (serverUrl && serverUrl !== currentUrl) {
+               avatarCache[author.id] = serverUrl;
+               setPhotoUrl(serverUrl);
+            }
           }
         } catch (error) {
           console.error("Error fetching avatar:", error);
@@ -29052,16 +29032,17 @@ const AvatarDisplay = ({ author, className, referrerPolicy }: { author: any, cla
         src={finalUrl}
         alt={author?.name || author?.username || "Autor"}
         className={className}
-        referrerPolicy={referrerPolicy}
-        onError={() => setImgError(true)}
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          setImgError(true);
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
       />
     );
   }
 
   return (
-    <div className={`primary-gradient flex items-center justify-center text-white font-bold ${className}`}>
-      {(author?.name || author?.username || "?").charAt(0).toUpperCase()}
-    </div>
+    <img src="/default-avatar.svg" alt="Avatar" className={`object-cover ${className}`} />
   );
 };
 

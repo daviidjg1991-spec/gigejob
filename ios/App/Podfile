@@ -19,7 +19,7 @@ def capacitor_pods
   pod 'CapawesomeCapacitorBadge', :path => '../../node_modules/@capawesome/capacitor-badge'
 end
 
-target 'App' do
+target 'Gigejob' do
   capacitor_pods
   # Add your Pods here
   pod 'CapacitorFirebaseAuthentication/Google', :path => '../../node_modules/@capacitor-firebase/authentication'
