@@ -14274,7 +14274,7 @@ const ListingCard = ({
                     navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`);
                   }}
                 >
-                  {listing.author?.username ? "@" + listing.author.username : (listing.author?.name || "Anónimo")}
+                  <UsernameDisplay author={listing.author} />
                 </span>
                 {listing.author?.isVerified === true && (
                   <div className="bg-amber-500 rounded-full p-0.5 shrink-0">
@@ -16936,7 +16936,7 @@ const ListingDetail = ({
                       )}
                     </div>
                     <span className="font-black text-xs text-on-surface truncate">
-                      {listing.author?.username ? "@" + listing.author.username : (listing.author?.name || "Anónimo")}
+                      <UsernameDisplay author={listing.author} />
                     </span>
                   </div>
                   <div className="w-1/3 text-right">
@@ -17354,7 +17354,7 @@ const ListingDetail = ({
                   </div>
 
                   <h2 className="text-2xl font-display font-black text-on-surface tracking-tight group-hover:text-primary transition-colors">
-                    {listing.author?.username ? "@" + listing.author.username : (listing.author?.name || "Anónimo")}
+                    <UsernameDisplay author={listing.author} />
                   </h2>
                   <p className="text-[10px] text-on-surface-variant/40 font-black uppercase tracking-[0.2em] mt-1 mb-4">
                     Profesional
@@ -18263,7 +18263,7 @@ const ProfilePage = ({
                   {profileName}
                 </h1>
                 <p className="text-gray-500 font-medium text-[10px] sm:text-xs tracking-tight mb-1">
-                  ID: {profileUser?.username ? "@" + profileUser.username : profileUser?.customId}
+                  ID: {profileUser?.username ? (profileUser.username.startsWith("@") ? profileUser.username : "@" + profileUser.username) : profileUser?.customId}
                 </p>
                 <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight">
                   {(profileUser?.role === "admin" || profileUser?.email === "daviidjg1991@gmail.com") ? "Administrador" : (profileUser?.role === "user" ? "Usuario particular" : "Profesional Independiente")}
@@ -22335,6 +22335,7 @@ const CreateListing = ({
           name:
             `${user.firstName || ""} ${user.lastName1 || ""}`.trim() ||
             user.username,
+          username: user.username,
           email: user.email,
           photoUrl: user.photoUrl || "",
           rating: 5.0,
@@ -27452,6 +27453,7 @@ function App() {
                 ...l.author,
                 id: user.id,
                 name: displayName,
+                username: user.username,
                 photoUrl: user.photoUrl || l.author?.photoUrl || "",
                 isVerified: user.isVerified === true,
                 certifications: user.certifications || l.author?.certifications || {
@@ -28980,6 +28982,42 @@ const NotFoundPage = () => {
       </motion.div>
     </div>
   );
+};
+
+const usernameCache: Record<string, string> = {};
+
+const UsernameDisplay = ({ author, prefix = "" }: { author: any, prefix?: string }) => {
+  const [username, setUsername] = useState<string | null>(author?.username || null);
+
+  useEffect(() => {
+    if (!username && author?.id) {
+      if (usernameCache[author.id]) {
+        setUsername(usernameCache[author.id]);
+        return;
+      }
+      const fetchUsername = async () => {
+        try {
+          const docRef = doc(db, "users", author.id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists() && docSnap.data().username) {
+            usernameCache[author.id] = docSnap.data().username;
+            setUsername(docSnap.data().username);
+          } else {
+             usernameCache[author.id] = "NOT_FOUND";
+          }
+        } catch (error) {
+          console.error("Error fetching username:", error);
+        }
+      };
+      fetchUsername();
+    }
+  }, [author?.id, username]);
+
+  if (username && username !== "NOT_FOUND") {
+    const displayUsername = username.startsWith("@") ? username : "@" + username;
+    return <>{prefix}{displayUsername}</>;
+  }
+  return <>{prefix}{author?.name || "Anónimo"}</>;
 };
 
 const BlockedUserItem = ({ blockedId, date, onUnblock, isDark = false }: { blockedId: string; date?: string; onUnblock: () => void; isDark?: boolean; key?: string; }) => {
