@@ -27207,7 +27207,7 @@ function App() {
       try { dismissedPopups = JSON.parse(dismissedPopupsStr); } catch {}
     }
 
-    const isNative = typeof window !== 'undefined' && (window as any).Capacitor?.isNativePlatform();
+    const isNative = Capacitor.isNativePlatform();
     
     const platformPopups = popups.filter((p: any) => {
       if (dismissedPopups.includes(p.id)) return false;
