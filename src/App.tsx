@@ -17817,11 +17817,6 @@ const ProfilePage = ({
   useEffect(() => {
     const fetchUserFromDB = async () => {
       if (!isOwnProfile && id) {
-        const inListings = listings.find(
-          (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id || l.author.username === id),
-        )?.author;
-        if (inListings) return;
-
         try {
           const usersRef = collection(db, "users");
           const qUser = query(usersRef, where("username", "==", id.startsWith("@") ? id : `@${id}`));
@@ -17850,9 +17845,9 @@ const ProfilePage = ({
 
   const profileUser = isOwnProfile
     ? user
-    : listings.find(
+    : fetchedUser || listings.find(
         (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id || l.author.username === id),
-      )?.author || fetchedUser;
+      )?.author;
 
   const profileName = isOwnProfile
     ? `${user?.firstName || ""} ${user?.lastName1 || ""}`.trim() ||
