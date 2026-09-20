@@ -1207,7 +1207,7 @@ const AdminUserEditModal = ({
                   alt="Profile"
                   className="w-16 h-16 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={() =>
-                    window.open(`/perfil/${createSlug((editedUser.firstName + " " + editedUser.lastName1).trim() || editedUser.username || editedUser.id)}`, "_blank")
+                    window.open(`/perfil/${createSlug([editedUser.firstName, editedUser.lastName1].filter(Boolean).join(" ").trim() || editedUser.username || editedUser.id)}`, "_blank")
                   }
                   title="Ir al perfil público"
                 />
@@ -1215,7 +1215,7 @@ const AdminUserEditModal = ({
                 <div
                   className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors"
                   onClick={() =>
-                    window.open(`/perfil/${createSlug((editedUser.firstName + " " + editedUser.lastName1).trim() || editedUser.username || editedUser.id)}`, "_blank")
+                    window.open(`/perfil/${createSlug([editedUser.firstName, editedUser.lastName1].filter(Boolean).join(" ").trim() || editedUser.username || editedUser.id)}`, "_blank")
                   }
                   title="Ir al perfil público"
                 >
@@ -18019,9 +18019,11 @@ const ProfilePage = ({
   const handleRecommendClick = async () => {
     let profileIdent = "";
     if (isOwnProfile && user) {
-      profileIdent = createSlug((user.firstName + " " + user.lastName1).trim() || user.username || user.id || "");
+      const fullName = [user.firstName, user.lastName1].filter(Boolean).join(" ").trim();
+      profileIdent = createSlug(fullName || user.username || user.id || "");
     } else if (profileUser) {
-      profileIdent = createSlug((profileUser.firstName + " " + profileUser.lastName1).trim() || profileUser.username || profileUser.id || "");
+      const fullName = [profileUser.firstName, profileUser.lastName1].filter(Boolean).join(" ").trim();
+      profileIdent = createSlug(fullName || profileUser.username || profileUser.id || "");
     } else {
       profileIdent = id || "";
     }
@@ -28900,12 +28902,12 @@ function App() {
                         <div className="flex items-center gap-2 w-full">
                           <input 
                             disabled 
-                            value={`${window.location.origin}/perfil/${createSlug((user.firstName + " " + user.lastName1).trim() || user.username || user.id || "")}`} 
+                            value={`${window.location.origin}/perfil/${createSlug([user.firstName, user.lastName1].filter(Boolean).join(" ").trim() || user.username || user.id || "")}`} 
                             className="flex-1 text-xs px-3 py-2 bg-white rounded border border-outline-variant/30 truncate" 
                           />
                           <button 
                             onClick={() => {
-                              navigator.clipboard.writeText(`${window.location.origin}/perfil/${createSlug((user.firstName + " " + user.lastName1).trim() || user.username || user.id || "")}`);
+                              navigator.clipboard.writeText(`${window.location.origin}/perfil/${createSlug([user.firstName, user.lastName1].filter(Boolean).join(" ").trim() || user.username || user.id || "")}`);
                               alert("¡Enlace copiado!");
                             }}
                             className="bg-primary text-white p-2 rounded hover:bg-primary/90 transition-colors"
