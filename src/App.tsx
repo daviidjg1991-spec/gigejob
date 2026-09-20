@@ -18268,9 +18268,6 @@ const ProfilePage = ({
                 <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight mb-1">
                   <UsernameDisplay author={{ id: profileUser?.id, username: profileUser?.username, name: profileName }} />
                 </p>
-                <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight">
-                  {(profileUser?.role === "admin" || profileUser?.email === "daviidjg1991@gmail.com") ? "Administrador" : (profileUser?.role === "user" ? "Usuario particular" : "Profesional Independiente")}
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
