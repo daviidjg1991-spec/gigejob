@@ -18017,7 +18017,14 @@ const ProfilePage = ({
   }, [isOwnProfile, user?.id, profileUser?.id, id]);
 
   const handleRecommendClick = async () => {
-    const profileIdent = isOwnProfile ? (user?.username || user?.id) : (profileUser?.username || profileUser?.id || id);
+    let profileIdent = "";
+    if (isOwnProfile && user) {
+      profileIdent = createSlug((user.firstName + " " + user.lastName1).trim() || user.username || user.id || "");
+    } else if (profileUser) {
+      profileIdent = createSlug((profileUser.firstName + " " + profileUser.lastName1).trim() || profileUser.username || profileUser.id || "");
+    } else {
+      profileIdent = id || "";
+    }
     const link = `${window.location.origin}/perfil/${profileIdent}`;
 
     try {
@@ -28893,12 +28900,12 @@ function App() {
                         <div className="flex items-center gap-2 w-full">
                           <input 
                             disabled 
-                            value={`${window.location.origin}/perfil/${user.username || user.id}`} 
+                            value={`${window.location.origin}/perfil/${createSlug((user.firstName + " " + user.lastName1).trim() || user.username || user.id || "")}`} 
                             className="flex-1 text-xs px-3 py-2 bg-white rounded border border-outline-variant/30 truncate" 
                           />
                           <button 
                             onClick={() => {
-                              navigator.clipboard.writeText(`${window.location.origin}/perfil/${user.username || user.id}`);
+                              navigator.clipboard.writeText(`${window.location.origin}/perfil/${createSlug((user.firstName + " " + user.lastName1).trim() || user.username || user.id || "")}`);
                               alert("¡Enlace copiado!");
                             }}
                             className="bg-primary text-white p-2 rounded hover:bg-primary/90 transition-colors"
