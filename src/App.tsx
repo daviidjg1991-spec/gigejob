@@ -14246,18 +14246,11 @@ const ListingCard = ({
                 navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`);
               }}
             >
-              {listing.author?.photoUrl ? (
-                <img
-                  src={listing.author.photoUrl}
-                  alt={listing.author.name || "Autor"}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-full h-full primary-gradient flex items-center justify-center text-white font-bold text-sm sm:text-lg">
-                  {(listing.author?.name || "?").charAt(0)}
-                </div>
-              )}
+              <AvatarDisplay 
+                author={listing.author} 
+                className="w-full h-full object-cover" 
+                referrerPolicy="no-referrer" 
+              />
             </div>
             <div className="flex flex-col min-w-0">
               <Link to={`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}/${createSlug(listing.title)}`}>
@@ -16924,16 +16917,11 @@ const ListingDetail = ({
                     }
                   >
                     <div className="w-8 h-8 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-[10px] overflow-hidden">
-                      {listing.author?.photoUrl ? (
-                        <img
-                          src={listing.author.photoUrl}
-                          alt={listing.author.name || "Autor"}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        (listing.author?.name || "?").charAt(0)
-                      )}
+                      <AvatarDisplay 
+                        author={listing.author} 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                      />
                     </div>
                     <span className="font-black text-xs text-on-surface truncate">
                       <UsernameDisplay author={listing.author} />
@@ -17335,16 +17323,11 @@ const ListingDetail = ({
                 >
                   <div className="relative mb-4">
                     <div className="w-24 h-24 rounded-full primary-gradient flex items-center justify-center text-white font-black text-3xl shadow-xl overflow-hidden group-hover:scale-105 transition-transform ring-4 ring-white">
-                      {listing.author?.photoUrl ? (
-                        <img
-                          src={listing.author.photoUrl}
-                          alt={listing.author.name || "Autor"}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        (listing.author?.name || "?").charAt(0)
-                      )}
+                      <AvatarDisplay 
+                        author={listing.author} 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                      />
                     </div>
                     {listing.author?.isVerified === true && (
                       <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-md">
@@ -18229,6 +18212,9 @@ const ProfilePage = ({
                       alt={profileUser?.name || "Usuario"}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${profileUser?.id || 'default'}`;
+                      }}
                     />
                   ) : (
                     (profileUser?.name || "?").charAt(0)
@@ -18616,16 +18602,11 @@ const ProfilePage = ({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 sm:gap-4">
                               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary flex items-center justify-center text-white font-black text-xs sm:text-base overflow-hidden">
-                                {review.authorPhotoUrl ? (
-                                  <img
-                                    src={review.authorPhotoUrl}
-                                    alt={review.authorName || "Usuario"}
-                                    className="w-full h-full object-cover"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  (review.authorName || "?").charAt(0)
-                                )}
+                                <AvatarDisplay 
+                                  author={{ id: review.authorId, name: review.authorName, photoUrl: review.authorPhotoUrl }}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
                               </div>
                               <div>
                                 <div className="font-black text-on-surface text-sm sm:text-base">
@@ -29018,6 +28999,57 @@ const UsernameDisplay = ({ author, prefix = "" }: { author: any, prefix?: string
     return <>{prefix}{displayUsername}</>;
   }
   return <>{prefix}{author?.name || "Anónimo"}</>;
+};
+
+const avatarCache: Record<string, string> = {};
+
+const AvatarDisplay = ({ author, className, referrerPolicy }: { author: any, className?: string, referrerPolicy?: React.HTMLAttributeReferrerPolicy }) => {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(author?.photoUrl || null);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    if (author?.id) {
+      if (avatarCache[author.id]) {
+        setPhotoUrl(avatarCache[author.id]);
+        return;
+      }
+      const fetchAvatar = async () => {
+        try {
+          const docRef = doc(db, "users", author.id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const url = data.photoUrl || data.photoURL || data.profileImage || "";
+            avatarCache[author.id] = url;
+            setPhotoUrl(url);
+          }
+        } catch (error) {
+          console.error("Error fetching avatar:", error);
+        }
+      };
+      fetchAvatar();
+    }
+  }, [author?.id]);
+
+  const finalUrl = imgError ? "" : (photoUrl || author?.photoUrl);
+
+  if (finalUrl) {
+    return (
+      <img
+        src={finalUrl}
+        alt={author?.name || author?.username || "Autor"}
+        className={className}
+        referrerPolicy={referrerPolicy}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div className={`primary-gradient flex items-center justify-center text-white font-bold ${className}`}>
+      {(author?.name || author?.username || "?").charAt(0).toUpperCase()}
+    </div>
+  );
 };
 
 const BlockedUserItem = ({ blockedId, date, onUnblock, isDark = false }: { blockedId: string; date?: string; onUnblock: () => void; isDark?: boolean; key?: string; }) => {
