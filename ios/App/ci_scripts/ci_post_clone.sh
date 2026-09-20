@@ -18,7 +18,11 @@ npm ci
 echo "Construyendo los recursos web (Vite/React)..."
 npm run build
 
-echo "Sincronizando Capacitor con iOS..."
-npx cap sync ios
+echo "Copiando recursos web a iOS..."
+npx cap copy ios
+
+echo "Instalando dependencias nativas (CocoaPods)..."
+cd ios/App
+pod install
 
 echo "ci_post_clone finalizado con éxito."
