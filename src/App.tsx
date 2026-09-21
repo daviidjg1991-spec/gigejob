@@ -28346,13 +28346,13 @@ function App() {
                   
                   {footerConfig.appDownloads && (footerConfig.appDownloads.ios || footerConfig.appDownloads.android || footerConfig.appDownloads.huawei) && (
                     <div className="flex flex-col gap-4 mt-8 pt-8 border-t border-outline-variant/10">
-                      <div className="flex flex-wrap items-center gap-4">
+                      <div className="flex flex-row items-center gap-4">
                         {footerConfig.appDownloads.ios && (
                           <a
                             href={footerConfig.appDownloads.ios}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-36 h-12 sm:w-40 sm:h-[54px]"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-40 h-[53px] sm:w-44 sm:h-[60px]"
                           >
                             <img src="/app-store-badge.png" alt="Apple Store" className="w-full h-full object-cover rounded-xl" />
                           </a>
@@ -28362,7 +28362,7 @@ function App() {
                             href={footerConfig.appDownloads.android}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-36 h-12 sm:w-40 sm:h-[54px]"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-40 h-[53px] sm:w-44 sm:h-[60px]"
                           >
                             <img src="/google-play-badge.png" alt="Google Play" className="w-full h-full object-cover rounded-xl" />
                           </a>
@@ -28372,7 +28372,7 @@ function App() {
                             href={footerConfig.appDownloads.huawei}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-36 h-12 sm:w-40 sm:h-[54px]"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-40 h-[53px] sm:w-44 sm:h-[60px]"
                           >
                             <img src="/appgallery-badge.png" alt="AppGallery" className="w-full h-full object-cover rounded-xl" />
                           </a>
