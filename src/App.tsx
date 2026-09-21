@@ -28346,7 +28346,7 @@ function App() {
                   
                   {footerConfig.appDownloads && (footerConfig.appDownloads.ios || footerConfig.appDownloads.android || footerConfig.appDownloads.huawei) && (
                     <div className="flex flex-col gap-4 mt-4">
-                      <div className="flex flex-row items-center gap-4">
+                      <div className="flex flex-row items-center gap-4 -ml-4">
                         {footerConfig.appDownloads.ios && (
                           <a
                             href={footerConfig.appDownloads.ios}
