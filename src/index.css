@@ -184,3 +184,6 @@ body {
   transform-origin: center center;
 }
 
+
+/* Hide bottom nav when chat is open */
+body:has(.messages-page-active) #mobile-bottom-nav { display: none !important; }

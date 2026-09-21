@@ -20399,14 +20399,15 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   // Forza la ocultación del menú inferior móvil al abrir un chat
   useEffect(() => {
     const nav = document.getElementById("mobile-bottom-nav");
-    if (nav) {
-      if (selectedChatId) {
-        nav.style.setProperty("display", "none", "important");
-      } else {
-        nav.style.display = "";
-      }
+    if (selectedChatId) {
+      document.body.classList.add("messages-page-active");
+      if (nav) nav.style.setProperty("display", "none", "important");
+    } else {
+      document.body.classList.remove("messages-page-active");
+      if (nav) nav.style.display = "";
     }
     return () => {
+      document.body.classList.remove("messages-page-active");
       if (nav) nav.style.display = "";
     };
   }, [selectedChatId]);
@@ -21737,7 +21738,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
             {/* Input del Chat - Bottom flow */}
             {currentChat && (
-              <div className="p-3 bg-white border-t border-outline-variant/10 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="p-3 bg-white border-t border-outline-variant/10 shrink-0 pb-4">
                 {isChatDisabled ? (
                   <div className="text-center text-sm text-on-surface-variant/60 py-4 font-medium flex items-center justify-center gap-2">
                     <Lock className="w-4 h-4" />
