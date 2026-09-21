@@ -28352,10 +28352,9 @@ function App() {
                             href={footerConfig.appDownloads.ios}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-3 px-8 py-4 bg-surface-container-low rounded-2xl text-base font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <Apple className="w-7 h-7 text-on-surface-variant" />
-                            <span>Apple Store</span>
+                            <img src="/app-store-badge.png" alt="Apple Store" className="h-12 sm:h-14 w-auto object-contain" />
                           </a>
                         )}
                         {footerConfig.appDownloads.android && (
@@ -28363,10 +28362,9 @@ function App() {
                             href={footerConfig.appDownloads.android}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-3 px-8 py-4 bg-surface-container-low rounded-2xl text-base font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <Smartphone className="w-7 h-7 text-on-surface-variant" />
-                            <span>Google Play</span>
+                            <img src="/google-play-badge.png" alt="Google Play" className="h-12 sm:h-14 w-auto object-contain" />
                           </a>
                         )}
                         {footerConfig.appDownloads.huawei && (
@@ -28374,10 +28372,9 @@ function App() {
                             href={footerConfig.appDownloads.huawei}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-3 px-8 py-4 bg-surface-container-low rounded-2xl text-base font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <Smartphone className="w-7 h-7 text-on-surface-variant" />
-                            <span>AppGallery</span>
+                            <img src="/appgallery-badge.png" alt="AppGallery" className="h-12 sm:h-14 w-auto object-contain" />
                           </a>
                         )}
                       </div>
