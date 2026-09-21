@@ -21315,6 +21315,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       >
         {selectedChatId ? (
           <>
+            <style>{`.mobile-bottom-nav { display: none !important; }`}</style>
             {/* Header del Chat */}
             <div className="py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] px-4 border-b border-outline-variant/10 flex items-center justify-between bg-white shrink-0 z-20">
               <div className="flex items-center gap-4">
@@ -28721,7 +28722,7 @@ function App() {
 
         {/* Mobile Bottom Navigation - Visible on mobile viewports (lg:hidden) */}
         {isKeyboardVisible || (location.pathname.includes("/mensajes") && searchParams.has("chatId")) ? null : (
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0 touch-action-manipulation select-none">
+          <div className="mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[40] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0 touch-action-manipulation select-none">
             {[
               { label: "Inicio", icon: Home, path: "/" },
               { label: "Favoritos", icon: Heart, path: "/favoritos" },
