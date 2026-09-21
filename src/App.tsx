@@ -28352,9 +28352,9 @@ function App() {
                             href={footerConfig.appDownloads.ios}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-36 h-12 sm:w-40 sm:h-[54px]"
                           >
-                            <img src="/app-store-badge.png" alt="Apple Store" className="w-36 sm:w-40 h-auto object-contain" />
+                            <img src="/app-store-badge.png" alt="Apple Store" className="w-full h-full object-cover rounded-xl" />
                           </a>
                         )}
                         {footerConfig.appDownloads.android && (
@@ -28362,9 +28362,9 @@ function App() {
                             href={footerConfig.appDownloads.android}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-36 h-12 sm:w-40 sm:h-[54px]"
                           >
-                            <img src="/google-play-badge.png" alt="Google Play" className="w-36 sm:w-40 h-auto object-contain" />
+                            <img src="/google-play-badge.png" alt="Google Play" className="w-full h-full object-cover rounded-xl" />
                           </a>
                         )}
                         {footerConfig.appDownloads.huawei && (
@@ -28372,9 +28372,9 @@ function App() {
                             href={footerConfig.appDownloads.huawei}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-36 h-12 sm:w-40 sm:h-[54px]"
                           >
-                            <img src="/appgallery-badge.png" alt="AppGallery" className="w-36 sm:w-40 h-auto object-contain" />
+                            <img src="/appgallery-badge.png" alt="AppGallery" className="w-full h-full object-cover rounded-xl" />
                           </a>
                         )}
                       </div>
