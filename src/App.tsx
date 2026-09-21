@@ -28346,28 +28346,15 @@ function App() {
                   
                   {footerConfig.appDownloads && (footerConfig.appDownloads.ios || footerConfig.appDownloads.android || footerConfig.appDownloads.huawei) && (
                     <div className="flex flex-col gap-4 mt-8 pt-8 border-t border-outline-variant/10">
-                      <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Descargar App</h4>
                       <div className="flex flex-wrap items-center gap-4">
                         {footerConfig.appDownloads.ios && (
                           <a
                             href={footerConfig.appDownloads.ios}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-6 py-3 bg-surface-container-low rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <Apple className="w-5 h-5 text-on-surface-variant" />
-                            <span>Apple Store</span>
-                          </a>
-                        )}
-                        {footerConfig.appDownloads.huawei && (
-                          <a
-                            href={footerConfig.appDownloads.huawei}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-6 py-3 bg-surface-container-low rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
-                          >
-                            <Smartphone className="w-5 h-5 text-on-surface-variant" />
-                            <span>AppGallery</span>
+                            <img src="/app-store-badge.png" alt="Download on the App Store" className="h-10 sm:h-12 w-auto object-contain" />
                           </a>
                         )}
                         {footerConfig.appDownloads.android && (
@@ -28375,10 +28362,19 @@ function App() {
                             href={footerConfig.appDownloads.android}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-6 py-3 bg-surface-container-low rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <Smartphone className="w-5 h-5 text-on-surface-variant" />
-                            <span>Google Play</span>
+                            <img src="/google-play-badge.png" alt="Get it on Google Play" className="h-10 sm:h-12 w-auto object-contain" />
+                          </a>
+                        )}
+                        {footerConfig.appDownloads.huawei && (
+                          <a
+                            href={footerConfig.appDownloads.huawei}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
+                          >
+                            <img src="/appgallery-badge.png" alt="Explore it on AppGallery" className="h-10 sm:h-12 w-auto object-contain" />
                           </a>
                         )}
                       </div>
