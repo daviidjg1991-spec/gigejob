@@ -20395,6 +20395,22 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   );
   const [loadingSpecificChat, setLoadingSpecificChat] = useState(false);
   const [specificChat, setSpecificChat] = useState<any>(null);
+
+  // Forza la ocultación del menú inferior móvil al abrir un chat
+  useEffect(() => {
+    const nav = document.getElementById("mobile-bottom-nav");
+    if (nav) {
+      if (selectedChatId) {
+        nav.style.setProperty("display", "none", "important");
+      } else {
+        nav.style.display = "";
+      }
+    }
+    return () => {
+      if (nav) nav.style.display = "";
+    };
+  }, [selectedChatId]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -21307,7 +21323,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         className={cn(
           "flex-1 flex flex-col h-full bg-white relative min-w-0",
           selectedChatId !== null
-            ? "fixed inset-0 z-[100] w-full h-[100dvh] bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
+            ? "fixed inset-0 z-[100] w-full bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
             : "hidden md:flex",
         )}
         onTouchStart={handleTouchStart}
@@ -28722,7 +28738,7 @@ function App() {
 
         {/* Mobile Bottom Navigation - Visible on mobile viewports (lg:hidden) */}
         {isKeyboardVisible || (location.pathname.includes("/mensajes") && searchParams.has("chatId")) ? null : (
-          <div className="mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[40] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0 touch-action-manipulation select-none">
+          <div id="mobile-bottom-nav" className="mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[40] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0 touch-action-manipulation select-none">
             {[
               { label: "Inicio", icon: Home, path: "/" },
               { label: "Favoritos", icon: Heart, path: "/favoritos" },
