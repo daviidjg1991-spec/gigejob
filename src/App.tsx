@@ -28354,7 +28354,7 @@ function App() {
                             rel="noopener noreferrer"
                             className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <img src="/app-store-badge.png" alt="Apple Store" className="h-12 sm:h-14 w-auto object-contain" />
+                            <img src="/app-store-badge.png" alt="Apple Store" className="w-36 sm:w-40 h-auto object-contain" />
                           </a>
                         )}
                         {footerConfig.appDownloads.android && (
@@ -28364,7 +28364,7 @@ function App() {
                             rel="noopener noreferrer"
                             className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <img src="/google-play-badge.png" alt="Google Play" className="h-12 sm:h-14 w-auto object-contain" />
+                            <img src="/google-play-badge.png" alt="Google Play" className="w-36 sm:w-40 h-auto object-contain" />
                           </a>
                         )}
                         {footerConfig.appDownloads.huawei && (
@@ -28374,7 +28374,7 @@ function App() {
                             rel="noopener noreferrer"
                             className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block"
                           >
-                            <img src="/appgallery-badge.png" alt="AppGallery" className="h-12 sm:h-14 w-auto object-contain" />
+                            <img src="/appgallery-badge.png" alt="AppGallery" className="w-36 sm:w-40 h-auto object-contain" />
                           </a>
                         )}
                       </div>
