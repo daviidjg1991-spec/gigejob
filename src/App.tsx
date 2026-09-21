@@ -115,6 +115,8 @@ import {
   ShieldOff,
   UserX,
   ExternalLink,
+  Apple,
+  Smartphone,
 } from "lucide-react";
 import { PermissionModal } from "./components/PermissionModal";
 import {
@@ -8437,6 +8439,71 @@ const AdminPage = ({
                       >
                         <PlusCircle className="w-5 h-5" /> Añadir Red Social
                       </button>
+                    </div>
+
+                    <div className="space-y-4 pt-6 border-t border-outline-variant/10">
+                      <h4 className="font-bold text-on-surface">
+                        Descarga de Aplicaciones
+                      </h4>
+                      <div className="bg-white p-4 rounded-xl border border-outline-variant/10 space-y-4">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-bold text-on-surface-variant">
+                            Enlace Apple Store (iOS)
+                          </label>
+                          <input
+                            className="bg-surface-container px-3 py-2 rounded-lg text-sm font-medium outline-none w-full"
+                            placeholder="URL de Apple Store"
+                            value={footerConfig.appDownloads?.ios || ""}
+                            onChange={(e) => {
+                              setFooterConfig({
+                                ...footerConfig,
+                                appDownloads: {
+                                  ...(footerConfig.appDownloads || {}),
+                                  ios: e.target.value,
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-bold text-on-surface-variant">
+                            Enlace Google Play (Android)
+                          </label>
+                          <input
+                            className="bg-surface-container px-3 py-2 rounded-lg text-sm font-medium outline-none w-full"
+                            placeholder="URL de Google Play"
+                            value={footerConfig.appDownloads?.android || ""}
+                            onChange={(e) => {
+                              setFooterConfig({
+                                ...footerConfig,
+                                appDownloads: {
+                                  ...(footerConfig.appDownloads || {}),
+                                  android: e.target.value,
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-bold text-on-surface-variant">
+                            Enlace AppGallery (Huawei)
+                          </label>
+                          <input
+                            className="bg-surface-container px-3 py-2 rounded-lg text-sm font-medium outline-none w-full"
+                            placeholder="URL de AppGallery"
+                            value={footerConfig.appDownloads?.huawei || ""}
+                            onChange={(e) => {
+                              setFooterConfig({
+                                ...footerConfig,
+                                appDownloads: {
+                                  ...(footerConfig.appDownloads || {}),
+                                  huawei: e.target.value,
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -28276,6 +28343,47 @@ function App() {
                         })}
                       </div>
                     )}
+                  
+                  {footerConfig.appDownloads && (footerConfig.appDownloads.ios || footerConfig.appDownloads.android || footerConfig.appDownloads.huawei) && (
+                    <div className="flex flex-col gap-4 mt-8 pt-8 border-t border-outline-variant/10">
+                      <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Descargar App</h4>
+                      <div className="flex flex-wrap items-center gap-4">
+                        {footerConfig.appDownloads.ios && (
+                          <a
+                            href={footerConfig.appDownloads.ios}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-6 py-3 bg-surface-container-low rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                          >
+                            <Apple className="w-5 h-5 text-on-surface-variant" />
+                            <span>Apple Store</span>
+                          </a>
+                        )}
+                        {footerConfig.appDownloads.huawei && (
+                          <a
+                            href={footerConfig.appDownloads.huawei}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-6 py-3 bg-surface-container-low rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                          >
+                            <Smartphone className="w-5 h-5 text-on-surface-variant" />
+                            <span>AppGallery</span>
+                          </a>
+                        )}
+                        {footerConfig.appDownloads.android && (
+                          <a
+                            href={footerConfig.appDownloads.android}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-6 py-3 bg-surface-container-low rounded-xl text-sm font-bold text-on-surface hover:bg-surface-container hover:-translate-y-0.5 transition-all shadow-sm"
+                          >
+                            <Smartphone className="w-5 h-5 text-on-surface-variant" />
+                            <span>Google Play</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 md:flex-1 gap-8">

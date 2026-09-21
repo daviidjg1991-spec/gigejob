@@ -262,11 +262,18 @@ export interface BlogPost {
   slug?: string;
 }
 
+export interface AppDownloadLinks {
+  ios?: string;
+  android?: string;
+  huawei?: string;
+}
+
 export interface FooterConfig {
   columns: FooterColumn[];
   copyrightText: string;
   pages?: Record<string, string>;
   socialLinks?: SocialLink[];
+  appDownloads?: AppDownloadLinks;
 }
 
 export const CATEGORIES = [
