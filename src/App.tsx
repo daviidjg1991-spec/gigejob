@@ -28352,9 +28352,9 @@ function App() {
                             href={footerConfig.appDownloads.ios}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block shrink-0"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-52 h-[70px] sm:w-60 sm:h-20 shrink-0"
                           >
-                            <img src="/app-store-badge.png" alt="Apple Store" className="h-[70px] sm:h-20 w-auto object-contain rounded-xl" />
+                            <img src="/app-store-badge.png" alt="Apple Store" className="w-full h-full object-cover rounded-xl" />
                           </a>
                         )}
                         {footerConfig.appDownloads.android && (
@@ -28362,9 +28362,9 @@ function App() {
                             href={footerConfig.appDownloads.android}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block shrink-0"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-52 h-[70px] sm:w-60 sm:h-20 shrink-0"
                           >
-                            <img src="/google-play-badge.png" alt="Google Play" className="h-[70px] sm:h-20 w-auto object-contain rounded-xl" />
+                            <img src="/google-play-badge.png" alt="Google Play" className="w-full h-full object-cover rounded-xl" />
                           </a>
                         )}
                         {footerConfig.appDownloads.huawei && (
@@ -28372,9 +28372,9 @@ function App() {
                             href={footerConfig.appDownloads.huawei}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block shrink-0"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-52 h-[70px] sm:w-60 sm:h-20 shrink-0"
                           >
-                            <img src="/appgallery-badge.png" alt="AppGallery" className="h-[70px] sm:h-20 w-auto object-contain rounded-xl" />
+                            <img src="/appgallery-badge.png" alt="AppGallery" className="w-full h-full object-cover rounded-xl" />
                           </a>
                         )}
                       </div>
