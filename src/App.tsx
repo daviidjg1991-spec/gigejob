@@ -21738,7 +21738,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
             {/* Input del Chat - Bottom flow */}
             {currentChat && (
-              <div className="p-3 bg-white border-t border-outline-variant/10 shrink-0 pb-4">
+              <div className="p-3 bg-white border-t border-outline-variant/10 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
                 {isChatDisabled ? (
                   <div className="text-center text-sm text-on-surface-variant/60 py-4 font-medium flex items-center justify-center gap-2">
                     <Lock className="w-4 h-4" />
