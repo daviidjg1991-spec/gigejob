@@ -21324,7 +21324,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         className={cn(
           "flex-1 flex flex-col h-full bg-white relative min-w-0",
           selectedChatId !== null
-            ? "fixed inset-0 z-[100] w-full bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
+            ? "fixed inset-0 z-[100] w-full h-[100dvh] bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
             : "hidden md:flex",
         )}
         onTouchStart={handleTouchStart}
