@@ -187,3 +187,18 @@ body {
 
 /* Hide bottom nav when chat is open */
 body:has(.messages-page-active) #mobile-bottom-nav { display: none !important; }
+
+/* Prevent background from scrolling and causing layout shifts on iOS when chat is open */
+body.messages-page-active {
+  overflow: hidden !important;
+}
+body.messages-page-active #root {
+  overflow: hidden !important;
+}
+
+/* Fix react-simple-pull-to-refresh stacking context bug which breaks fixed layout */
+body.messages-page-active .ptr,
+body.messages-page-active .ptr__children {
+  transform: none !important;
+  transition: none !important;
+}
