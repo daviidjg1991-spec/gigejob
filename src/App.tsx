@@ -20396,6 +20396,14 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const [loadingSpecificChat, setLoadingSpecificChat] = useState(false);
   const [specificChat, setSpecificChat] = useState<any>(null);
 
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // Forza la ocultación del menú inferior móvil al abrir un chat
   useEffect(() => {
     const nav = document.getElementById("mobile-bottom-nav");
@@ -21320,16 +21328,19 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       </div>
 
       {/* Chat Area */}
-      <div
-        className={cn(
-          "flex-1 flex flex-col h-full bg-white relative min-w-0",
-          selectedChatId !== null
-            ? "fixed inset-0 z-[100] w-full h-[100dvh] bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
-            : "hidden md:flex",
-        )}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+      {(() => {
+        const chatContent = (
+          <>
+          <div
+            className={cn(
+              "flex-1 flex flex-col h-full bg-white relative min-w-0",
+              selectedChatId !== null
+                ? "fixed inset-0 z-[100] w-full bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
+                : "hidden md:flex",
+            )}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
         {selectedChatId ? (
           <>
             <style>{`.mobile-bottom-nav { display: none !important; }`}</style>
@@ -21994,7 +22005,15 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </>
+    );
+
+  if (isMobile && selectedChatId !== null) {
+    return createPortal(chatContent, document.body);
+  }
+  return chatContent;
+  })()}
+  </div>
   );
 };
 
