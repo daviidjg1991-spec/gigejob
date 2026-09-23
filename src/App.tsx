@@ -20997,7 +20997,11 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       }
       if (selectedChatId && myActualId) {
         let textMsg = status === "accepted" ? "¡He aceptado el trabajo!" : "He rechazado la solicitud.";
-        if (status === "pending_client_approval") textMsg = "He enviado una propuesta editada. Por favor, revísala.";
+        if (status === "pending_client_approval") {
+          // If called from handleUpdateBookingStatus, we might just use a basic string or fetch current if needed.
+          // But it's usually confirmProfessionalEdit that sets this.
+          textMsg = "He enviado una propuesta editada. Por favor, revisala y confirma si está deacuerdo.";
+        }
         
         await addDoc(
           collection(db, "conversations", selectedChatId, "messages"),
@@ -21042,7 +21046,11 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       });
       setPendingEditData(null);
       if (selectedChatId && myActualId) {
-        const textMsg = "He enviado una propuesta editada. Por favor, revísala y confirma si estás de acuerdo.";
+        const textMsg = `He enviado una propuesta editada. Por favor, revisala y confirma si está deacuerdo.
+Fecha: ${pendingEditData.date}
+Hora: ${pendingEditData.time}
+Lugar: ${Array.isArray(activeBooking.location) ? activeBooking.location.join(", ") : (activeBooking.location || "No especificado")}
+Presupuesto: ${pendingEditData.newTotalCost}`;
         await addDoc(
           collection(db, "conversations", selectedChatId, "messages"),
           {
