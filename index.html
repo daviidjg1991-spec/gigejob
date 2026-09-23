@@ -2,11 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Gigejob.com - Encuentra profesionales cerca de ti</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v=3" />
+    <link rel="apple-touch-icon" href="/favicon.png?v=3" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="google-adsense-account" content="ca-pub-8429350663913182">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8429350663913182" crossorigin="anonymous"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #ffffff; z-index: 9999;">
+        <img src="/logo.png?v=3" alt="Cargando..." style="width: 110px; height: 110px; object-fit: contain; animation: custom-loader-anim 2s infinite ease-in-out; transform-origin: center center;" />
+      </div>
+    </div>
+    <style>
+      @keyframes custom-loader-anim {
+        0% { transform: scale(1) rotate(0deg); }
+        10% { transform: scale(1.15) rotate(0deg); }
+        20% { transform: scale(1) rotate(0deg); }
+        30% { transform: scale(1.15) rotate(0deg); }
+        40% { transform: scale(1) rotate(0deg); }
+        100% { transform: scale(1) rotate(-360deg); }
+      }
+    </style>
     <div id="google_translate_element"></div>
     <script type="text/javascript">
       (function() {

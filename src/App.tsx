@@ -24,6 +24,9 @@ import {
   useLocation,
   Navigate,
 } from "react-router-dom";
+import { createPortal } from "react-dom";
+
+import { Capacitor } from "@capacitor/core";
 import {
   Home,
   Search,
@@ -95,6 +98,7 @@ import {
   UserPlus,
   Globe,
   Edit3,
+  Copy,
   Type,
   Heading2,
   Loader2,
@@ -106,7 +110,15 @@ import {
   Linkedin,
   Youtube,
   Github,
+  MoreVertical,
+  Info,
+  ShieldOff,
+  UserX,
+  ExternalLink,
+  Apple,
+  Smartphone,
 } from "lucide-react";
+import { PermissionModal } from "./components/PermissionModal";
 import {
   MapContainer,
   TileLayer,
@@ -120,6 +132,9 @@ import { io, Socket } from "socket.io-client";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import JoditEditor from "jodit-react";
 
 // Fix Leaflet marker icons
 // @ts-ignore
@@ -137,6 +152,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "./lib/utils";
+import { initNotifications, triggerNotificationBanner, setAppBadgeCount } from "./services/notificationService";
 import {
   collection,
   doc,
@@ -155,7 +171,10 @@ import {
   Timestamp,
   increment,
   collectionGroup,
+  arrayUnion,
 } from "firebase/firestore";
+import { processStripePayment } from "./services/stripeService";
+
 const generateCustomId = (
   firstName: string,
   registrationDate: Date,
@@ -169,13 +188,50 @@ const generateCustomId = (
 };
 
 const validateUsername = (username: string): string | null => {
-  // Remove space constraint from here as it's handled in input, but still good to have.
   if (username.includes(" "))
     return "El nombre de usuario no puede contener espacios";
-  if (username.length <= 4)
-    return "El nombre de usuario debe tener más de 4 caracteres";
+  if (username.length < 7)
+    return "El nombre de usuario debe tener un mínimo de 7 caracteres";
   return null;
 };
+
+export const getLocalizedFirebaseError = (error: any): string => {
+  const isES = navigator.language.toLowerCase().startsWith("es");
+  const code = error?.code || "";
+  const message = error?.message || "";
+
+  if (code === "permission-denied" || message.includes("Missing or insufficient permissions")) {
+    return isES 
+      ? "No tienes los permisos necesarios para realizar esta acción. Verifica tu cuenta o contacta con soporte."
+      : "You do not have the required permissions to perform this action. Check your account or contact support.";
+  }
+  if (code === "auth/email-already-in-use") {
+    return isES ? "Este correo electrónico ya está registrado." : "This email is already registered.";
+  }
+  if (code === "auth/invalid-email") {
+    return isES ? "El formato del correo electrónico no es válido." : "Invalid email format.";
+  }
+  if (code === "auth/weak-password") {
+    return isES ? "La contraseña es demasiado débil." : "The password is too weak.";
+  }
+  if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+    return isES ? "Email o contraseña incorrectos." : "Invalid email or password.";
+  }
+  if (code === "auth/popup-closed-by-user") {
+    return isES ? "El proceso de inicio de sesión fue cancelado." : "The login process was cancelled.";
+  }
+  
+  if (code === "auth/unauthorized-domain" || message.includes("unauthorized-domain")) {
+    return isES
+      ? "Este dominio no está autorizado en la consola de Firebase Authentication. Añade tu dominio (ej. vercel.app o tu dominio personalizado) en Firebase Console > Authentication > Settings > Authorized Domains."
+      : "This domain is not authorized in Firebase Authentication Console. Add your domain to Authorized Domains in Firebase Console.";
+  }
+  
+  return isES 
+    ? `Ha ocurrido un error inesperado${message ? `: ${message}` : ""}`
+    : `An unexpected error occurred${message ? `: ${message}` : ""}`;
+};
+
 
 const generateBookingCode = async (
   bookingDate: Date,
@@ -202,10 +258,19 @@ const generateBookingCode = async (
 };
 
 import { db, auth, storage } from "./lib/firebase";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { PlanningCalendarModal } from "./components/PlanningCalendarModal";
+import { CustomLoader } from "./components/CustomLoader";
+import PullToRefresh from 'react-simple-pull-to-refresh';
+import { CookieBanner } from "./components/CookieBanner";
+import SeoHead from "./components/SeoHead";
+import SeoCategoryRoute from "./components/SeoCategoryRoute";
 import {
   AreaChart,
   Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -217,14 +282,21 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signInWithCredential,
   GoogleAuthProvider,
   FacebookAuthProvider,
+  OAuthProvider,
   updateEmail,
   reauthenticateWithCredential,
   EmailAuthProvider,
   updatePassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  deleteUser,
 } from "firebase/auth";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, uploadString } from "firebase/storage";
 
 enum OperationType {
   CREATE = "create",
@@ -286,6 +358,19 @@ function handleFirestoreError(
   }
 }
 
+// Utility to safely format location into a string and avoid React error #31 (rendering objects in JSX)
+const formatLocation = (loc: any): string => {
+  if (!loc) return "Sin ubicación";
+  if (typeof loc === "string") return loc;
+  if (typeof loc === "object") {
+    if (loc.address && typeof loc.address === "string") return loc.address;
+    if (loc.city && typeof loc.city === "string") return loc.city;
+    if (Array.isArray(loc)) return loc.join(", ");
+    return "Sin ubicación";
+  }
+  return String(loc);
+};
+
 // Utility to optimize images before saving to Firestore
 const compressImage = (
   base64Str: string,
@@ -323,6 +408,25 @@ const compressImage = (
   });
 };
 
+const cleanUndefinedData = (obj: any): any => {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj
+      .filter((item) => item !== undefined)
+      .map((item) => cleanUndefinedData(item));
+  }
+  if (typeof obj === "object" && !(obj instanceof Date)) {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = cleanUndefinedData(value);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+};
+
 async function testConnection() {
   try {
     await getDocFromServer(doc(db, "test", "connection"));
@@ -341,6 +445,7 @@ import {
   JobListing,
   CATEGORIES,
   ListingType,
+  ListingStatus,
   UserProfile,
   UserRole,
   Address,
@@ -351,6 +456,11 @@ import {
   BlogPost,
   Booking,
   PRO_PLANS,
+  isSearchMatch,
+  Review,
+  DEFAULT_REVIEW_MODAL_CONFIG,
+  ENABLE_SEARCH_PROFESSIONALS,
+  createSlug
 } from "./types";
 
 export type DynamicAppConfig = {
@@ -366,15 +476,59 @@ export type DynamicAppConfig = {
 };
 
 export const defaultDynamicAppConfig: DynamicAppConfig = {
-  logoText1: "Job",
-  logoText2: "Pop",
-  faviconUrl: "",
-  appTitle: "JobPop - Encuentra profesionales",
-  logoImageUrl: "",
+  logoText1: "Gige",
+  logoText2: "Job",
+  faviconUrl: "/favicon.png?v=3",
+  appTitle: "GigeJob: Encuentra profesiones",
+  logoImageUrl: "/logo.png?v=3",
   homeTitle1: "Encuentra profesionales",
   homeTitle2: "cerca de ti",
   homeSubtitle: "La forma más sencilla de conectar con expertos locales.",
   homeImageUrl: "",
+};
+
+export const resolveUserPlanId = (user: any): string => {
+  if (!user) return "basic";
+  let rawPlan = user.professionalInfo?.plan;
+  if (!rawPlan && user.hasClaimedPromotion) {
+    rawPlan = "premium-pro";
+  }
+  if (!rawPlan) return "basic";
+
+  const lower = String(rawPlan).toLowerCase().trim();
+  if (lower === "premium-pro" || lower === "premium pro" || lower === "plan premium pro") {
+    return "premium-pro";
+  }
+  if (lower === "premium" || lower === "plan premium") {
+    return "premium";
+  }
+  if (lower === "medium" || lower === "pro" || lower === "plan medium") {
+    return "medium";
+  }
+  if (lower === "basic" || lower === "plan basic") {
+    return "basic";
+  }
+  return lower;
+};
+
+export const getUserPlan = (user: any, plans: any[] = PRO_PLANS) => {
+  const planId = resolveUserPlanId(user);
+  const matched = (plans || PRO_PLANS).find(
+    (p: any) => p.id === planId || p.id?.toLowerCase() === planId || p.name?.toLowerCase() === planId || p.name?.toLowerCase() === (user?.professionalInfo?.plan || "").toLowerCase()
+  );
+  return matched || (plans || PRO_PLANS).find((p: any) => p.id === "basic") || (plans || PRO_PLANS)[0];
+};
+
+export const getListingActiveDays = (authorUser: any, plans: any[] = PRO_PLANS) => {
+  const plan = getUserPlan(authorUser, plans);
+  return Number(plan?.limits?.activeDaysPerListing ?? 30);
+};
+
+export const checkIsListingExpired = (listing: any, authorUser?: any, plans: any[] = PRO_PLANS) => {
+  if (!listing) return false;
+  if (listing.status === "expired") return true;
+
+  return false;
 };
 
 export const AppConfigContext = createContext<{
@@ -397,32 +551,55 @@ export const AppConfigProvider = ({ children }: { children: React.ReactNode }) =
     }
   });
 
-  const updateConfig = (c: Partial<DynamicAppConfig>) => {
-    setConfig(prev => {
-      const nw = { ...prev, ...c };
-      localStorage.setItem("app_dynamic_config", JSON.stringify(nw));
-      return nw;
+  useEffect(() => {
+    const configRef = doc(db, "settings", "app_config");
+    const unsub = onSnapshot(configRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const merged = { ...defaultDynamicAppConfig, ...data };
+        setConfig(merged);
+        localStorage.setItem("app_dynamic_config", JSON.stringify(merged));
+      }
     });
+    return unsub;
+  }, []);
+
+  const updateConfig = async (c: Partial<DynamicAppConfig>) => {
+    const nw = { ...config, ...c };
+    setConfig(nw);
+    localStorage.setItem("app_dynamic_config", JSON.stringify(nw));
+    try {
+      const configRef = doc(db, "settings", "app_config");
+      await setDoc(configRef, c, { merge: true });
+    } catch (err) {
+      console.error("Error al actualizar configuración en Firebase:", err);
+    }
   };
 
   useEffect(() => {
-    document.title = config.appTitle || `${config.logoText1}${config.logoText2} | Marketplace`;
+    document.title = config.appTitle || `${config.logoText1}${config.logoText2}.com - Encuentra profesionales cerca de ti`;
     let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
     if (!link) {
       link = document.createElement('link');
       link.rel = 'icon';
       document.getElementsByTagName('head')[0].appendChild(link);
     }
-    if (config.faviconUrl) {
-      link.href = config.faviconUrl;
-    }
+    // Hardcoded per project rules to avoid database overriding the local file
+    link.href = "/favicon.png?v=5";
   }, [config.appTitle, config.logoText1, config.logoText2, config.faviconUrl]);
 
   return <AppConfigContext.Provider value={{ config, updateConfig }}>{children}</AppConfigContext.Provider>;
 };
 
 const useProPlansConfig = () => {
-  const [plans, setPlans] = useState<any[]>(PRO_PLANS);
+  const [plans, setPlans] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem("app_pro_plans");
+      return cached ? JSON.parse(cached) : PRO_PLANS;
+    } catch {
+      return PRO_PLANS;
+    }
+  });
   const [isEnabled, setIsEnabled] = useState<boolean>(true);
 
   useEffect(() => {
@@ -430,7 +607,10 @@ const useProPlansConfig = () => {
     const unsub = onSnapshot(plansRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data.plans) setPlans(data.plans);
+        if (data.plans) {
+          setPlans(data.plans);
+          localStorage.setItem("app_pro_plans", JSON.stringify(data.plans));
+        }
         if (data.isEnabled !== undefined) setIsEnabled(data.isEnabled);
       }
       // We don't write defaults to DB immediately to save writes.
@@ -440,6 +620,42 @@ const useProPlansConfig = () => {
   }, []);
   return { plans, setPlans, isEnabled, setIsEnabled };
 };
+
+const usePromotionsConfig = () => {
+  const [config, setConfig] = useState<{ promotions: any[] }>({
+    promotions: [
+      {
+        id: "default",
+        name: "Promoción Inicial",
+        isActive: false,
+        userRangeStart: 1,
+        userRangeEnd: 100,
+        planDurationMonths: 12,
+        planType: "Premium Pro",
+      }
+    ]
+  });
+
+  useEffect(() => {
+    const promoRef = doc(db, "settings", "promotions_config");
+    const unsub = onSnapshot(promoRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setConfig({ promotions: data.promotions || [] });
+      }
+    });
+    return unsub;
+  }, []);
+
+  const updateConfig = async (newConfig: { promotions: any[] }) => {
+    const promoRef = doc(db, "settings", "promotions_config");
+    await setDoc(promoRef, newConfig, { merge: true });
+    setConfig(newConfig);
+  };
+
+  return { config, updateConfig };
+};
+
 
 interface ReportContextType {
   openReportModal: (
@@ -486,11 +702,16 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             <h2 className="text-3xl font-display font-black text-on-surface mb-4 tracking-tight">
               ¡Vaya! Algo salió mal
             </h2>
-            <p className="text-on-surface-variant/60 mb-10 font-medium leading-relaxed break-words">
+            <p className="text-on-surface-variant/60 mb-4 font-medium leading-relaxed break-words">
               {error
                 ? error.message
                 : "Hemos detectado un error inesperado al renderizar los datos. No te preocupes, tus datos están a salvo. Pulsa el botón para reiniciar la aplicación."}
             </p>
+            {error && error.stack && (
+              <pre className="text-left text-[10px] bg-black/5 p-4 rounded-xl mb-6 overflow-x-auto max-h-40 text-red-600 font-mono">
+                {error.stack}
+              </pre>
+            )}
             <button
               onClick={() => {
                 localStorage.clear();
@@ -655,6 +876,7 @@ const AdminSidebar = ({
     { id: "personal", label: "Usuarios", icon: User },
     { id: "professional", label: "Servicios", icon: Briefcase },
     { id: "planes-pro", label: "Planes Pro", icon: Crown },
+    { id: "promociones", label: "Promociones", icon: Zap },
     { id: "ads", label: "Moderación", icon: Hammer },
     {
       id: "reports",
@@ -678,20 +900,7 @@ const AdminSidebar = ({
 
   return (
     <aside className="fixed left-0 top-16 h-[calc(100vh-64px)] w-72 bg-surface-container-low p-4 flex flex-col gap-2 z-40 overflow-hidden">
-      <div className="mb-4 px-2">
-        {config.logoImageUrl ? (
-          <img src={config.logoImageUrl} alt="App Logo" className="h-8 w-auto object-contain" />
-        ) : (
-          <>
-            <span className="text-lg font-extrabold tracking-tight text-primary">
-              {config.logoText1}
-            </span>
-            <span className="text-lg font-extrabold tracking-tight text-on-surface">
-              {config.logoText2}
-            </span>
-          </>
-        )}
-      </div>
+
 
       <div className="flex items-center gap-3 px-2 mb-4">
         <div className="w-10 h-10 rounded-full bg-surface-container-highest flex-shrink-0 overflow-hidden">
@@ -786,6 +995,7 @@ const AdminUserEditModal = ({
   const [showPassword, setShowPassword] = useState(false);
   const [userTransactions, setUserTransactions] = useState<any[]>([]);
   const [userChats, setUserChats] = useState<any[]>([]);
+  const [userReviews, setUserReviews] = useState<any[]>([]);
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [legalModal, setLegalModal] = useState<{
@@ -852,18 +1062,34 @@ const AdminUserEditModal = ({
           const qChats = query(
             collection(db, "conversations"),
             where("participants", "array-contains", user.id),
-            orderBy("lastUpdatedAt", "desc"),
           );
           const chatSnap = await getDocs(qChats);
           const chats: any[] = [];
           chatSnap.forEach((doc) => chats.push({ id: doc.id, ...doc.data() }));
+          chats.sort((a, b) => (b.lastUpdatedAt?.seconds || 0) - (a.lastUpdatedAt?.seconds || 0));
           setUserChats(chats);
         } catch (e) {
           console.error("Error fetching user chats:", e);
         }
       };
+      const fetchReviews = async () => {
+        try {
+          const qReviews = query(
+            collection(db, "reviews"),
+            where("targetId", "==", user.id),
+          );
+          const reviewSnap = await getDocs(qReviews);
+          const reviews: any[] = [];
+          reviewSnap.forEach((doc) => reviews.push({ id: doc.id, ...doc.data() }));
+          reviews.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+          setUserReviews(reviews);
+        } catch (e) {
+          console.error("Error fetching user reviews:", e);
+        }
+      };
       fetchTxs();
       fetchChats();
+      fetchReviews();
     }
   }, [user]);
 
@@ -934,11 +1160,15 @@ const AdminUserEditModal = ({
         where("author.id", "==", editedUser.id),
       );
       const listingsSnap = await getDocs(listingsQuery);
-      const listingsPromises = listingsSnap.docs.map((listingDoc) =>
-        updateDoc(doc(db, "listings", listingDoc.id), {
+      const listingsPromises = listingsSnap.docs.map((listingDoc) => {
+        const payload: any = {
           "author.isVerified": editedUser.isVerified || false,
-        }),
-      );
+        };
+        if (editedUser.professionalInfo?.availability) {
+          payload["availability"] = editedUser.professionalInfo.availability;
+        }
+        return updateDoc(doc(db, "listings", listingDoc.id), payload);
+      });
       await Promise.all(listingsPromises);
 
       window.dispatchEvent(
@@ -973,13 +1203,13 @@ const AdminUserEditModal = ({
         >
           <div className="relative mb-6">
             <div className="flex items-center gap-4 mb-4">
-              {editedUser.profileImage ? (
+              {(editedUser.photoUrl || editedUser.photoURL || editedUser.profileImage) ? (
                 <img
-                  src={editedUser.profileImage}
+                  src={editedUser.photoUrl || editedUser.photoURL || editedUser.profileImage}
                   alt="Profile"
                   className="w-16 h-16 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={() =>
-                    window.open(`/perfil/${editedUser.id}`, "_blank")
+                    window.open(`/perfil/${editedUser.username || editedUser.id}`, "_blank")
                   }
                   title="Ir al perfil público"
                 />
@@ -987,7 +1217,7 @@ const AdminUserEditModal = ({
                 <div
                   className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors"
                   onClick={() =>
-                    window.open(`/perfil/${editedUser.id}`, "_blank")
+                    window.open(`/perfil/${editedUser.username || editedUser.id}`, "_blank")
                   }
                   title="Ir al perfil público"
                 >
@@ -1023,8 +1253,10 @@ const AdminUserEditModal = ({
                 "transacciones",
                 "verificacion",
                 "chats",
+                "reseña",
                 "estado",
                 "info",
+                "bloqueados",
               ].map((tab) => (
                 <button
                   key={tab}
@@ -1764,20 +1996,30 @@ const AdminUserEditModal = ({
 
                 <div className="grid gap-3 md:grid-cols-4">
                   {proPlans.map((plan: any) => {
+                    let mappedUserPlan = editedUser.professionalInfo?.plan;
+                    if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium-pro";
+                    else if (mappedUserPlan === "Premium") mappedUserPlan = "premium";
+                    else if (mappedUserPlan === "Pro") mappedUserPlan = "medium";
+
                     const isCurrent =
-                      editedUser.professionalInfo?.plan === plan.id ||
-                      (!editedUser.professionalInfo?.plan &&
+                      mappedUserPlan === plan.id ||
+                      (!mappedUserPlan &&
                         plan.id === "basic");
                     return (
                       <div
                         key={plan.id}
                         className={cn(
-                          "p-4 rounded-xl border flex flex-col gap-2 transition-all",
+                          "p-4 rounded-xl border flex flex-col gap-2 transition-all relative",
                           isCurrent
-                            ? "border-primary bg-primary/5 shadow-sm"
+                            ? "border-2 border-primary bg-primary/5 shadow-md ring-4 ring-primary/10"
                             : "border-outline-variant/10 bg-surface-container hover:bg-surface-container-high",
                         )}
                       >
+                        {isCurrent && (
+                          <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-primary text-white text-[9px] font-black uppercase tracking-widest whitespace-nowrap shadow-sm z-10">
+                            {editedUser.professionalInfo?.planPaymentMethod === "promocion" ? "Promoción Activa" : "Plan Actual"}
+                          </div>
+                        )}
                         <div className="flex justify-between items-start">
                           <div className="font-bold text-sm">{plan.name}</div>
                           <div className="flex flex-col items-end gap-0.5">
@@ -1923,7 +2165,7 @@ const AdminUserEditModal = ({
                       <input
                         type="date"
                         className="w-full bg-transparent border-b border-outline-variant/20 py-1 font-bold text-sm outline-none focus:border-primary transition-colors disabled:opacity-50"
-                        value={editedUser.professionalInfo?.planStartDate || ""}
+                        value={editedUser.professionalInfo?.planStartDate?.split('T')[0] || ""}
                         onChange={(e) =>
                           setEditedUser({
                             ...editedUser,
@@ -1943,7 +2185,7 @@ const AdminUserEditModal = ({
                       <input
                         type="date"
                         className="w-full bg-transparent border-b border-outline-variant/20 py-1 font-bold text-sm text-error outline-none focus:border-error transition-colors disabled:opacity-50"
-                        value={editedUser.professionalInfo?.planEndDate || ""}
+                        value={editedUser.professionalInfo?.planEndDate?.split('T')[0] || ""}
                         onChange={(e) =>
                           setEditedUser({
                             ...editedUser,
@@ -1993,7 +2235,13 @@ const AdminUserEditModal = ({
                         Método
                       </label>
                       <div className="w-full border-b border-outline-variant/20 py-1 font-bold text-sm truncate min-h-[29px] flex items-center">
-                        {editedUser.professionalInfo?.planPaymentMethod || "Ninguno"}
+                        {editedUser.professionalInfo?.planPaymentMethod === "promocion" ? (
+                          <span className="text-primary flex items-center gap-1">
+                            <Zap className="w-3 h-3" /> Promoción
+                          </span>
+                        ) : (
+                          <span className="capitalize">{editedUser.professionalInfo?.planPaymentMethod || "Ninguno"}</span>
+                        )}
                       </div>
                     </div>
                     <div className="space-y-1 flex flex-col justify-end">
@@ -2513,7 +2761,7 @@ const AdminUserEditModal = ({
                                 <span className="font-bold text-sm text-on-surface">
                                   Chat ID {chat.id.slice(0, 8)}...
                                 </span>
-                                {chat.isJobpopDirect ? (
+                                {chat.isGigeJobDirect ? (
                                   <span className="px-2 py-0.5 bg-primary/10 text-primary text-[9px] uppercase font-black tracking-widest rounded-md">
                                     General
                                   </span>
@@ -2592,6 +2840,99 @@ const AdminUserEditModal = ({
                         </p>
                       )}
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "reseña" && (
+              <div className="space-y-4">
+                <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-widest mb-4">
+                  Reseñas del usuario
+                </h4>
+                {userReviews.length > 0 ? (
+                  <div className="space-y-3">
+                    {userReviews.map((review: any) => (
+                      <div
+                        key={review.id}
+                        className="p-4 bg-white border border-outline-variant/10 rounded-2xl shadow-sm flex flex-col gap-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-sm text-on-surface">
+                            {review.authorName || "Anónimo"} - {review.rating} ⭐
+                          </span>
+                          <span className="text-[10px] text-on-surface-variant font-bold">
+                            {review.createdAt?.seconds
+                              ? new Date(review.createdAt.seconds * 1000).toLocaleDateString()
+                              : "N/A"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-on-surface-variant">
+                          {review.comment || "Sin comentario"}
+                        </p>
+                        <div className="flex justify-end mt-2">
+                          <button
+                            onClick={async () => {
+                              if (window.confirm("¿Seguro que quieres borrar esta reseña de forma definitiva?")) {
+                                try {
+                                  await deleteDoc(doc(db, "reviews", review.id));
+                                  setUserReviews((prev) => prev.filter((r) => r.id !== review.id));
+
+                                  // Mark booking as reviewed/dismissed so prompt doesn't pop up again
+                                  if (review.bookingId) {
+                                    try {
+                                      await updateDoc(doc(db, "bookings", review.bookingId), {
+                                        dismissedReview: true
+                                      });
+                                    } catch (err) {
+                                      console.warn("Could not update booking dismissedReview status:", err);
+                                    }
+                                  }
+
+                                  // Recalculate target user's rating
+                                  if (review.targetId) {
+                                    const qReviews = query(collection(db, "reviews"), where("targetId", "==", review.targetId));
+                                    const reviewsSnap = await getDocs(qReviews);
+                                    let totalRating = 0;
+                                    let count = 0;
+                                    reviewsSnap.forEach(docSnap => {
+                                      if (docSnap.id !== review.id && !docSnap.data().deleted) {
+                                        totalRating += docSnap.data().rating || 0;
+                                        count++;
+                                      }
+                                    });
+                                    const newRating = count > 0 ? totalRating / count : 5.0;
+
+                                    await updateDoc(doc(db, "users", review.targetId), {
+                                      rating: newRating
+                                    });
+
+                                    const qListings = query(collection(db, "listings"), where("author.id", "==", review.targetId));
+                                    const listingsSnap = await getDocs(qListings);
+                                    for (const listingDoc of listingsSnap.docs) {
+                                      await updateDoc(doc(db, "listings", listingDoc.id), {
+                                        "author.rating": newRating
+                                      });
+                                    }
+                                  }
+                                } catch (e) {
+                                  console.error("Error al borrar la reseña", e);
+                                  alert("Error al borrar la reseña");
+                                }
+                              }
+                            }}
+                            className="px-3 py-1 bg-error/10 text-error hover:bg-error/20 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-colors"
+                          >
+                            Borrar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 border-2 border-dashed border-outline-variant/20 rounded-2xl text-center">
+                    <p className="font-bold text-on-surface-variant">
+                      No hay reseñas
+                    </p>
                   </div>
                 )}
               </div>
@@ -2845,6 +3186,37 @@ const AdminUserEditModal = ({
                 </div>
               </div>
             )}
+            {activeTab === "bloqueados" && (
+              <div className="space-y-6">
+                <h4 className="font-bold text-sm text-on-surface-variant uppercase tracking-widest mb-4">
+                  Usuarios Bloqueados
+                </h4>
+                <div className="space-y-4">
+                  {(!editedUser.blockedUsers || editedUser.blockedUsers.length === 0) ? (
+                    <p className="text-sm text-on-surface-variant">No hay usuarios bloqueados.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {editedUser.blockedUsers.map((blockedId: string) => (
+                        <BlockedUserItem
+                          key={blockedId}
+                          blockedId={blockedId}
+                          date={editedUser.blockedUsersDates?.[blockedId]}
+                          isDark={true}
+                          onUnblock={() => {
+                            if(confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
+                              const newBlocked = editedUser.blockedUsers.filter((id: string) => id !== blockedId);
+                              const newDates = { ...editedUser.blockedUsersDates };
+                              delete newDates[blockedId];
+                              setEditedUser({ ...editedUser, blockedUsers: newBlocked, blockedUsersDates: newDates });
+                            }
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
@@ -2880,10 +3252,12 @@ const AdminServiceDetailModal = ({
   serviceBookings?: any[];
 }) => {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
 
   useEffect(() => {
     if (!isOpen) {
       setSelectedDay(null);
+      setActiveTab('details');
     }
   }, [isOpen]);
 
@@ -2891,7 +3265,11 @@ const AdminServiceDetailModal = ({
 
   // Calcular el total real basado en las reservas 'completadas'. Asumimos totalAmount o totalCost de los bookings.
   // O si no simplemente la suma de los importes de los bookings de este anuncio.
-  const realTotalBilled = (serviceBookings || []).reduce(
+  const acceptedBookings = (serviceBookings || []).filter(
+    (b) => b.status === "accepted" || b.status === "completed"
+  );
+  
+  const realTotalBilled = acceptedBookings.reduce(
     (sum, b) => sum + (Number(b.totalAmount || b.totalCost || b.price) || 0),
     0,
   );
@@ -2913,7 +3291,24 @@ const AdminServiceDetailModal = ({
             <X className="w-6 h-6" />
           </button>
         </div>
-        <div className="space-y-6">
+
+        <div className="flex gap-4 mb-6 border-b pb-2">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`pb-2 transition-colors ${activeTab === 'details' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Detalles
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`pb-2 transition-colors ${activeTab === 'history' ? 'border-b-2 border-primary text-primary font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            Historial
+          </button>
+        </div>
+
+        {activeTab === 'details' ? (
+          <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <h4 className="font-bold text-sm text-gray-500">Título:</h4>
@@ -3035,6 +3430,113 @@ const AdminServiceDetailModal = ({
             </div>
           </div>
         </div>
+        ) : (
+          <div className="space-y-8">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-surface-container-low p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 mb-1">
+                  Total Solicitudes
+                </h4>
+                <p className="text-3xl font-bold text-primary">
+                  {(serviceBookings || []).length}
+                </p>
+              </div>
+              <div className="bg-surface-container-low p-4 rounded-2xl flex flex-col items-center justify-center text-center">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 mb-1">
+                  Reservas Aceptadas
+                </h4>
+                <p className="text-3xl font-bold text-green-600">
+                  {acceptedBookings.length}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-bold text-sm text-gray-700 mb-4">
+                Historial de Reservas y Solicitudes
+              </h4>
+              {(serviceBookings || []).length > 0 ? (
+                <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2">
+                  {(serviceBookings || [])
+                    .sort((a, b) => {
+                      const dateA = a.date
+                        ? new Date(a.date).getTime()
+                        : a.createdAt?.seconds
+                          ? a.createdAt.seconds * 1000
+                          : 0;
+                      const dateB = b.date
+                        ? new Date(b.date).getTime()
+                        : b.createdAt?.seconds
+                          ? b.createdAt.seconds * 1000
+                          : 0;
+                      return dateB - dateA;
+                    })
+                    .map((b, idx) => {
+                      let statusColor = "text-on-surface-variant";
+                      let borderColor = "border-outline-variant/10";
+                      let bgColor = "bg-surface-container-lowest";
+
+                      if (b.status === "accepted" || b.status === "completed") {
+                        statusColor = "text-green-600";
+                        borderColor = "border-green-500/30";
+                        bgColor = "bg-green-50/50";
+                      } else if (b.status === "pending" || b.status === "budget_pending") {
+                        statusColor = "text-yellow-600";
+                        borderColor = "border-yellow-500/30";
+                        bgColor = "bg-yellow-50/50";
+                      } else if (b.status === "cancelled" || b.status === "rejected" || b.status === "expired") {
+                        statusColor = "text-red-600";
+                        borderColor = "border-red-500/30";
+                        bgColor = "bg-red-50/50";
+                      }
+
+                      return (
+                      <div
+                        key={b.id || idx}
+                        className={`flex justify-between items-center p-4 rounded-xl border ${borderColor} ${bgColor}`}
+                      >
+                        <div>
+                          <p className="font-bold text-sm text-on-surface">
+                            {b.date
+                              ? new Date(b.date).toLocaleDateString()
+                              : "Sin fecha"}{" "}
+                            {b.time && (
+                              <span className="text-on-surface-variant font-normal">
+                                - {b.time}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-on-surface-variant mt-1">
+                            Cliente ID:{" "}
+                            <span className="font-mono text-[10px]">
+                              {b.clientId}
+                            </span>
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-primary text-base">
+                            {Number(
+                              b.totalAmount || b.totalCost || b.price || 0,
+                            ).toFixed(2)}
+                            €
+                          </p>
+                          <p className={`text-[10px] font-black uppercase tracking-widest mt-1 ${statusColor}`}>
+                            {b.status}
+                          </p>
+                        </div>
+                      </div>
+                    )})}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-surface-container-lowest rounded-2xl border border-outline-variant/10">
+                  <p className="text-sm text-on-surface-variant italic">
+                    No hay reservas ni solicitudes para este anuncio.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3755,7 +4257,7 @@ const PageEditorModal = ({
                             disabled={isUploading}
                           >
                             {isUploading && targetIndex === index ? (
-                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <CustomLoader className="w-5 h-5" />
                             ) : (
                               <Upload className="w-5 h-5" />
                             )}
@@ -3902,8 +4404,12 @@ const BlogListPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex justify-center items-center min-h-[50vh]">
-        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      <div className="flex-1 flex flex-col justify-center items-center min-h-[50vh] p-4">
+        <img
+          src="/logo.png?v=3"
+          alt="Cargando..."
+          className="w-24 h-24 object-contain custom-loader-icon"
+        />
       </div>
     );
   }
@@ -3941,7 +4447,7 @@ const BlogListPage = () => {
           return (
             <Link
               key={post.id}
-              to={`/blog/${post.id}`}
+              to={`/blog/${post.slug || (post.title ? createSlug(post.title) : post.id)}`}
               className={cn(
                 "group flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 isFeatured ? "md:col-span-2 lg:col-span-2 row-span-2" : "",
@@ -4006,6 +4512,77 @@ const BlogListPage = () => {
   );
 };
 
+const AmazonLinkPreview = ({ href, children }: { href: string; children: React.ReactNode }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If it's a direct Amazon link with ASIN, extract it.
+    const asinMatch = href.match(/\/(?:dp|gp\/product|ASIN)\/([a-zA-Z0-9]{10})/i);
+    if (asinMatch) {
+      setImageUrl(`https://images-na.ssl-images-amazon.com/images/P/${asinMatch[1]}.01._SCLZZZZZZZ_.jpg`);
+      return;
+    }
+
+    // Otherwise, try to fetch metadata (for amzn.to and others)
+    fetch(`https://api.microlink.io/?url=${encodeURIComponent(href)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.data?.image?.url) {
+          setImageUrl(data.data.image.url);
+        } else if (data.data?.logo?.url) {
+          setImageUrl(data.data.logo.url);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching preview", err);
+      });
+  }, [href]);
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="not-prose flex items-stretch gap-4 p-4 border border-outline-variant/30 rounded-2xl bg-surface-container-lowest hover:bg-surface-container-low transition-colors shadow-sm w-full max-w-sm my-4 no-underline group"
+    >
+      {imageUrl ? (
+        <div className="w-24 h-24 shrink-0 bg-white rounded-xl flex items-center justify-center p-2 border border-outline-variant/10 overflow-hidden relative">
+          <img
+            src={imageUrl}
+            alt="Amazon Product"
+            className="w-full h-full object-contain mix-blend-multiply"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+              const next = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+              if (next) next.style.display = "flex";
+            }}
+          />
+          <div className="hidden absolute inset-0 bg-[#FF9900]/10 items-center justify-center text-[#FF9900]">
+            <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" />
+            </svg>
+          </div>
+        </div>
+      ) : (
+        <div className="w-24 h-24 shrink-0 bg-[#FF9900]/10 rounded-xl flex items-center justify-center text-[#FF9900]">
+          <svg className="w-10 h-10" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z" />
+          </svg>
+        </div>
+      )}
+      <div className="flex flex-col justify-center flex-1 min-w-0">
+        <span className="block text-sm font-bold text-on-surface line-clamp-2 leading-tight group-hover:text-primary transition-colors mb-2">
+          {children}
+        </span>
+        <div className="inline-flex items-center justify-center gap-2 bg-[#FF9900] text-white text-xs font-black px-4 py-2 rounded-lg mt-auto self-start shadow-sm group-hover:bg-[#FF9900]/90 transition-colors uppercase tracking-wider w-full">
+          Ver ahora
+          <ExternalLink className="w-3.5 h-3.5" />
+        </div>
+      </div>
+    </a>
+  );
+};
+
 const BlogPostPage = () => {
   const { id } = useParams<{ id: string }>();
   const [post, setPost] = useState<BlogPost | null>(null);
@@ -4015,10 +4592,37 @@ const BlogPostPage = () => {
     const fetchPost = async () => {
       if (!id) return;
       try {
-        const docRef = doc(db, "blog_posts", id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setPost({ ...docSnap.data(), id: docSnap.id } as BlogPost);
+        // Try fetching by slug first
+        const q = query(collection(db, "blog_posts"), where("slug", "==", id));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          setPost({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id } as BlogPost);
+        } else {
+          // If slug was not found directly via where, let's see if it's an old post that needs auto-migration
+          const allPostsQ = query(collection(db, "blog_posts"));
+          const allPostsSnap = await getDocs(allPostsQ);
+          const matchedPost = allPostsSnap.docs.find(d => {
+            const data = d.data();
+            return data.title && createSlug(data.title) === id;
+          });
+          
+          if (matchedPost) {
+            // Auto-migrate the post to have the slug
+            try {
+              await updateDoc(doc(db, "blog_posts", matchedPost.id), { slug: id });
+            } catch (e) {
+              console.error("Auto-migrate slug failed:", e);
+            }
+            setPost({ ...matchedPost.data(), id: matchedPost.id, slug: id } as BlogPost);
+          } else {
+            // Fallback to fetch by document ID
+            const docRef = doc(db, "blog_posts", id);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              setPost({ ...docSnap.data(), id: docSnap.id } as BlogPost);
+            }
+          }
         }
       } catch (err) {
         console.error("Error fetching blog post:", err);
@@ -4031,8 +4635,12 @@ const BlogPostPage = () => {
 
   if (loading) {
     return (
-      <div className="flex-1 flex justify-center items-center min-h-[50vh]">
-        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      <div className="flex-1 flex flex-col justify-center items-center min-h-[50vh] p-4">
+        <img
+          src="/logo.png?v=3"
+          alt="Cargando..."
+          className="w-24 h-24 object-contain custom-loader-icon"
+        />
       </div>
     );
   }
@@ -4077,13 +4685,7 @@ const BlogPostPage = () => {
             {post.summary}
           </p>
         )}
-        <div className="flex items-center gap-4 text-sm font-bold text-on-surface-variant border-y border-outline-variant/10 py-4 uppercase tracking-wider">
-          <span>
-            Por: <span className="text-on-surface">{post.authorName}</span>
-          </span>
-          <span className="w-1 h-1 rounded-full bg-outline-variant/30"></span>
-          <span>{formatDate(post.createdAt)}</span>
-        </div>
+
       </div>
 
       {post.imageUrl && (
@@ -4097,7 +4699,38 @@ const BlogPostPage = () => {
       )}
 
       <div className="prose prose-lg md:prose-xl prose-p:leading-relaxed prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight max-w-none prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-3xl prose-img:shadow-xl mt-8">
-        <Markdown>{post.content}</Markdown>
+        {post.content && post.content.trim().startsWith('<') ? (
+          <div dangerouslySetInnerHTML={{ __html: post.content }} />
+        ) : (
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeRaw]}
+            components={{
+              a: ({ node, ...props }) => {
+                const href = props.href || "";
+                const isAmazon =
+                  href.includes("amazon.com") ||
+                  href.includes("amzn.to") ||
+                  href.includes("amazon.es");
+
+                if (isAmazon) {
+                  return <AmazonLinkPreview href={href}>{props.children}</AmazonLinkPreview>;
+                }
+
+                return <a {...props} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" />;
+              },
+            }}
+          >
+            {post.content}
+          </Markdown>
+        )}
+        <div className="flex items-center gap-4 text-[10px] text-gray-400 mt-12 pt-4 border-t border-outline-variant/10 uppercase tracking-wider font-bold">
+          <span>
+            Por: <span>{post.authorName}</span>
+          </span>
+          <span className="w-1 h-1 rounded-full bg-gray-400"></span>
+          <span>{formatDate(post.createdAt)}</span>
+        </div>
       </div>
     </div>
   );
@@ -4130,10 +4763,10 @@ const StaticPageView = ({
     "StaticPageView content length:",
     content?.length,
     "isAdmin:",
-    user?.email === "daviidjg1991@gmail.com",
+    (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com"),
   );
 
-  const isAdmin = user?.email === "daviidjg1991@gmail.com";
+  const isAdmin = (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
   const [isEditing, setIsEditing] = useState(false);
   const linkLabel =
     footerConfig.columns
@@ -4218,49 +4851,290 @@ const StaticPageView = ({
   );
 };
 
+const AdminPromotionsTab = ({ users }: { users: any[] }) => {
+  const { config, updateConfig } = usePromotionsConfig();
+  const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<any>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      let newPromotions = [...config.promotions];
+      if (editingPromoId === "new") {
+        newPromotions.push({ ...formData, id: Date.now().toString() });
+      } else {
+        newPromotions = newPromotions.map((p) => p.id === editingPromoId ? formData : p);
+      }
+      await updateConfig({ promotions: newPromotions });
+      setEditingPromoId(null);
+      alert("Promoción guardada exitosamente");
+    } catch (error) {
+      console.error(error);
+      alert("Error al guardar promoción");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (confirm("¿Estás seguro de eliminar esta promoción?")) {
+      const newPromotions = config.promotions.filter((p: any) => p.id !== id);
+      try {
+        await updateConfig({ promotions: newPromotions });
+      } catch (error) {
+        console.error(error);
+        alert("Error al eliminar promoción");
+      }
+    }
+  };
+
+  return (
+    <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-2xl font-black flex items-center gap-2">
+            <Zap className="w-6 h-6 text-primary" />
+            Promociones y Ofertas
+          </h2>
+          <p className="text-on-surface-variant mt-1">
+            Configura incentivos para los nuevos usuarios.
+          </p>
+        </div>
+        {!editingPromoId && (
+          <button
+            onClick={() => {
+              setFormData({
+                name: "Nueva Promoción",
+                isActive: false,
+                userRangeStart: 1,
+                userRangeEnd: 100,
+                planDurationMonths: 12,
+                planType: "Premium Pro",
+                targetAudience: "professional",
+                minRecommendations: 0
+              });
+              setEditingPromoId("new");
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Crear Promoción
+          </button>
+        )}
+      </div>
+
+      {!editingPromoId ? (
+        <div className="grid grid-cols-1 gap-4">
+          {config.promotions.map((promo: any) => {
+            const claimedUsersCount = users.filter((u: any) => u.hasClaimedPromotion && (u.claimedPromotionId === promo.id || promo.id === "default")).length;
+            return (
+              <div key={promo.id} className="bg-surface-container p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${promo.isActive ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'}`}>
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">{promo.name || "Promoción"}</h3>
+                    <p className="text-sm text-on-surface-variant flex flex-wrap items-center gap-2 mt-1">
+                      <Users className="w-4 h-4" /> {claimedUsersCount} / {promo.userRangeEnd - promo.userRangeStart + 1} usuarios (Rango: {promo.userRangeStart} - {promo.userRangeEnd})
+                      <span className="mx-1">•</span>
+                      <Crown className="w-4 h-4" /> {promo.planType} ({promo.planDurationMonths} meses)
+                      {promo.minRecommendations > 0 && (
+                        <>
+                          <span className="mx-1">•</span>
+                          <span className="inline-flex items-center gap-1 font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full text-xs">
+                            <Share2 className="w-3.5 h-3.5" /> Mín. {promo.minRecommendations} recomendaciones
+                          </span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      setFormData({ ...promo });
+                      setEditingPromoId(promo.id);
+                    }}
+                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                  >
+                    <Edit3 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(promo.id)}
+                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+          {config.promotions.length === 0 && (
+            <div className="text-center py-12 text-on-surface-variant">
+              No hay promociones configuradas.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-surface-container p-6 rounded-2xl space-y-4">
+          <h3 className="font-bold text-lg mb-4">
+            {editingPromoId === "new" ? "Nueva Promoción" : "Editar Promoción"}
+          </h3>
+          
+          <div className="grid grid-cols-1 gap-4 mb-4">
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Nombre de la Promoción
+              </label>
+              <input
+                type="text"
+                value={formData.name || ""}
+                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                placeholder="Ej. Promo Lanzamiento"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mb-4">
+            <input 
+              type="checkbox" 
+              id="isActive"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
+              className="w-4 h-4 text-primary rounded border-outline"
+            />
+            <label htmlFor="isActive" className="font-medium text-sm">Promoción Activa</label>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                  Usuario Inicial
+                </label>
+                <input
+                  type="number"
+                  value={formData.userRangeStart || 1}
+                  onChange={(e) => setFormData({...formData, userRangeStart: parseInt(e.target.value) || 1})}
+                  className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                  Usuario Final
+                </label>
+                <input
+                  type="number"
+                  value={formData.userRangeEnd || 100}
+                  onChange={(e) => setFormData({...formData, userRangeEnd: parseInt(e.target.value) || 0})}
+                  className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Duración del Plan (Meses)
+              </label>
+              <input
+                type="number"
+                value={formData.planDurationMonths}
+                onChange={(e) => setFormData({...formData, planDurationMonths: parseInt(e.target.value) || 0})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Público Objetivo
+              </label>
+              <select
+                value={formData.targetAudience || "professional"}
+                onChange={(e) => setFormData({...formData, targetAudience: e.target.value})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mb-4"
+              >
+                <option value="professional">Solo Profesionales</option>
+                <option value="user">Solo Particulares</option>
+                <option value="both">Ambos (Profesionales y Particulares)</option>
+              </select>
+
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Recomendaciones Mínimas Requeridas
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.minRecommendations || 0}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    minRecommendations: Math.max(0, parseInt(e.target.value) || 0),
+                  })
+                }
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mb-1"
+                placeholder="0 (Sin mínimo)"
+              />
+              <p className="text-[10px] text-on-surface-variant/60 mb-4">
+                Número de usuarios registrados por recomendación (columna Recomendaciones) que debe alcanzar el usuario para desbloquear esta promoción.
+              </p>
+
+              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
+                Tipo de Plan
+              </label>
+              <select
+                value={formData.planType}
+                onChange={(e) => setFormData({...formData, planType: e.target.value})}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+              >
+                <option value="Premium Pro">Premium Pro</option>
+                <option value="Pro">Pro</option>
+                <option value="Premium">Premium</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-outline-variant/20">
+            <button
+              onClick={() => setEditingPromoId(null)}
+              className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-container-highest rounded-xl transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              {isSaving ? <CustomLoader className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+              Guardar Cambios
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const AdminProPlansTab = ({ users }: { users: any[] }) => {
   const { plans, isEnabled } = useProPlansConfig();
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
-  const [subscriberCounts, setSubscriberCounts] = useState<{
-    [key: string]: number;
-  }>({});
-  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [isQuarterly, setIsQuarterly] = useState(false);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      const statsRef = doc(db, "settings", "pro_plans_stats");
-      const docSnap = await getDoc(statsRef);
-      const now = Date.now();
-
-      let needsUpdate = true;
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (now - data.lastUpdated < 3 * 60 * 60 * 1000) {
-          needsUpdate = false;
-          setSubscriberCounts(data.counts);
-          setLastUpdated(data.lastUpdated);
-        }
+  const subscriberCounts = useMemo(() => {
+    const counts: { [key: string]: number } = {};
+    plans.forEach((p) => (counts[p.id] = 0));
+    (users || []).forEach((u) => {
+      if (u.role === "professional") {
+        const userPlan = getUserPlan(u, plans);
+        const pid = userPlan ? userPlan.id : "basic";
+        counts[pid] = (counts[pid] || 0) + 1;
       }
-
-      if (needsUpdate && users && users.length > 0) {
-        // Calculate new stats
-        const counts: any = {};
-        plans.forEach((p) => (counts[p.id] = 0));
-        users.forEach((u) => {
-          const planId = u.professionalInfo?.plan || "basic";
-          if (u.role === "professional" && counts[planId] !== undefined) {
-            counts[planId]++;
-          } else if (u.role === "professional") {
-            counts[planId] = 1;
-          }
-        });
-        setSubscriberCounts(counts);
-        setLastUpdated(now);
-      }
-    };
-    fetchStats();
+    });
+    return counts;
   }, [users, plans]);
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -4436,7 +5310,7 @@ const AdminProPlansTab = ({ users }: { users: any[] }) => {
               Marcar como el Plan Recomendado (Etiqueta destacada)
             </label>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-outline-variant/10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-outline-variant/10">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2" title="999 para sin límite">
                 Límite Reservas / Día
@@ -4489,6 +5363,25 @@ const AdminProPlansTab = ({ users }: { users: any[] }) => {
                     limits: {
                       ...(editingPlan.limits || {}),
                       maxConcurrentBookings: Number(e.target.value)
+                    }
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">
+                Días activos del anuncio
+              </label>
+              <input
+                type="number"
+                className="input-field"
+                value={editingPlan.limits?.activeDaysPerListing ?? 30}
+                onChange={(e) =>
+                  setEditingPlan({
+                    ...editingPlan,
+                    limits: {
+                      ...(editingPlan.limits || {}),
+                      activeDaysPerListing: Number(e.target.value)
                     }
                   })
                 }
@@ -4559,18 +5452,11 @@ const AdminProPlansTab = ({ users }: { users: any[] }) => {
               : "Mostrar Planes a Usuarios"}
           </button>
         </div>
-        {lastUpdated && (
-          <div className="text-xs font-medium text-on-surface-variant/60">
-            Contador de usuarios actualizado:{" "}
-            {new Date(lastUpdated).toLocaleTimeString()}
-          </div>
-        )}
       </div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <p className="text-sm text-on-surface-variant flex items-center justify-between">
           <span>
-            Edita la configuración o comprueba la suscripción a planes. Los
-            contadores se actualizan automáticamente cada 3 horas.
+            Edita la configuración o comprueba la suscripción a planes.
           </span>
           {!isEnabled && (
             <span className="text-error font-bold text-xs bg-error/10 px-3 py-1 rounded-full ml-4">
@@ -4716,9 +5602,7 @@ const AdminLogosConfig = () => {
 
   const save = () => {
     updateConfig({ logoText1: logo1, logoText2: logo2, faviconUrl: favicon, appTitle, logoImageUrl });
-    const configStr = `Logo 1: "${logo1}"\nLogo 2: "${logo2}"\nFavicon: "${favicon}"\nApp Title: "${appTitle}"\nLogo Image URL: "${logoImageUrl}"`;
-    navigator.clipboard.writeText(`Haz fijos estos cambios del logo en el código:\n${configStr}`);
-    alert("Cambios guardados localmente en tu navegador.\n\nPara hacerlos permanentes para todos, he copiado los datos a tu portapapeles. ¡Pégalos ahora mismo en el chat de la IA!");
+    alert("¡Cambios guardados y sincronizados inmediatamente en Firebase!");
   };
 
   return (
@@ -4774,6 +5658,67 @@ const AdminLogosConfig = () => {
   );
 };
 
+const AdminEmailConfig = () => {
+  const [emailSubject, setEmailSubject] = useState("Verifica tu correo en GigeJob");
+  const [emailBody, setEmailBody] = useState("Hola,\n\nGracias por registrarte en GigeJob. Por favor, verifica tu correo haciendo clic en el enlace a continuación:\n\n[Enlace de verificación]\n\nSi no creaste esta cuenta, puedes ignorar este mensaje.");
+  
+  const handleSave = () => {
+    alert("Para aplicar estos cambios en producción, por favor solicita a la IA que actualice el código fuente, ya que las configuraciones globales no usan base de datos (según las reglas del proyecto).");
+  };
+
+  return (
+    <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)]">
+      <div className="mb-6">
+        <h2 className="text-2xl font-black font-display tracking-tight text-primary">
+          Formato de Correo de Verificación
+        </h2>
+        <p className="text-sm font-medium text-on-surface-variant mt-1">
+          Configura el asunto y el mensaje que se enviará a los nuevos usuarios.
+        </p>
+      </div>
+
+      <div className="bg-primary/5 p-4 rounded-2xl mb-6 border border-primary/10 flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+        <div className="text-sm text-on-surface">
+          <p className="font-bold mb-1">Evitar la carpeta de SPAM</p>
+          <p>Para asegurar que los correos no lleguen a SPAM, debes configurar los registros <strong>SPF, DKIM y DMARC</strong> en tu proveedor de dominio (Godaddy, Cloudflare, etc.) para el dominio de GigeJob. El formato del correo por defecto de Firebase solo permite ciertas modificaciones para evitar el SPAM.</p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-bold text-on-surface mb-2">Asunto del Correo</label>
+          <input
+            type="text"
+            value={emailSubject}
+            onChange={(e) => setEmailSubject(e.target.value)}
+            className="w-full bg-surface-container p-4 rounded-xl text-on-surface border-none focus:ring-2 focus:ring-primary outline-none transition-all"
+            placeholder="Asunto"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-on-surface mb-2">Cuerpo del Mensaje</label>
+          <textarea
+            value={emailBody}
+            onChange={(e) => setEmailBody(e.target.value)}
+            className="w-full bg-surface-container p-4 rounded-xl text-on-surface border-none focus:ring-2 focus:ring-primary outline-none transition-all min-h-[200px]"
+            placeholder="Escribe el mensaje..."
+          />
+          <p className="text-xs text-on-surface-variant mt-2">Nota: El [Enlace de verificación] se insertará automáticamente según la plantilla de Firebase.</p>
+        </div>
+        
+        <button
+          onClick={handleSave}
+          className="w-full py-4 rounded-xl font-bold transition-all bg-primary text-white hover:bg-primary/90 hover:scale-[0.98] active:scale-95 shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+        >
+          <Save className="w-5 h-5" />
+          Guardar Cambios
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const AdminInicioConfig = () => {
   const { config, updateConfig } = useDynamicAppConfig();
   const [title1, setTitle1] = useState(config.homeTitle1);
@@ -4805,9 +5750,7 @@ const AdminInicioConfig = () => {
 
   const save = () => {
     updateConfig({ homeTitle1: title1, homeTitle2: title2, homeSubtitle: sub, homeImageUrl: homeImgUrl });
-    const configStr = `Título 1: "${title1}"\nTítulo 2: "${title2}"\nSubtítulo: "${sub}"\nURL de Imagen: "${homeImgUrl}"`;
-    navigator.clipboard.writeText(`Haz fijos estos cambios de inicio en el código:\n${configStr}`);
-    alert("Cambios guardados localmente en tu navegador.\n\nPara hacerlos permanentes para todos, he copiado los datos a tu portapapeles. ¡Pégalos ahora mismo en el chat de la IA!");
+    alert("¡Textos e imagen guardados y sincronizados inmediatamente en Firebase!");
   };
 
   return (
@@ -4843,6 +5786,106 @@ const AdminInicioConfig = () => {
   );
 };
 
+const AdminReviewConfig = () => {
+  const [showTestModal, setShowTestModal] = useState(false);
+  
+  const testBooking = {
+    id: "test-booking",
+    clientId: "admin-test",
+    professionalId: "test-pro",
+    date: "1 de enero",
+    time: "10:00",
+    duration: "1h",
+    status: "completed",
+  };
+  
+  const testUser = {
+    id: "admin-test",
+    email: "admin@gigejob.com",
+    username: "Admin",
+    firstName: "Administrador",
+    lastName1: "Prueba",
+    photoUrl: "",
+    role: "admin",
+    createdAt: new Date().toISOString(),
+  };
+
+  return (
+    <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)] space-y-4">
+      <h2 className="text-2xl font-black mb-6">Configuración de Cuadro de Reseñas</h2>
+      
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Título</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.title} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Subtítulo</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.subtitle} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Etiqueta de estrellas</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.starLabel} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Etiqueta de comentarios</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.commentLabel} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+      <div>
+        <label className="block text-xs font-bold mb-1 text-on-surface-variant">Texto del botón</label>
+        <input value={DEFAULT_REVIEW_MODAL_CONFIG.submitButtonText} readOnly className="w-full p-4 rounded-xl bg-surface-container-low border border-outline-variant/20 text-on-surface-variant/70 cursor-not-allowed outline-none" />
+      </div>
+
+      <div className="pt-6 mt-6 border-t border-outline-variant/10">
+        <button
+          onClick={() => setShowTestModal(true)}
+          className="px-6 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-lg flex items-center gap-2"
+        >
+          Probar Ventana Flotante (Test)
+        </button>
+      </div>
+
+      {showTestModal && (
+        <ReviewModal
+          booking={testBooking}
+          user={testUser as any}
+          onComplete={() => setShowTestModal(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+const joditConfig = {
+  readonly: false,
+  language: "es",
+  height: 500,
+  uploader: {
+    insertImageAsBase64URI: true,
+  },
+  events: {
+    beforeInsertImage: (url: string) => {
+      // Limit to ~1.5MB (aprox 2,000,000 characters in base64)
+      if (url && url.startsWith("data:image/") && url.length > 2000000) {
+        alert("La imagen es demasiado grande (máximo 1.5MB). Por favor, reduce su tamaño antes de añadirla.");
+        return false;
+      }
+    }
+  },
+  image: {
+    defaultMargin: 16,
+  },
+  buttons: [
+    "source", "|",
+    "bold", "strikethrough", "underline", "italic", "|",
+    "ul", "ol", "|",
+    "outdent", "indent", "|",
+    "font", "fontsize", "brush", "paragraph", "|",
+    "image", "video", "table", "link", "|",
+    "align", "undo", "redo", "|",
+    "hr", "eraser", "copyformat", "fullsize"
+  ],
+};
+
 const AdminPage = ({
   user,
   listings,
@@ -4859,13 +5902,59 @@ const AdminPage = ({
   unreadMessagesCount: number;
 }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const location = useLocation();
+
+  const getInitialTab = () => {
+    const path = location.pathname.replace('/admin', '').replace(/^\//, '');
+    if (!path) return "dashboard";
+    const tabMap: Record<string, string> = {
+      'resumen': 'dashboard',
+      'usuarios': 'personal',
+      'servicios': 'professional',
+      'planes-pro': 'planes-pro',
+      'promociones': 'promociones',
+      'moderacion': 'ads',
+      'reportes': 'reports',
+      'administradores': 'admins',
+      'logos': 'logos',
+      'inicio': 'inicio',
+      'blog': 'blog',
+      'popup': 'popup',
+      'configuracion': 'security'
+    };
+    return tabMap[path.toLowerCase()] || path;
+  };
+
+  const [activeTab, setActiveTab] = useState(getInitialTab());
+
+  useEffect(() => {
+    const reverseMap: Record<string, string> = {
+      'dashboard': 'Resumen',
+      'personal': 'usuarios',
+      'professional': 'servicios',
+      'planes-pro': 'planes-pro',
+      'promociones': 'promociones',
+      'ads': 'moderacion',
+      'reports': 'reportes',
+      'admins': 'administradores',
+      'logos': 'logos',
+      'inicio': 'inicio',
+      'blog': 'blog',
+      'popup': 'popup',
+      'security': 'configuracion'
+    };
+    const pathSegment = reverseMap[activeTab] || activeTab;
+    navigate(`/admin/${pathSegment}`, { replace: true });
+  }, [activeTab, navigate]);
+
   const { plans: proPlans } = useProPlansConfig();
   const [searchTerm, setSearchTerm] = useState("");
   const [users, setUsers] = useState<any[]>([]);
+  const [userListTab, setUserListTab] = useState<"TODOS" | "PROFESIONALES" | "CLIENTES">("TODOS");
   const [bookings, setBookings] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [allTransactions, setAllTransactions] = useState<any[]>([]);
+  const [isSavingLegalDocs, setIsSavingLegalDocs] = useState(false);
 
   const totalRevenue = allTransactions
     .filter((tx) => tx.type === "income" || tx.type === "in")
@@ -4873,14 +5962,16 @@ const AdminPage = ({
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [isEditingBlogPost, setIsEditingBlogPost] = useState(false);
   const [currentBlogPost, setCurrentBlogPost] = useState<Partial<BlogPost>>({});
+  const [isSavingBlogPost, setIsSavingBlogPost] = useState<boolean | string>(false);
+  const [blogImageLayout, setBlogImageLayout] = useState<"default" | "float-left" | "float-right" | "columns-2">("default");
   const [isAdminAuthReady, setIsAdminAuthReady] = useState(false);
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((u) => {
-      setIsAdminAuthReady(!!u && u.email === "daviidjg1991@gmail.com");
+      setIsAdminAuthReady(!!u && (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com"));
     });
     return () => unsub();
-  }, []);
+  }, [user]);
 
   const [expandedServiceId, setExpandedServiceId] = useState<string | null>(
     null,
@@ -4901,25 +5992,136 @@ const AdminPage = ({
     privacyPolicy: "",
     dataProtectionInfo: "",
   });
-  const [isSavingLegalDocs, setIsSavingLegalDocs] = useState(false);
-  const [appCategories, setAppCategories] = useState([...CATEGORIES]);
+  const [appCategories, setAppCategories] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem("app_categories");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [...CATEGORIES];
+  });
   const [newCategory, setNewCategory] = useState("");
-  const [footerConfig, setFooterConfig] = useState<FooterConfig>(
-    DEFAULT_FOOTER_CONFIG,
-  );
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "categories"), (docSnap) => {
+      if (docSnap.exists() && Array.isArray(docSnap.data().list) && docSnap.data().list.length > 0) {
+        const list = docSnap.data().list as string[];
+        setAppCategories(list);
+        CATEGORIES.length = 0;
+        CATEGORIES.push(...list);
+        localStorage.setItem("app_categories", JSON.stringify(list));
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAddCategory = async () => {
+    const cat = newCategory.trim();
+    if (!cat || appCategories.includes(cat)) return;
+    const nextList = [...appCategories, cat];
+    setAppCategories(nextList);
+    CATEGORIES.length = 0;
+    CATEGORIES.push(...nextList);
+    localStorage.setItem("app_categories", JSON.stringify(nextList));
+    setNewCategory("");
+    try {
+      await setDoc(doc(db, "settings", "categories"), { list: nextList }, { merge: true });
+    } catch (err) {
+      console.error("Error saving category to Firestore", err);
+    }
+  };
+
+  const handleRemoveCategory = async (catToRemove: string) => {
+    const nextList = appCategories.filter((c) => c !== catToRemove);
+    setAppCategories(nextList);
+    CATEGORIES.length = 0;
+    CATEGORIES.push(...nextList);
+    localStorage.setItem("app_categories", JSON.stringify(nextList));
+    try {
+      await setDoc(doc(db, "settings", "categories"), { list: nextList }, { merge: true });
+    } catch (err) {
+      console.error("Error removing category from Firestore", err);
+    }
+  };
+
+  const [footerConfig, setFooterConfig] = useState<FooterConfig>(() => {
+    try {
+      const cached = localStorage.getItem("app_footerConfig");
+      return cached ? JSON.parse(cached) : DEFAULT_FOOTER_CONFIG;
+    } catch {
+      return DEFAULT_FOOTER_CONFIG;
+    }
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "footer"), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().columns) {
+        const config = docSnap.data() as FooterConfig;
+        setFooterConfig(config);
+        localStorage.setItem("app_footerConfig", JSON.stringify(config));
+      }
+    });
+    return () => unsub();
+  }, []);
+  const [servicesSubTab, setServicesSubTab] = useState<"list" | "requests" | "search_professionals">("list");
+  const [servicesTexts, setServicesTexts] = useState({
+    requestText: "",
+    professionalEditText: "",
+    clientAcceptText: "",
+  });
+  const [isSavingServicesTexts, setIsSavingServicesTexts] = useState(false);
+
+  const handleSaveServicesTexts = async () => {
+    setIsSavingServicesTexts(true);
+    try {
+      await setDoc(doc(db, "settings", "services"), servicesTexts, {
+        merge: true,
+      });
+      alert("Textos guardados correctamente.");
+    } catch (err) {
+      console.error("Error saving services texts", err);
+      alert("Error al guardar los textos.");
+    } finally {
+      setIsSavingServicesTexts(false);
+    }
+  };
+
+  const [adminSearchEnabled, setAdminSearchEnabled] = useState(ENABLE_SEARCH_PROFESSIONALS);
+
+  useEffect(() => {
+    if (!isAdminAuthReady) return;
+    getDoc(doc(db, "settings", "services")).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setServicesTexts({
+          requestText: data.requestText || "",
+          professionalEditText: data.professionalEditText || "",
+          clientAcceptText: data.clientAcceptText || "",
+        });
+        if (data.enableSearchProfessionals !== undefined) {
+          setAdminSearchEnabled(data.enableSearchProfessionals);
+        }
+      }
+    });
+  }, [isAdminAuthReady]);
+
   const [editingPageUrl, setEditingPageUrl] = useState<string | null>(null);
 
   const [popupsConfig, setPopupsConfig] = useState<Record<string, any>>({});
-  const [editingPopupAudience, setEditingPopupAudience] = useState<"all" | "guests" | "first_login">("all");
+  const [editingPopupId, setEditingPopupId] = useState<string | null>(null);
 
-  const popupConfig = popupsConfig[editingPopupAudience] || {
+  const defaultPopupConfig = {
     active: false,
     imageUrl: "",
     backgroundType: "image",
     backgroundColor: "#ffffff",
     triggerType: "delay",
     triggerScrollPercentage: 50,
-    targetAudience: editingPopupAudience,
+    targetAudience: "all",
+    showInWeb: true,
+    showInApp: true,
     redirectGuestsToRegister: false,
     delaySeconds: 1.5,
     backgroundImageUrl: "",
@@ -4927,14 +6129,19 @@ const AdminPage = ({
     description: "",
     buttonText: "",
     buttonUrl: "",
+    buttonRedirectToRegister: false,
     showEmailInput: false,
   };
 
+  const popupConfig = editingPopupId ? (popupsConfig[editingPopupId] || defaultPopupConfig) : defaultPopupConfig;
+
   const setPopupConfig = (newConfig: any) => {
-    setPopupsConfig(prev => ({
-      ...prev,
-      [editingPopupAudience]: { ...newConfig, targetAudience: editingPopupAudience }
-    }));
+    if (editingPopupId) {
+      setPopupsConfig(prev => ({
+        ...prev,
+        [editingPopupId]: { ...newConfig, id: editingPopupId }
+      }));
+    }
   };
 
   useEffect(() => {
@@ -4969,12 +6176,24 @@ const AdminPage = ({
 
     const unsubPopups = onSnapshot(doc(db, "settings", "popups"), (docSnap) => {
       if (docSnap.exists()) {
-        setPopupsConfig(docSnap.data());
+        const data = docSnap.data();
+        const migratedData = Object.keys(data).reduce((acc: any, key) => {
+          acc[key] = {
+            showInWeb: true,
+            showInApp: true,
+            id: key,
+            ...data[key]
+          };
+          return acc;
+        }, {});
+        setPopupsConfig(migratedData);
       } else {
         getDocFromServer(doc(db, "settings", "popup")).then(oldSnap => {
           if (oldSnap.exists()) {
             const data = oldSnap.data();
-            setPopupsConfig({ [data.targetAudience || "all"]: data });
+            setPopupsConfig({ [data.targetAudience || "all"]: {
+              showInWeb: true, showInApp: true, id: data.targetAudience || "all", ...data
+            } });
           }
         });
       }
@@ -5004,6 +6223,26 @@ const AdminPage = ({
 
     return () => unsubLeads();
   }, [isAdminAuthReady]);
+
+  useEffect(() => {
+    if (isAdminAuthReady && (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && users.length > 0) {
+      const fixMissingCreatedAt = async () => {
+        const usersToFix = users.filter((u) => !u.createdAt);
+        if (usersToFix.length > 0) {
+          console.log(`Fixing createdAt for ${usersToFix.length} users...`);
+          for (const u of usersToFix) {
+            try {
+              const fallbackDate = u.lastActive || serverTimestamp();
+              await setDoc(doc(db, "users", u.id), { createdAt: fallbackDate }, { merge: true });
+            } catch (err) {
+              console.error("Error fixing user createdAt:", err);
+            }
+          }
+        }
+      };
+      fixMissingCreatedAt();
+    }
+  }, [isAdminAuthReady, user?.role, users]);
 
   const pendingVerificationUsers = useMemo(() => {
     return users.filter(
@@ -5062,9 +6301,14 @@ const AdminPage = ({
       const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
       const count = users.filter((u) => {
         if (!u.lastActive) return false;
-        const last = u.lastActive?.toDate
-          ? u.lastActive.toDate()
-          : new Date(u.lastActive);
+        let last;
+        if (typeof u.lastActive.toDate === 'function') {
+          last = u.lastActive.toDate();
+        } else if (u.lastActive.seconds) {
+          last = new Date(u.lastActive.seconds * 1000);
+        } else {
+          last = new Date(u.lastActive);
+        }
         return last > fiveMinsAgo;
       }).length;
       setOnlineUsersCount(count);
@@ -5086,9 +6330,10 @@ const AdminPage = ({
     else {
       // 'All' - find the oldest user
       const oldestUser = users.reduce((oldest, u) => {
-        if (!u.createdAt) return oldest;
+        const timeSource = u.createdAt || u.lastActive;
+        if (!timeSource) return oldest;
         const time = new Date(
-          u.createdAt.seconds ? u.createdAt.seconds * 1000 : u.createdAt,
+          timeSource.seconds ? timeSource.seconds * 1000 : timeSource,
         ).getTime();
         return time < oldest ? time : oldest;
       }, now.getTime());
@@ -5098,20 +6343,24 @@ const AdminPage = ({
     }
 
     const validUsers = users
-      .filter((u) => u.createdAt)
-      .map((u) => ({
-        ...u,
-        time: new Date(
-          u.createdAt.seconds ? u.createdAt.seconds * 1000 : u.createdAt,
-        ).getTime(),
-      }))
+      .filter((u) => u.createdAt || u.lastActive)
+      .map((u) => {
+        const timeSource = u.createdAt || u.lastActive;
+        return {
+          ...u,
+          time: new Date(
+            timeSource.seconds ? timeSource.seconds * 1000 : timeSource,
+          ).getTime(),
+        };
+      })
       .sort((a, b) => a.time - b.time);
 
-    let currentTotal = validUsers.filter(
-      (u) => u.time < startDate.getTime(),
-    ).length;
+    const usersWithoutDate = users.filter((u) => !u.createdAt && !u.lastActive).length;
+    let currentTotal =
+      validUsers.filter((u) => u.time < startDate.getTime()).length +
+      usersWithoutDate;
     const usersInPeriod = validUsers.filter(
-      (u) => u.time >= startDate.getTime() && u.time <= now.getTime(),
+      (u) => u.time >= startDate.getTime(),
     );
 
     const data: any[] = [];
@@ -5128,13 +6377,12 @@ const AdminPage = ({
             d.getHours() === bucketTime.getHours()
           );
         });
-        currentTotal += bucketUsers.length;
         data.push({
           date: bucketTime.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           }),
-          count: currentTotal,
+          count: bucketUsers.length,
         });
       }
     } else {
@@ -5153,13 +6401,12 @@ const AdminPage = ({
             d.getDate() === bucketTime.getDate()
           );
         });
-        currentTotal += bucketUsers.length;
         data.push({
           date: bucketTime.toLocaleDateString([], {
             day: "2-digit",
             month: "short",
           }),
-          count: currentTotal,
+          count: bucketUsers.length,
         });
       }
     }
@@ -5462,9 +6709,12 @@ const AdminPage = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 bg-surface-container-lowest p-8 rounded-xl shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)]">
                 <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-xl font-bold font-display tracking-tight">
-                    Crecimiento de Usuarios
-                  </h2>
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-xl font-bold font-display tracking-tight">
+                      Crecimiento de Usuarios
+                    </h2>
+
+                  </div>
                   <div className="flex bg-surface-container rounded-full p-1">
                     {["24h", "7d", "1m", "3m", "1Y", "All"].map((range) => (
                       <button
@@ -5479,7 +6729,7 @@ const AdminPage = ({
                 </div>
                 <div className="h-[280px] pt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
+                    <LineChart data={chartData}>
                       <XAxis
                         dataKey="date"
                         axisLine={false}
@@ -5487,7 +6737,12 @@ const AdminPage = ({
                         tick={{ fontSize: 10, fill: "#888" }}
                         minTickGap={30}
                       />
-                      <YAxis hide />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 10, fill: "#888" }}
+                        width={30}
+                      />
                       <Tooltip
                         contentStyle={{
                           borderRadius: "12px",
@@ -5495,15 +6750,16 @@ const AdminPage = ({
                           boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                         }}
                       />
-                      <Area
+                      <Line
                         type="monotone"
                         dataKey="count"
                         name="Usuarios"
                         stroke="#00675b"
-                        fill="#00675b"
-                        fillOpacity={0.2}
+                        strokeWidth={2}
+                        dot={{ r: 4, fill: "#00675b", strokeWidth: 2, stroke: "#fff" }}
+                        activeDot={{ r: 6 }}
                       />
-                    </AreaChart>
+                    </LineChart>
                   </ResponsiveContainer>
                 </div>
               </div>
@@ -5612,9 +6868,26 @@ const AdminPage = ({
       case "personal":
         return (
           <div className="bg-surface-container-lowest p-4 md:p-8 rounded-xl shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)] overflow-hidden w-full max-w-full">
-            <h2 className="text-xl font-bold font-display tracking-tight mb-8">
-              Listado de Usuarios
-            </h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+              <h2 className="text-xl font-bold font-display tracking-tight mb-0">
+                Listado de Usuarios
+              </h2>
+              <div className="flex bg-surface-container-low rounded-lg p-1 overflow-x-auto max-w-full">
+                {(["TODOS", "PROFESIONALES", "CLIENTES"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setUserListTab(tab)}
+                    className={`px-4 py-2 text-sm font-bold rounded-md whitespace-nowrap transition-colors ${
+                      userListTab === tab
+                        ? "bg-primary text-on-primary shadow-sm"
+                        : "text-on-surface-variant hover:text-primary hover:bg-surface-container"
+                    }`}
+                  >
+                    {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="w-full">
             <table className="w-full text-left whitespace-normal">
               <thead className="w-full">
@@ -5626,6 +6899,7 @@ const AdminPage = ({
                   <th className="px-2 lg:px-4 py-3 text-left">Usuario</th>
                   <th className="px-2 lg:px-4 py-3 text-left">Prof.</th>
                   <th className="px-2 lg:px-4 py-3 text-left">Anuncios</th>
+                  <th className="px-2 lg:px-4 py-3 text-left">A. ACTIVOS</th>
                   <th className="px-2 lg:px-4 py-3 text-left hidden md:table-cell">
                     Facturado
                   </th>
@@ -5639,29 +6913,64 @@ const AdminPage = ({
                     Plan Pro
                   </th>
                   <th className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                    Promo
+                  </th>
+                  <th className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                    Recomendaciones
+                  </th>
+                  <th className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
                     Permisos
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
-                {users
-                  .filter((u) => {
-                    if (!searchTerm) return true;
-                    const searchLower = searchTerm.toLowerCase();
-                    return (
-                      (u.customId || u.id)?.toLowerCase().includes(searchLower) ||
-                      u.username?.toLowerCase().includes(searchLower) ||
-                      u.email?.toLowerCase().includes(searchLower) ||
-                      u.firstName?.toLowerCase().includes(searchLower) ||
-                      u.name?.toLowerCase().includes(searchLower) ||
-                      u.lastName1?.toLowerCase().includes(searchLower)
-                    );
-                  })
-                  .map((u, i) => {
+                  {users
+                   .filter((u, index, self) => index === self.findIndex((t) => t.id === u.id))
+                   .filter((u) => u.emailVerified !== false)
+                   .filter((u) => {
+                     if (userListTab === "TODOS") return true;
+                     const userListingsCount = listings.filter((l) => (l.author?.id === u.id || (l.author?.email && u.email && l.author.email === u.email)) && l.status !== "deleted" && l.status !== "owner_deleted").length;
+                     if (userListTab === "PROFESIONALES") {
+                       return u.role === "professional" && userListingsCount > 0;
+                     }
+                     if (userListTab === "CLIENTES") {
+                       return u.role !== "professional" || userListingsCount === 0;
+                     }
+                     return true;
+                   })
+                   .filter((u) => {
+                     if (!searchTerm) return true;
+                     const searchLower = searchTerm.toLowerCase();
+                     return (
+                       (u.customId || u.id)?.toLowerCase().includes(searchLower) ||
+                       u.username?.toLowerCase().includes(searchLower) ||
+                       u.email?.toLowerCase().includes(searchLower) ||
+                       u.firstName?.toLowerCase().includes(searchLower) ||
+                       u.name?.toLowerCase().includes(searchLower) ||
+                       u.lastName1?.toLowerCase().includes(searchLower)
+                     );
+                   })
+                   .sort((a, b) => {
+                     const getTime = (u: any) => {
+                       const ts = u.createdAt || u.lastActive;
+                       if (!ts) return 0;
+                       if (typeof ts.toDate === "function") return ts.toDate().getTime();
+                       if (ts.seconds) return ts.seconds * 1000;
+                       const num = new Date(ts).getTime();
+                       return isNaN(num) ? 0 : num;
+                     };
+                     return getTime(b) - getTime(a);
+                   })
+                   .map((u, i, arr) => {
                   const userListingsArr = listings.filter(
-                    (l) => l.author?.id === u.id,
+                    (l) => (l.author?.id === u.id || (l.author?.email && u.email && l.author.email === u.email)) && l.status !== "deleted" && l.status !== "owner_deleted",
                   );
                   const userListingsCount = userListingsArr.length;
+                  const activeListingsCount = userListingsArr.filter((l) => {
+                    const isExpired = checkIsListingExpired(l, u, proPlans);
+                    const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
+                    return !isInactive;
+                  }).length;
                   const userBilled = bookings
                     .filter(
                       (b) =>
@@ -5682,15 +6991,19 @@ const AdminPage = ({
                         ).toFixed(2)
                       : "0.00";
 
-                  const planId = u.professionalInfo?.plan || "basic";
+                  let mappedPlanId = u.professionalInfo?.plan || "basic";
+                  if (mappedPlanId === "Premium Pro") mappedPlanId = "premium-pro";
+                  else if (mappedPlanId === "Premium") mappedPlanId = "premium";
+                  else if (mappedPlanId === "Pro") mappedPlanId = "medium";
+
                   const planName =
-                    proPlans.find((p: any) => p.id === planId)?.name || "Basic";
+                    proPlans.find((p: any) => p.id === mappedPlanId)?.name || "Basic";
                   const planColor =
-                    planId === "premium_pro"
+                    mappedPlanId === "premium-pro"
                       ? "text-fuchsia-500 bg-fuchsia-500/10"
-                      : planId === "premium"
+                      : mappedPlanId === "premium"
                         ? "text-secondary bg-secondary/10"
-                        : planId === "medium"
+                        : mappedPlanId === "medium"
                           ? "text-primary bg-primary/10"
                           : "text-green-600 bg-green-500/10";
 
@@ -5709,7 +7022,7 @@ const AdminPage = ({
                       onClick={() => setEditingUser(u)}
                     >
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm">
-                        {i + 1}
+                        {arr.length - i}
                       </td>
                       <td
                         className={`px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold hidden sm:table-cell truncate max-w-[80px] ${u.accountStatus === "banned" ? "text-error" : u.accountStatus === "suspended" && u.suspendedUntil && u.suspendedUntil > Date.now() ? "text-orange-600" : "text-primary"}`}
@@ -5795,6 +7108,9 @@ const AdminPage = ({
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold">
                         {userListingsCount}
                       </td>
+                      <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold text-green-600">
+                        {activeListingsCount}
+                      </td>
                       <td className="px-2 lg:px-4 py-3 text-xs lg:text-sm font-bold text-primary hidden md:table-cell">
                         {userBilled}€
                       </td>
@@ -5802,24 +7118,88 @@ const AdminPage = ({
                         {userAvgCost}€
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-xs text-on-surface-variant hidden sm:table-cell whitespace-nowrap">
-                        {u.createdAt
-                          ? new Date(
-                              u.createdAt?.seconds ? u.createdAt.seconds * 1000 : u.createdAt
-                            ).toLocaleDateString()
-                          : "N/A"}
+                        {(() => {
+                          const timeSource = u.createdAt || u.lastActive;
+                          if (!timeSource) return "No disponible";
+                          let date;
+                          if (typeof timeSource.toDate === "function") {
+                            date = timeSource.toDate();
+                          } else if (timeSource.seconds) {
+                            date = new Date(timeSource.seconds * 1000);
+                          } else {
+                            date = new Date(timeSource);
+                          }
+                          return date.toLocaleString("es-ES", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit"
+                          });
+                        })()}
                       </td>
                       <td className="px-2 lg:px-4 py-3 hidden sm:table-cell">
                         {u.role === "professional" ? (
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${planColor}`}
-                          >
-                            {planName}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${planColor}`}
+                            >
+                              {planName}
+                            </span>
+                            {u.professionalInfo?.planPaymentMethod === "promocion" && (
+                              <span className="text-primary flex items-center justify-center p-0.5 bg-primary/10 rounded-full" title="Promoción Activa">
+                                <Zap className="w-3 h-3" />
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-xs text-on-surface-variant/40">
                             -
                           </span>
                         )}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                        {u.hasClaimedPromotion ? (
+                          <span
+                            className="inline-flex max-w-fit items-center justify-center p-1 bg-primary/10 text-primary rounded-lg"
+                            title={`Promoción reclamada: ${u.claimedPromotionId || "Sí"}`}
+                          >
+                            <Zap className="w-4 h-4" />
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex max-w-fit items-center justify-center p-1 opacity-50 text-outline-variant"
+                            title="Sin promoción"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
+                        {(() => {
+                          const regCount = users.filter(
+                            (otherUser) =>
+                              otherUser.referredBy &&
+                              (otherUser.referredBy === u.id ||
+                                (u.customId && otherUser.referredBy === u.customId) ||
+                                (u.email && otherUser.referredBy === u.email))
+                          ).length;
+                          const totalRegs = Math.max(regCount, u.recommendationRegistrationsCount || 0);
+
+                          return (
+                            <span
+                              className={`inline-flex max-w-fit items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                                totalRegs > 0
+                                  ? "bg-primary/10 text-primary"
+                                  : "text-on-surface-variant/40"
+                              }`}
+                              title={`${totalRegs} usuarios registrados mediante recomendación`}
+                            >
+                              {totalRegs}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 lg:px-4 py-3 text-center hidden sm:table-cell">
                         {u.acceptPromotions ? (
@@ -5849,11 +7229,34 @@ const AdminPage = ({
       case "professional":
         return (
           <div className="bg-surface-container-lowest p-4 md:p-8 rounded-xl shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)] overflow-hidden w-full max-w-full">
-            <h2 className="text-xl font-bold font-display tracking-tight mb-8">
-              Listado de Servicios{" "}
-              {filterStatus === "active" ? "(Activos)" : ""}
-            </h2>
-            <div className="w-full">
+            <div className="flex gap-4 mb-8">
+              <button
+                onClick={() => setServicesSubTab("list")}
+                className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${servicesSubTab === "list" ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+              >
+                Listado de Servicios
+              </button>
+              <button
+                onClick={() => setServicesSubTab("search_professionals")}
+                className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${servicesSubTab === "search_professionals" ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+              >
+                Buscador de Profesionales
+              </button>
+              <button
+                onClick={() => setServicesSubTab("requests")}
+                className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${servicesSubTab === "requests" ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+              >
+                Solicitud de Servicios
+              </button>
+            </div>
+
+            {servicesSubTab === "list" && (
+              <>
+                <h2 className="text-xl font-bold font-display tracking-tight mb-8">
+                  Listado de Servicios{" "}
+                  {filterStatus === "active" ? "(Activos)" : ""}
+                </h2>
+                <div className="w-full">
             <table className="w-full text-left whitespace-normal">
               <thead>
                 <tr className="bg-surface-container-low/50 text-[10px] lg:text-xs font-bold text-on-surface-variant uppercase tracking-wider">
@@ -5864,89 +7267,166 @@ const AdminPage = ({
                   <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Total Facturado</th>
                   <th className="px-2 lg:px-4 py-3 hidden lg:table-cell">Última contratación</th>
                   <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Fecha Publicación</th>
+                  <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Última activación</th>
                   <th className="px-2 lg:px-4 py-3">Estado</th>
                   <th className="px-2 lg:px-4 py-3">Reservas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
-                {(filterStatus === "active"
-                  ? listings.filter((l) => l.status === "active" || !l.status)
-                  : listings
-                ).map((l, i) => (
-                  <React.Fragment key={l.id}>
-                    <tr
-                      className="hover:bg-surface-container-low cursor-pointer"
-                      onClick={() => setSelectedService(l)}
-                    >
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{i + 1}</td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold text-primary hidden sm:table-cell">
-                        {l.id}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold truncate max-w-[120px]">
-                        {l.author?.name || "Anónimo"}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{l.price}€</td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm hidden md:table-cell">
-                        {l.price * (l.bookingsCount || 0) || 0}€
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden lg:table-cell">
-                        {l.lastBooked
-                          ? new Date(
-                              l.lastBooked.seconds
-                                ? l.lastBooked.seconds * 1000
-                                : l.lastBooked,
-                            ).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
-                        {l.createdAt
-                          ? new Date(
-                              l.createdAt.seconds
-                                ? l.createdAt.seconds * 1000
-                                : l.createdAt,
-                            ).toLocaleDateString()
-                          : "N/A"}
-                      </td>
-                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-medium">
-                        <select
-                          className={cn(
-                            "px-3 py-1.5 border border-outline-variant/20 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all w-[110px]",
-                            (!l.status || l.status === "active") &&
-                              "bg-green-100 text-green-800",
-                            l.status === "disabled" &&
-                              "bg-orange-100 text-orange-800",
-                            l.status === "deleted" && "bg-red-100 text-red-800",
-                          )}
-                          value={l.status || "active"}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={async (e) => {
-                            const newStatus = e.target.value;
-                            if (setListings) {
-                              setListings((prev) =>
-                                prev.map((item) =>
-                                  item.id === l.id
-                                    ? { ...item, status: newStatus }
-                                    : item,
-                                ),
-                              );
-                            }
-                            try {
-                              await updateDoc(doc(db, "listings", l.id), {
-                                status: newStatus,
-                              });
-                            } catch (error) {
-                              console.warn(
-                                "Firestore update failed for listings:",
-                                error,
-                              );
-                            }
-                          }}
+                    {(filterStatus === "active"
+                      ? listings.filter((l) => {
+                          const authorUser = (users || []).find((u: any) => u.id === l.author?.id || u.email === l.author?.email);
+                          const isExpired = checkIsListingExpired(l, authorUser, proPlans);
+                          const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
+                          return !isInactive && l.status !== "deleted" && l.status !== "owner_deleted" && l.type !== "search";
+                        })
+                      : listings.filter((l) => l.status !== "deleted" && l.status !== "owner_deleted" && l.type !== "search")
+                    ).map((l, i) => {
+                      const authorUser = (users || []).find((u: any) => u.id === l.author?.id || u.email === l.author?.email);
+                      const isExpired = checkIsListingExpired(l, authorUser, proPlans);
+                      const isInactive = l.status === "inactive" || l.status === "disabled" || isExpired;
+                      const currentDisplayStatus = l.status === "owner_deleted" ? "owner_deleted" : isInactive ? "expired" : (l.status || "active");
+
+                      const listingTotalBilled = bookings
+                        .filter((b: any) => b.listingId === l.id && (b.status === "accepted" || b.status === "completed"))
+                        .reduce((sum: number, b: any) => sum + (Number(b.totalAmount || b.totalCost || b.price) || 0), 0);
+
+                      // Compute "Última contratación": date when the request was sent for the last accepted booking
+                      const acceptedListingBookings = bookings.filter((b: any) => {
+                        const matchesListing = b.listingId === l.id || 
+                          (b.listingTitle === l.title && (b.professionalId === l.author?.id || b.professionalId === l.author?.email));
+                        return matchesListing && (b.status === "accepted" || b.status === "completed");
+                      });
+
+                      const getBookingRequestTime = (b: any): number => {
+                        const ts = b.createdAt || b.createdAtDate;
+                        if (!ts) return 0;
+                        if (typeof ts === "number") return ts;
+                        if (ts.seconds) return ts.seconds * 1000;
+                        if (ts.toDate && typeof ts.toDate === "function") return ts.toDate().getTime();
+                        const parsed = new Date(ts).getTime();
+                        return isNaN(parsed) ? 0 : parsed;
+                      };
+
+                      let lastHiringFormatted = "-";
+                      if (acceptedListingBookings.length > 0) {
+                        acceptedListingBookings.sort((a: any, b: any) => getBookingRequestTime(b) - getBookingRequestTime(a));
+                        const reqTime = getBookingRequestTime(acceptedListingBookings[0]);
+                        if (reqTime > 0) {
+                          lastHiringFormatted = new Date(reqTime).toLocaleDateString("es-ES");
+                        }
+                      } else if (l.lastBooked) {
+                        const fallbackTime = l.lastBooked.seconds ? l.lastBooked.seconds * 1000 : new Date(l.lastBooked).getTime();
+                        if (!isNaN(fallbackTime) && fallbackTime > 0) {
+                          lastHiringFormatted = new Date(fallbackTime).toLocaleDateString("es-ES");
+                        }
+                      }
+
+                      // Compute "Última activación": date when the listing was reactivated after expiring
+                      const getTimestampMs = (ts: any): number => {
+                        if (!ts) return 0;
+                        if (typeof ts === "number") return ts;
+                        if (ts.seconds) return ts.seconds * 1000;
+                        if (ts.toDate && typeof ts.toDate === "function") return ts.toDate().getTime();
+                        const parsed = new Date(ts).getTime();
+                        return isNaN(parsed) ? 0 : parsed;
+                      };
+
+                      const pubTimeMs = getTimestampMs(l.publishedAt || l.createdAt);
+                      const reactivatedTimeMs = getTimestampMs(l.reactivatedAt);
+
+                      let lastReactivationFormatted = "-";
+                      if (reactivatedTimeMs > 0 && pubTimeMs > 0 && (reactivatedTimeMs - pubTimeMs > 60000)) {
+                        lastReactivationFormatted = new Date(reactivatedTimeMs).toLocaleDateString("es-ES");
+                      } else if (reactivatedTimeMs > 0 && pubTimeMs === 0) {
+                        lastReactivationFormatted = new Date(reactivatedTimeMs).toLocaleDateString("es-ES");
+                      }
+
+                      return (
+                      <React.Fragment key={l.id}>
+                        <tr
+                          className="hover:bg-surface-container-low cursor-pointer"
+                          onClick={() => setSelectedService(l)}
                         >
-                          <option value="active">Activo</option>
-                          <option value="disabled">Desactivado</option>
-                          <option value="deleted">Eliminado</option>
-                        </select>
-                      </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{i + 1}</td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold text-primary hidden sm:table-cell">
+                            {l.id}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold truncate max-w-[120px]">
+                            {l.author?.name || "Anónimo"}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{l.price}€</td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm hidden md:table-cell">
+                            {listingTotalBilled}€
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden lg:table-cell">
+                            {lastHiringFormatted}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
+                            {l.createdAt
+                              ? new Date(
+                                  l.createdAt.seconds
+                                    ? l.createdAt.seconds * 1000
+                                    : l.createdAt,
+                                ).toLocaleDateString("es-ES")
+                              : "N/A"}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
+                            {lastReactivationFormatted}
+                          </td>
+                          <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-medium">
+                            <select
+                              className={cn(
+                                "px-3 py-1.5 border border-outline-variant/20 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-primary/20 outline-none transition-all w-[115px]",
+                                currentDisplayStatus === "active" &&
+                                  "bg-green-100 text-green-800",
+                                (currentDisplayStatus === "disabled" || currentDisplayStatus === "expired") &&
+                                  "bg-orange-100 text-orange-800",
+                                (currentDisplayStatus === "deleted" || currentDisplayStatus === "owner_deleted") && "bg-red-100 text-red-800",
+                              )}
+                              value={currentDisplayStatus}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={async (e) => {
+                                const newStatus = e.target.value;
+                                const updatePayload: any = { status: newStatus };
+                                
+                                // If reactivating an expired/inactive listing, extend expiration date according to activeDaysPerListing
+                                if (newStatus === "active" && (isExpired || l.status === "inactive" || l.status === "expired" || l.status === "disabled" || l.status === "owner_deleted")) {
+                                  const activeDays = getListingActiveDays(authorUser || l.author, proPlans);
+                                  const nowIso = new Date().toISOString();
+                                  const newExpiresAt = new Date(Date.now() + activeDays * 24 * 60 * 60 * 1000).toISOString();
+                                  updatePayload.expiresAt = newExpiresAt;
+                                  updatePayload.reactivatedAt = nowIso;
+                                } else if (newStatus === "expired") {
+                                  updatePayload.expiresAt = new Date(Date.now() - 1000).toISOString();
+                                }
+
+                                if (setListings) {
+                                  setListings((prev) =>
+                                    prev.map((item) =>
+                                      item.id === l.id
+                                        ? { ...item, ...updatePayload }
+                                        : item,
+                                    ),
+                                  );
+                                }
+                                try {
+                                  await updateDoc(doc(db, "listings", l.id), updatePayload);
+                                } catch (error) {
+                                  console.warn(
+                                    "Firestore update failed for listings:",
+                                    error,
+                                  );
+                                }
+                              }}
+                            >
+                              <option value="active">Activo</option>
+                              <option value="expired">Caducado</option>
+                              <option value="disabled">Desactivado</option>
+                              <option value="deleted">Eliminado</option>
+                              <option value="owner_deleted">Borrado por propietario</option>
+                            </select>
+                          </td>
                       <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-primary font-bold">
                         <button
                           onClick={(e) => {
@@ -5980,6 +7460,7 @@ const AdminPage = ({
                                   <th className="px-4 py-3">Tiempo/Horas</th>
                                   <th className="px-4 py-3">Total</th>
                                   <th className="px-4 py-3">Estado Pago</th>
+                                  <th className="px-4 py-3">Estado Reserva</th>
                                   <th className="px-4 py-3">Fecha</th>
                                   <th className="px-4 py-3">Hora</th>
                                   <th className="px-4 py-3">Ubicación</th>
@@ -5990,11 +7471,21 @@ const AdminPage = ({
                                   .length > 0 ? (
                                   bookings
                                     .filter((b) => b.listingId === l.id)
-                                    .map((b) => (
-                                      <tr
-                                        key={b.id}
-                                        className="hover:bg-surface-container-low/50"
-                                      >
+                                    .map((b) => {
+                                      let statusColorClass = "hover:bg-surface-container-low/50";
+                                      if (b.status === "accepted" || b.status === "completed") {
+                                        statusColorClass = "bg-green-50/70 hover:bg-green-100/70 text-green-900";
+                                      } else if (b.status === "pending" || b.status === "budget_pending") {
+                                        statusColorClass = "bg-yellow-50/70 hover:bg-yellow-100/70 text-yellow-900";
+                                      } else if (b.status === "cancelled" || b.status === "rejected" || b.status === "expired") {
+                                        statusColorClass = "bg-red-50/70 hover:bg-red-100/70 text-red-900";
+                                      }
+
+                                      return (
+                                        <tr
+                                          key={b.id}
+                                          className={statusColorClass}
+                                        >
                                         <td className="px-4 py-3 align-top min-w-[120px]">
                                           <div className="font-bold truncate max-w-[120px] lg:max-w-[150px]">
                                             {b.client?.name ||
@@ -6023,6 +7514,9 @@ const AdminPage = ({
                                         <td className="px-4 py-3 capitalize align-top">
                                           {b.paymentStatus || "Pendiente"}
                                         </td>
+                                        <td className="px-4 py-3 capitalize align-top font-bold">
+                                          {b.status || "Pendiente"}
+                                        </td>
                                         <td className="px-4 py-3 align-top">
                                           {b.createdAt
                                             ? new Date(
@@ -6050,8 +7544,9 @@ const AdminPage = ({
                                             {b.location || l.address || "N/A"}
                                           </div>
                                         </td>
-                                      </tr>
-                                    ))
+                                        </tr>
+                                      );
+                                    })
                                 ) : (
                                   <tr>
                                     <td
@@ -6069,10 +7564,156 @@ const AdminPage = ({
                       </tr>
                     )}
                   </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+            </div>
+              </>
+            )}
+
+            {servicesSubTab === "search_professionals" && (
+              <>
+                <div className="flex justify-between items-center mb-8">
+                  <h2 className="text-xl font-bold font-display tracking-tight">
+                    Buscador de Profesionales{" "}
+                    {filterStatus === "active" ? "(Activos)" : ""}
+                  </h2>
+                  <button
+                    onClick={async () => {
+                      const newVal = !adminSearchEnabled;
+                      setAdminSearchEnabled(newVal);
+                      try {
+                        await setDoc(doc(db, "settings", "services"), { enableSearchProfessionals: newVal }, { merge: true });
+                        alert("Configuración actualizada. Recarga la página para aplicar los cambios.");
+                      } catch(e) {
+                        console.error(e);
+                        alert("Error al actualizar");
+                        setAdminSearchEnabled(!newVal);
+                      }
+                    }}
+                    className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-xl transition-colors shadow-sm ${adminSearchEnabled ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' : 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'}`}
+                  >
+                    {adminSearchEnabled ? "Deshabilitar Publicación" : "Habilitar Publicación"}
+                  </button>
+                </div>
+                <div className="w-full">
+            <table className="w-full text-left whitespace-normal">
+              <thead>
+                <tr className="bg-surface-container-low/50 text-[10px] lg:text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                  <th className="px-2 lg:px-4 py-3">Nº</th>
+                  <th className="px-2 lg:px-4 py-3 hidden sm:table-cell">ID Publicación</th>
+                  <th className="px-2 lg:px-4 py-3">Buscador</th>
+                  <th className="px-2 lg:px-4 py-3">Presupuesto/Precio</th>
+                  <th className="px-2 lg:px-4 py-3 hidden md:table-cell">Fecha Publicación</th>
+                  <th className="px-2 lg:px-4 py-3">Estado</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-container">
+                {(filterStatus === "active"
+                  ? listings.filter((l) => (l.status === "active" || !l.status) && l.type === "search")
+                  : listings.filter((l) => l.status !== "deleted" && l.type === "search")
+                ).map((l, i) => (
+                  <React.Fragment key={l.id}>
+                    <tr
+                      className="hover:bg-surface-container-low cursor-pointer"
+                      onClick={() => setSelectedService(l)}
+                    >
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{i + 1}</td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold text-primary hidden sm:table-cell">
+                        {l.id}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm font-bold truncate max-w-[120px]">
+                        {l.author?.name || "Anónimo"}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm">{l.price ? `${l.price}€` : '-'}</td>
+                      <td className="px-2 lg:px-4 py-3 text-[10px] lg:text-sm text-on-surface-variant hidden md:table-cell">
+                        {l.createdAt
+                          ? new Date(
+                              l.createdAt.seconds
+                                ? l.createdAt.seconds * 1000
+                                : l.createdAt,
+                            ).toLocaleDateString()
+                          : "N/A"}
+                      </td>
+                      <td className="px-2 lg:px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full ${l.status === "active" || !l.status ? "bg-green-500" : l.status === "inactive" ? "bg-amber-500" : "bg-red-500"}`}
+                          ></span>
+                          <span className="text-[10px] lg:text-sm font-bold uppercase tracking-wider text-on-surface-variant">
+                            {l.status === "active" || !l.status
+                              ? "Activo"
+                              : l.status === "inactive"
+                                ? "Inactivo"
+                                : "Bloqueado"}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
             </div>
+              </>
+            )}
+
+            {servicesSubTab === "requests" && (
+              <div className="space-y-6">
+                <h2 className="text-xl font-bold font-display tracking-tight mb-8">
+                  Configuración de Solicitud de Servicios
+                </h2>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+                      Texto al enviar solicitud de reserva (Cliente)
+                    </label>
+                    <textarea
+                      value={servicesTexts.requestText}
+                      onChange={(e) => setServicesTexts({ ...servicesTexts, requestText: e.target.value })}
+                      className="w-full bg-surface p-4 rounded-xl border border-outline-variant/20 min-h-[100px] outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm transition-all"
+                      placeholder="Ej: Estás a punto de enviar una solicitud. El profesional debe aceptarla..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+                      Texto cuando el profesional edita el servicio (Profesional)
+                    </label>
+                    <textarea
+                      value={servicesTexts.professionalEditText}
+                      onChange={(e) => setServicesTexts({ ...servicesTexts, professionalEditText: e.target.value })}
+                      className="w-full bg-surface p-4 rounded-xl border border-outline-variant/20 min-h-[100px] outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm transition-all"
+                      placeholder="Ej: Estás enviando una propuesta editada al cliente..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">
+                      Texto final cuando el cliente acepta la última propuesta
+                    </label>
+                    <textarea
+                      value={servicesTexts.clientAcceptText}
+                      onChange={(e) => setServicesTexts({ ...servicesTexts, clientAcceptText: e.target.value })}
+                      className="w-full bg-surface p-4 rounded-xl border border-outline-variant/20 min-h-[100px] outline-none focus:border-primary focus:ring-1 focus:ring-primary text-sm transition-all"
+                      placeholder="Ej: Vas a confirmar y proceder al pago o reserva final..."
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-outline-variant/10 flex justify-end">
+                  <button
+                    onClick={handleSaveServicesTexts}
+                    disabled={isSavingServicesTexts}
+                    className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-lg disabled:opacity-50"
+                  >
+                    {isSavingServicesTexts ? "Guardando..." : "Guardar Textos"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             <AdminServiceDetailModal
               isOpen={!!selectedService}
@@ -6090,12 +7731,14 @@ const AdminPage = ({
         );
       case "planes-pro":
         return <AdminProPlansTab users={users} />;
+      case "promociones":
+        return <AdminPromotionsTab users={users} />;
       case "ads":
         return (
           <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10">
             <h2 className="text-2xl font-black mb-6">Mis Anuncios</h2>
             {listings
-              .filter((l) => l.author.id === user.id && l.status !== "deleted")
+              .filter((l) => l.author?.id === user.id && l.status !== "deleted" && l.status !== "owner_deleted")
               .map((l) => (
                 <div
                   key={l.id}
@@ -6316,7 +7959,7 @@ const AdminPage = ({
         return (
           <div className="space-y-6">
             <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-4">
-              {["settings", "footer", "info"].map((tab) => (
+              {["settings", "email", "footer", "info", "reviews"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setAdminSubTab(tab)}
@@ -6324,8 +7967,12 @@ const AdminPage = ({
                 >
                   {tab === "settings"
                     ? "Configuración"
+                    : tab === "email"
+                      ? "Correos"
                     : tab === "footer"
                       ? "Configuración del footer"
+                    : tab === "reviews"
+                      ? "Reseñas"
                       : "+Info / Legal"}
                 </button>
               ))}
@@ -6377,6 +8024,19 @@ const AdminPage = ({
                       </select>
                     </div>
                   </div>
+                  <div className="mt-4 bg-white p-4 rounded-xl border flex justify-between items-center">
+                    <div>
+                      <span className="font-semibold text-sm block">
+                        Buscador de Profesionales
+                      </span>
+                      <span className="text-xs text-on-surface-variant">Permite a los usuarios publicar anuncios buscando profesionales.</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${adminSearchEnabled ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {adminSearchEnabled ? 'Habilitado' : 'Deshabilitado'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mb-8 p-6 bg-surface-container-low rounded-2xl border border-outline-variant/10">
@@ -6393,26 +8053,14 @@ const AdminPage = ({
                         value={newCategory}
                         onChange={(e) => setNewCategory(e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && newCategory.trim()) {
-                            const cat = newCategory.trim();
-                            if (!appCategories.includes(cat)) {
-                              setAppCategories([...appCategories, cat]);
-                              CATEGORIES.push(cat);
-                            }
-                            setNewCategory("");
+                          if (e.key === "Enter") {
+                            handleAddCategory();
                           }
                         }}
                       />
                       <button
                         className="px-4 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-sm flex-shrink-0"
-                        onClick={() => {
-                          const cat = newCategory.trim();
-                          if (cat && !appCategories.includes(cat)) {
-                            setAppCategories([...appCategories, cat]);
-                            CATEGORIES.push(cat);
-                            setNewCategory("");
-                          }
-                        }}
+                        onClick={handleAddCategory}
                       >
                         Añadir
                       </button>
@@ -6428,13 +8076,7 @@ const AdminPage = ({
                           </span>
                           <button
                             className="p-1 rounded-full hover:bg-red-50 text-on-surface-variant hover:text-red-500 transition-colors"
-                            onClick={() => {
-                              setAppCategories(
-                                appCategories.filter((c) => c !== cat),
-                              );
-                              const idx = CATEGORIES.indexOf(cat);
-                              if (idx > -1) CATEGORIES.splice(idx, 1);
-                            }}
+                            onClick={() => handleRemoveCategory(cat)}
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -6477,6 +8119,7 @@ const AdminPage = ({
                 </div>
               </div>
             )}
+            {adminSubTab === "email" && <AdminEmailConfig />}
             {adminSubTab === "footer" && (
               <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)]">
                 <div className="mb-8 p-6 bg-surface-container-low rounded-2xl border border-outline-variant/10">
@@ -6797,6 +8440,71 @@ const AdminPage = ({
                         <PlusCircle className="w-5 h-5" /> Añadir Red Social
                       </button>
                     </div>
+
+                    <div className="space-y-4 pt-6 border-t border-outline-variant/10">
+                      <h4 className="font-bold text-on-surface">
+                        Descarga de Aplicaciones
+                      </h4>
+                      <div className="bg-white p-4 rounded-xl border border-outline-variant/10 space-y-4">
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-bold text-on-surface-variant">
+                            Enlace Apple Store (iOS)
+                          </label>
+                          <input
+                            className="bg-surface-container px-3 py-2 rounded-lg text-sm font-medium outline-none w-full"
+                            placeholder="URL de Apple Store"
+                            value={footerConfig.appDownloads?.ios || ""}
+                            onChange={(e) => {
+                              setFooterConfig({
+                                ...footerConfig,
+                                appDownloads: {
+                                  ...(footerConfig.appDownloads || {}),
+                                  ios: e.target.value,
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-bold text-on-surface-variant">
+                            Enlace Google Play (Android)
+                          </label>
+                          <input
+                            className="bg-surface-container px-3 py-2 rounded-lg text-sm font-medium outline-none w-full"
+                            placeholder="URL de Google Play"
+                            value={footerConfig.appDownloads?.android || ""}
+                            onChange={(e) => {
+                              setFooterConfig({
+                                ...footerConfig,
+                                appDownloads: {
+                                  ...(footerConfig.appDownloads || {}),
+                                  android: e.target.value,
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <label className="text-xs font-bold text-on-surface-variant">
+                            Enlace AppGallery (Huawei)
+                          </label>
+                          <input
+                            className="bg-surface-container px-3 py-2 rounded-lg text-sm font-medium outline-none w-full"
+                            placeholder="URL de AppGallery"
+                            value={footerConfig.appDownloads?.huawei || ""}
+                            onChange={(e) => {
+                              setFooterConfig({
+                                ...footerConfig,
+                                appDownloads: {
+                                  ...(footerConfig.appDownloads || {}),
+                                  huawei: e.target.value,
+                                },
+                              });
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -6921,6 +8629,7 @@ const AdminPage = ({
                 </div>
               </div>
             )}
+            {adminSubTab === "reviews" && <AdminReviewConfig />}
           </div>
         );
       case "popup":
@@ -6964,15 +8673,90 @@ const AdminPage = ({
             </div>
 
             {popupSubTab === "design" ? (
+              !editingPopupId ? (
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-black font-display tracking-tight text-primary">
+                        Pop-ups Configurados
+                      </h2>
+                      <p className="text-sm text-on-surface-variant font-medium mt-1">
+                        Gestiona los pop-ups que se muestran en la web y app.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const newId = Date.now().toString();
+                        setPopupsConfig(prev => ({ ...prev, [newId]: { ...defaultPopupConfig, id: newId } }));
+                        setEditingPopupId(newId);
+                      }}
+                      className="px-6 py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:bg-primary/90 transition-colors"
+                    >
+                      Crear Nuevo Pop-up
+                    </button>
+                  </div>
+                  <div className="grid gap-4">
+                    {Object.values(popupsConfig).map((p: any) => (
+                      <div key={p.id} className="bg-surface-container flex items-center justify-between p-4 rounded-2xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+                        <div>
+                          <h3 className="font-bold text-lg">{p.name || "Pop-up sin título"}</h3>
+                          <div className="flex gap-2 mt-2 text-sm text-on-surface-variant items-center">
+                            <span className="bg-surface p-1 px-2 rounded-lg border border-outline-variant/20">
+                              Audiencia: {p.targetAudience === "all" ? "Todos" : p.targetAudience === "guests" ? "No registrados" : p.targetAudience === "first_login" ? "Primer login" : p.targetAudience === "registered_returning" ? "Usuarios recurrentes" : p.targetAudience}
+                            </span>
+                            {p.showInWeb && <span className="bg-blue-500/10 text-blue-500 font-bold p-1 px-2 rounded-lg">Web</span>}
+                            {p.showInApp && <span className="bg-green-500/10 text-green-500 font-bold p-1 px-2 rounded-lg">App</span>}
+                            {!p.active && <span className="bg-red-500/10 text-red-500 font-bold p-1 px-2 rounded-lg">Inactivo</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingPopupId(p.id)}
+                            className="px-4 py-2 bg-primary/10 text-primary font-bold rounded-xl hover:bg-primary/20 transition-colors"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm("¿Eliminar este pop-up?")) {
+                                const newConfig = { ...popupsConfig };
+                                delete newConfig[p.id];
+                                setPopupsConfig(newConfig);
+                                await setDoc(doc(db, "settings", "popups"), newConfig);
+                              }
+                            }}
+                            className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {Object.keys(popupsConfig).length === 0 && (
+                      <p className="text-center text-on-surface-variant p-8 bg-surface-container rounded-2xl border border-outline-variant/20 border-dashed">
+                        No hay pop-ups configurados.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <div className="flex flex-col lg:flex-row gap-8 items-start">
                 <div className="flex-1 space-y-6 w-full lg:max-w-md">
-                  <div>
-                    <h2 className="text-2xl font-black font-display tracking-tight text-primary">
-                      Diseño de Pop-up
-                    </h2>
-                    <p className="text-sm text-on-surface-variant font-medium mt-1">
-                      Configura el diseño y contenido del popup global.
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setEditingPopupId(null)}
+                      className="p-2 hover:bg-surface-container rounded-xl transition-colors"
+                    >
+                      <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div>
+                      <h2 className="text-2xl font-black font-display tracking-tight text-primary">
+                        Editar Pop-up
+                      </h2>
+                      <p className="text-sm text-on-surface-variant font-medium mt-1">
+                        Configura el diseño y contenido del popup global.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between p-4 bg-surface-container rounded-xl border border-outline-variant/20">
@@ -7003,12 +8787,45 @@ const AdminPage = ({
                   <div className="space-y-4">
                     <div className="space-y-3">
                       <label className="block text-sm font-bold text-on-surface mb-2">
+                        Título del Pop-up (Para el listado interno)
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20 font-medium"
+                        value={popupConfig.name || ""}
+                        onChange={(e) => setPopupConfig({ ...popupConfig, name: e.target.value })}
+                        placeholder="Ej. Promoción de Verano Web"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block text-sm font-bold text-on-surface mb-2">
                         A quién mostrar
                       </label>
+                      <div className="flex gap-4 mb-4">
+                        <label className="flex items-center gap-2 cursor-pointer bg-surface-container px-4 py-2 rounded-xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={popupConfig.showInWeb ?? true}
+                            onChange={(e) => setPopupConfig({ ...popupConfig, showInWeb: e.target.checked })}
+                            className="w-5 h-5 rounded text-primary"
+                          />
+                          <span className="font-bold">Mostrar en Web</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer bg-surface-container px-4 py-2 rounded-xl border border-outline-variant/20 hover:border-primary/50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={popupConfig.showInApp ?? true}
+                            onChange={(e) => setPopupConfig({ ...popupConfig, showInApp: e.target.checked })}
+                            className="w-5 h-5 rounded text-primary"
+                          />
+                          <span className="font-bold">Mostrar en App</span>
+                        </label>
+                      </div>
                       <select
                         className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20 font-medium"
-                        value={editingPopupAudience}
-                        onChange={(e) => setEditingPopupAudience(e.target.value as any)}
+                        value={popupConfig.targetAudience || "all"}
+                        onChange={(e) => setPopupConfig({ ...popupConfig, targetAudience: e.target.value })}
                       >
                         <option value="all">Mostrar a todos</option>
                         <option value="guests">
@@ -7017,7 +8834,52 @@ const AdminPage = ({
                         <option value="first_login">
                           Mostrar a usuarios que inician sesión por primera vez
                         </option>
+                        <option value="registered_returning">
+                          Mostrar a usuarios ya registrados (recurrente)
+                        </option>
                       </select>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={popupConfig.showDontShowAgain || false}
+                          onChange={(e) =>
+                            setPopupConfig({
+                              ...popupConfig,
+                              showDontShowAgain: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          id="dont-show-again-check"
+                        />
+                        <label
+                          htmlFor="dont-show-again-check"
+                          className="text-sm font-bold cursor-pointer text-on-surface"
+                        >
+                          Añadir botón "No mostrar más" al final del Pop-up
+                        </label>
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={popupConfig.showRecommendationLink || false}
+                          onChange={(e) =>
+                            setPopupConfig({
+                              ...popupConfig,
+                              showRecommendationLink: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          id="show-recommendation-link-check"
+                        />
+                        <label
+                          htmlFor="show-recommendation-link-check"
+                          className="text-sm font-bold cursor-pointer text-on-surface"
+                        >
+                          Incluir bloque para Recomendar Perfil
+                        </label>
+                      </div>
 
                       {popupConfig.targetAudience === "guests" && (
                         <div className="mt-3 flex items-center gap-2">
@@ -7258,33 +9120,32 @@ const AdminPage = ({
                       <label className="block text-sm font-bold text-on-surface mb-2">
                         Título Principal
                       </label>
-                      <input
-                        type="text"
-                        className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20"
-                        value={popupConfig.title}
-                        onChange={(e) =>
+                      <RichTextEditor
+                        value={popupConfig.title || ""}
+                        onChange={(html) =>
                           setPopupConfig({
                             ...popupConfig,
-                            title: e.target.value,
+                            title: html,
                           })
                         }
                         placeholder="¡No dejes escapar esta oportunidad!"
+                        minHeight="50px"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-on-surface mb-2">
                         Descripción
                       </label>
-                      <textarea
-                        className="w-full bg-surface-container p-3 rounded-xl border border-outline-variant/20 min-h-[100px]"
-                        value={popupConfig.description}
-                        onChange={(e) =>
+                      <RichTextEditor
+                        value={popupConfig.description || ""}
+                        onChange={(html) =>
                           setPopupConfig({
                             ...popupConfig,
-                            description: e.target.value,
+                            description: html,
                           })
                         }
                         placeholder="Texto para tu popup..."
+                        minHeight="120px"
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -7340,6 +9201,26 @@ const AdminPage = ({
                         }
                         placeholder="https://..."
                       />
+                      <div className="mt-3 flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={popupConfig.buttonRedirectToRegister || false}
+                          onChange={(e) =>
+                            setPopupConfig({
+                              ...popupConfig,
+                              buttonRedirectToRegister: e.target.checked,
+                            })
+                          }
+                          className="w-4 h-4 rounded text-primary focus:ring-primary"
+                          id="button-redirect-register"
+                        />
+                        <label
+                          htmlFor="button-redirect-register"
+                          className="text-sm font-bold cursor-pointer text-on-surface"
+                        >
+                          Redirigir al registro de usuarios
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -7397,14 +9278,18 @@ const AdminPage = ({
                         )}
                       >
                         {popupConfig.title && (
-                          <h3 className="text-2xl font-black font-display tracking-tight text-on-surface">
-                            {popupConfig.title}
-                          </h3>
+                          <div
+                            className="font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                            style={{ fontSize: "1.5rem" }}
+                            dangerouslySetInnerHTML={{ __html: popupConfig.title }}
+                          />
                         )}
                         {popupConfig.description && (
-                          <p className="text-on-surface-variant text-sm font-medium leading-relaxed">
-                            {popupConfig.description}
-                          </p>
+                          <div
+                            className="text-on-surface-variant font-medium leading-relaxed"
+                            style={{ fontSize: "0.875rem" }}
+                            dangerouslySetInnerHTML={{ __html: popupConfig.description }}
+                          />
                         )}
 
                         {popupConfig.showEmailInput && (
@@ -7417,15 +9302,40 @@ const AdminPage = ({
                         )}
 
                         {popupConfig.buttonText && (
-                          <button className="w-full bg-primary text-white font-bold py-3.5 px-6 rounded-xl shadow-lg mt-2 pointer-events-none">
-                            {popupConfig.buttonText}
-                          </button>
+                          <div className="w-full flex flex-col items-center mt-2">
+                            <button className="w-full bg-primary text-white font-bold py-3.5 px-6 rounded-xl shadow-lg pointer-events-none mb-1.5">
+                              {popupConfig.buttonText}
+                            </button>
+                          </div>
+                        )}
+                        {popupConfig.showRecommendationLink && (
+                          <div className="w-full mt-4 p-4 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col items-center">
+                            <span className="text-xs font-bold text-on-surface-variant mb-2">Tu Enlace de Recomendación</span>
+                            <div className="flex items-center gap-2 w-full">
+                              <input 
+                                disabled 
+                                value="https://gigejob.com/perfil/@usuario" 
+                                className="flex-1 text-xs px-3 py-2 bg-white rounded border border-outline-variant/30 truncate pointer-events-none" 
+                              />
+                              <button className="bg-primary text-white p-2 rounded hover:bg-primary/90 pointer-events-none">
+                                <Copy className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {popupConfig.showDontShowAgain && (
+                          <div className="w-full flex justify-center mt-3">
+                            <button className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline pointer-events-none">
+                              No mostrar más
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+              )
             ) : (
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -7665,55 +9575,25 @@ const AdminPage = ({
                     placeholder="Un breve resumen que aparecerá en la portada..."
                   />
                 </div>
-                <div>
-                  <div className="flex justify-between items-end mb-1">
-                    <label className="block text-sm font-bold text-on-surface">
-                      Contenido (Markdown)
-                    </label>
-                    <label className="text-xs font-bold text-primary hover:text-primary/80 cursor-pointer bg-primary/10 px-3 py-1 rounded-lg transition-colors flex items-center gap-1">
-                      <Upload className="w-3 h-3" /> Insertar imagen
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onloadend = async () => {
-                            try {
-                              const optimizedUrl = await compressImage(
-                                reader.result as string,
-                                1200,
-                                800,
-                                0.7,
-                              );
-                              const imgMarkdown = `\n![Imagen](${optimizedUrl})\n`;
-                              setCurrentBlogPost((prev) => ({
-                                ...prev,
-                                content: (prev.content || "") + imgMarkdown,
-                              }));
-                              e.target.value = "";
-                            } catch (err) {
-                              console.error("Error upload markdown img", err);
-                              alert("Error al comprimir la imagen.");
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }}
-                      />
-                    </label>
-                  </div>
-                  <textarea
-                    className="w-full h-64 bg-surface-container p-3 rounded-xl border border-outline-variant/20"
+                <div className="w-full">
+                  <label className="block text-sm font-bold text-on-surface mb-1">
+                    Contenido
+                  </label>
+                  <JoditEditor
                     value={currentBlogPost.content || ""}
-                    onChange={(e) =>
+                    config={joditConfig}
+                    onBlur={(newContent) =>
                       setCurrentBlogPost({
                         ...currentBlogPost,
-                        content: e.target.value,
+                        content: newContent,
                       })
                     }
-                    placeholder="Escribe aquí el contenido..."
+                    onChange={(newContent) =>
+                      setCurrentBlogPost({
+                        ...currentBlogPost,
+                        content: newContent,
+                      })
+                    }
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -7736,37 +9616,93 @@ const AdminPage = ({
                   </label>
                 </div>
                 <button
+                  disabled={!!isSavingBlogPost}
                   onClick={async () => {
                     if (!currentBlogPost.title || !currentBlogPost.content)
                       return alert("Título y contenido requeridos");
                     try {
+                      setIsSavingBlogPost("Preparando...");
+                      const cleanPost = Object.fromEntries(
+                        Object.entries(currentBlogPost).filter(([_, v]) => v !== undefined)
+                      );
+                      
+                      // Helper for timeouts
+                      const timeout = (ms: number, msg: string) => 
+                        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(msg)), ms));
+
+                      // Process embedded base64 images
+                      if (cleanPost.content) {
+                        const tempDiv = document.createElement("div");
+                        tempDiv.innerHTML = cleanPost.content as string;
+                        const images = tempDiv.getElementsByTagName("img");
+                        
+                        // We convert the live HTMLCollection to an array to avoid mutation issues during iteration
+                        const imgArray = Array.from(images);
+                        
+                        for (let i = 0; i < imgArray.length; i++) {
+                          const img = imgArray[i];
+                          if (img.src && img.src.startsWith("data:image/")) {
+                            setIsSavingBlogPost(`Subiendo imagen ${i + 1} de ${imgArray.length}...`);
+                            try {
+                              const imageRef = ref(storage, `blog_images/post_${Date.now()}_${i}`);
+                              
+                              // Intentamos la subida normal con un timeout corto
+                              const uploadPromise = uploadString(imageRef, img.src, 'data_url');
+                              
+                              await Promise.race([
+                                uploadPromise,
+                                timeout(6000, "Storage timeout")
+                              ]);
+                              
+                              const url = await getDownloadURL(imageRef);
+                              img.src = url;
+                            } catch (uploadErr: any) {
+                              console.warn("La subida de imagen falló o expiró el tiempo en Capacitor. Se mantendrá como base64 embebido:", uploadErr);
+                              // Fallback: no cambiamos img.src (sigue siendo data:image/...) 
+                              // Eliminamos el throw new Error para no bloquear el guardado del post.
+                            }
+                          }
+                        }
+                        cleanPost.content = tempDiv.innerHTML;
+                      }
+
+                      setIsSavingBlogPost("Guardando post en base de datos...");
                       if (currentBlogPost.id) {
-                        await setDoc(
-                          doc(db, "blog_posts", currentBlogPost.id),
-                          { ...currentBlogPost },
-                          { merge: true },
-                        );
+                        await Promise.race([
+                          setDoc(
+                            doc(db, "blog_posts", currentBlogPost.id),
+                            { ...cleanPost, slug: cleanPost.slug || createSlug(cleanPost.title as string) },
+                            { merge: true }
+                          ),
+                          timeout(10000, "Tiempo de espera agotado al guardar en base de datos")
+                        ]);
                       } else {
                         const newRef = doc(collection(db, "blog_posts"));
-                        await setDoc(newRef, {
-                          ...currentBlogPost,
-                          id: newRef.id,
-                          authorId: user?.id || "admin",
-                          authorName: user?.username || "Admin JobPop",
-                          createdAt: Date.now(),
-                          published: currentBlogPost.published || false,
-                        });
+                        await Promise.race([
+                          setDoc(newRef, {
+                            ...cleanPost,
+                            id: newRef.id,
+                            slug: createSlug(cleanPost.title as string),
+                            authorId: user?.id || "admin",
+                            authorName: user?.username || "Admin GigeJob",
+                            createdAt: Date.now(),
+                            published: cleanPost.published || false,
+                          }),
+                          timeout(10000, "Tiempo de espera agotado al guardar en base de datos")
+                        ]);
                       }
                       setIsEditingBlogPost(false);
                       setCurrentBlogPost({});
-                    } catch (err) {
+                    } catch (err: any) {
                       console.error(err);
-                      alert("Error al guardar");
+                      alert("Error al guardar: " + (err.message || ""));
+                    } finally {
+                      setIsSavingBlogPost(false);
                     }
                   }}
-                  className="w-full py-3 bg-primary text-white rounded-xl font-bold"
+                  className="w-full py-3 bg-primary text-white rounded-xl font-bold disabled:opacity-50"
                 >
-                  Guardar
+                  {isSavingBlogPost ? (typeof isSavingBlogPost === 'string' ? isSavingBlogPost : "Guardando...") : "Guardar"}
                 </button>
               </div>
             </div>
@@ -8265,28 +10201,112 @@ const EMPTY_BILLING: BillingInfo = {
   address: EMPTY_ADDRESS,
 };
 
-const SettingsModal = ({
-  isOpen,
-  onClose,
-  type: initialType,
+const SettingsView = ({
   user: globalUser,
   setUser: setGlobalUser,
   onSimulateNotification,
 }: {
-  isOpen: boolean;
-  onClose: () => void;
-  type: string;
   user: UserProfile | null;
   setUser: (u: UserProfile | null) => void;
   onSimulateNotification?: (type: "message" | "alert") => void;
 }) => {
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  
+  const pathSegment = location.pathname.startsWith("/configuracion/")
+    ? location.pathname.replace("/configuracion/", "")
+    : "";
+  const initialType = searchParams.get("tab") || pathSegment || "general";
+
+  const mapPathToType = (path: string) => {
+    if (path === "seguridad") return "security";
+    if (path === "notificaciones") return "notifications";
+    if (path === "facturacion") return "billing";
+    if (path === "personal") return "general";
+    if (["profesional", "disponibilidad", "verificacion"].includes(path)) return "general";
+    return path;
+  };
+
   const [activeType, setActiveType] = useState<string | null>(
-    typeof window !== "undefined" && window.innerWidth < 1024
-      ? null
-      : initialType || "general",
+    searchParams.get("tab") || pathSegment ? mapPathToType(searchParams.get("tab") || pathSegment) : null
   );
   const [user, setUser] = useState<UserProfile | null>(globalUser);
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (globalUser && (!user || user.id !== globalUser.id)) {
+      setUser(JSON.parse(JSON.stringify(globalUser)));
+    }
+  }, [globalUser?.id]);
+
+  useEffect(() => {
+    setShowSaveToast(false);
+    if (!searchParams.get("tab") && !pathSegment) {
+      setActiveType(null);
+    }
+  }, [searchParams, pathSegment]);
+
+  useEffect(() => {
+    const checkoutStatus = searchParams.get("checkout");
+    const planIdParam = searchParams.get("plan_id");
+    if (checkoutStatus === "success" && planIdParam && user?.id) {
+      const updatePlanAfterCheckout = async () => {
+        const now = new Date();
+        const endDate = new Date(now);
+        endDate.setMonth(endDate.getMonth() + 1);
+
+        const currentPlan = user.professionalInfo?.plan;
+        let newHistory = user.professionalInfo?.planHistory || [];
+        if (currentPlan && currentPlan !== "basic") {
+          const prevPlanName = proPlans.find((p: any) => p.id === currentPlan)?.name || currentPlan;
+          newHistory = [
+            ...newHistory,
+            {
+              planId: currentPlan,
+              planName: prevPlanName,
+              startDate: user.professionalInfo?.planStartDate || now.toISOString().split("T")[0],
+              endDate: now.toISOString().split("T")[0],
+            }
+          ];
+        }
+
+        const updatedProfInfo = {
+          ...(user.professionalInfo || {}),
+          plan: planIdParam,
+          planStartDate: now.toISOString().split("T")[0],
+          planEndDate: endDate.toISOString().split("T")[0],
+          planHistory: newHistory,
+        };
+
+        const updatedUser = {
+          ...user,
+          professionalInfo: updatedProfInfo
+        };
+
+        setUser(updatedUser);
+        if (setGlobalUser) setGlobalUser(updatedUser);
+
+        try {
+          await updateDoc(doc(db, "users", user.id), {
+            professionalInfo: updatedProfInfo
+          });
+          alert("¡Enhorabuena! Tu pago se ha procesado con éxito y tu plan ha sido activado.");
+        } catch (e) {
+          console.error("Error al actualizar plan tras pago:", e);
+        }
+
+        // Limpiar parámetros de la URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      };
+
+      updatePlanAfterCheckout();
+    } else if (checkoutStatus === "canceled") {
+      alert("Proceso de pago cancelado.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [searchParams, user?.id]);
+
   const [showSaveToast, setShowSaveToast] = useState(false);
   const [generalTab, setGeneralTab] = useState<
     | "personal"
@@ -8299,7 +10319,10 @@ const SettingsModal = ({
   const [billingTab, setBillingTab] = useState<"transactions" | "invoices">(
     "transactions",
   );
-  const [securityTab, setSecurityTab] = useState<"verify" | "security">(
+  const [invoiceSubTab, setInvoiceSubTab] = useState<"services" | "months">(
+    "services",
+  );
+  const [securityTab, setSecurityTab] = useState<"verify" | "security" | "account">(
     "verify",
   );
   const { plans: proPlans, isEnabled: isProPlansEnabled } = useProPlansConfig();
@@ -8309,6 +10332,180 @@ const SettingsModal = ({
   const [newEmail, setNewEmail] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+
+  const handleExecuteAccountDeletion = async () => {
+    if (!user || !user.id) return;
+    if (deleteConfirmInput.trim().toUpperCase() !== "ELIMINAR") {
+      alert('Escribe "ELIMINAR" en el campo para confirmar la eliminación permanente.');
+      return;
+    }
+
+    try {
+      setIsDeletingAccount(true);
+      const userId = user.id;
+
+      await deleteDoc(doc(db, "users", userId)).catch(async () => {
+        await updateDoc(doc(db, "users", userId), {
+          status: "deleted",
+          deletedAt: serverTimestamp(),
+          firstName: "Usuario",
+          lastName1: "Eliminado",
+          email: `deleted_${userId}@gigejob.com`,
+        });
+      });
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        await deleteUser(currentUser).catch((err) => {
+          console.warn("Auth user deletion warning:", err);
+        });
+      }
+
+      localStorage.removeItem("GigeJob_user");
+      setUser(null);
+      setShowDeleteConfirmModal(false);
+      alert("Tu cuenta y todos tus datos personales asociados han sido eliminados permanentemente.");
+      window.location.href = "/";
+    } catch (error) {
+      console.error("Error eliminando cuenta:", error);
+      alert("Ocurrió un error al eliminar tu cuenta. Por favor, vuelve a intentarlo.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const uid = user.id;
+    const qTxs = query(
+      collection(db, "users", uid, "transactions"),
+      orderBy("createdAt", "desc")
+    );
+    const qPro = query(
+      collection(db, "bookings"),
+      where("professionalId", "==", uid),
+      where("status", "==", "completed")
+    );
+    const qClient = query(
+      collection(db, "bookings"),
+      where("clientId", "==", uid),
+      where("status", "==", "completed")
+    );
+
+    let baseTxs: any[] = [];
+    let proBookings: any[] = [];
+    let clientBookings: any[] = [];
+
+    const updateCombined = () => {
+      const combined = [...baseTxs];
+      proBookings.forEach(b => {
+        const dStr = b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString());
+        combined.push({
+          id: b.id,
+          type: "income",
+          amount: b.totalCost || 0,
+          concept: b.listingTitle || "Servicio Prestado",
+          date: dStr.split('T')[0],
+          status: "completed",
+          paymentMethod: b.paymentMethod || "platform",
+          isBooking: true
+        });
+      });
+      clientBookings.forEach(b => {
+        const dStr = b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString());
+        combined.push({
+          id: b.id,
+          type: "payment",
+          amount: b.totalCost || 0,
+          concept: b.listingTitle || "Servicio Contratado",
+          date: dStr.split('T')[0],
+          status: "completed",
+          paymentMethod: b.paymentMethod || "platform",
+          isBooking: true
+        });
+      });
+
+      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTransactions(combined);
+    };
+
+    const unsubTxs = onSnapshot(qTxs, (snapshot) => {
+      baseTxs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        const d = data.createdAt ? data.createdAt.toDate() : new Date();
+        return {
+          id: doc.id,
+          ...data,
+          date: d.toISOString().split('T')[0]
+        };
+      });
+      updateCombined();
+    }, (error) => console.error("Error fetching transactions", error));
+
+    const unsubPro = onSnapshot(qPro, (snapshot) => {
+      proBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
+    }, (error) => console.error("Error fetching pro bookings", error));
+
+    const unsubClient = onSnapshot(qClient, (snapshot) => {
+      clientBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      updateCombined();
+    }, (error) => console.error("Error fetching client bookings", error));
+
+    return () => {
+      unsubTxs();
+      unsubPro();
+      unsubClient();
+    };
+  }, [user?.id]);
+
+  const servicesInvoices = useMemo(() => {
+    return transactions.filter(t => t.type === 'income' || t.type === 'in');
+  }, [transactions]);
+
+  const monthlyInvoices = useMemo(() => {
+    const groups: Record<string, { id: string, amount: number, date: string, count: number, concept: string }> = {};
+    transactions.forEach(t => {
+      if (t.type === 'income' || t.type === 'in') {
+        const d = new Date(t.date);
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!groups[monthKey]) {
+          groups[monthKey] = { id: `MES-${monthKey}`, amount: 0, date: monthKey, count: 0, concept: `Resumen de Mes: ${monthKey}` };
+        }
+        groups[monthKey].amount += Number(t.amount) || 0;
+        groups[monthKey].count += 1;
+      }
+    });
+    return Object.values(groups).sort((a, b) => b.id.localeCompare(a.id));
+  }, [transactions]);
+
+  const handleDownloadPDF = () => {
+    if (!selectedInvoice) return;
+    const doc = new jsPDF();
+    doc.setFontSize(22);
+    doc.text("FACTURA", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(`Factura ID: ${selectedInvoice.id}`, 20, 40);
+    doc.text(`Fecha: ${selectedInvoice.date}`, 20, 50);
+    doc.text(`Cliente: ${user?.username || 'Cliente Final'}`, 20, 60);
+    doc.text(`DNI: ${user?.documentId || '-'}`, 20, 70);
+    
+    autoTable(doc, {
+      startY: 85,
+      head: [["Concepto", "Importe"]],
+      body: [
+        [selectedInvoice.concept || (invoiceSubTab === "services" ? "Servicio Prestado" : "Resumen del Mes"), `${Number(selectedInvoice.amount).toFixed(2)} \u20AC`]
+      ],
+    });
+    
+    doc.save(`Factura_${selectedInvoice.id}.pdf`);
+  };
+
   const [verifyPassword, setVerifyPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -8451,34 +10648,110 @@ const SettingsModal = ({
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      if (globalUser) {
-        setUser(JSON.parse(JSON.stringify(globalUser)));
-      }
-      setShowSaveToast(false);
 
-      // On mobile, default to the menu unless we have a specific sub-page that isn't 'general'
-      if (typeof window !== "undefined" && window.innerWidth < 1024) {
-        if (!initialType || initialType === "general") {
-          setActiveType(null);
-        }
-      }
-    }
-  }, [isOpen, initialType]); // only run when modal opens or type changes
 
   const handleSave = async () => {
     if (!user) return;
-    setIsSaving(true);
+    setHasAttemptedSave(true);
     
-    setGlobalUser(user);
+    // Validate required fields
+    const missingFields = [];
+    if (!user.firstName?.trim()) missingFields.push('Nombre');
+    if (!user.lastName1?.trim()) missingFields.push('1º Apellido');
+    if (!user.documentId?.trim()) missingFields.push('DNI/NIE');
+    if (!user.phoneNumber?.trim()) missingFields.push('Teléfono');
+    if (!user.address?.streetName?.trim()) missingFields.push('Nombre de la vía');
+    if (!user.address?.number?.trim()) missingFields.push('Número');
+    if (!user.address?.postalCode?.trim()) missingFields.push('CP');
+    if (!user.address?.locality?.trim()) missingFields.push('Localidad');
+    if (!user.address?.province?.trim()) missingFields.push('Provincia');
+
+    if (user.role === 'professional') {
+      if (!user.professionalInfo?.billing?.name?.trim()) missingFields.push('Nombre Fiscal');
+      if (!user.professionalInfo?.billing?.documentId?.trim()) missingFields.push('CIF/NIF Fiscal');
+      if (!user.professionalInfo?.billing?.phone?.trim()) missingFields.push('Teléfono Facturación');
+      if (!user.professionalInfo?.billing?.address?.streetName?.trim()) missingFields.push('Vía Fiscal');
+      if (!user.professionalInfo?.billing?.address?.number?.trim()) missingFields.push('Nº Fiscal');
+      if (!user.professionalInfo?.billing?.address?.postalCode?.trim()) missingFields.push('CP Fiscal');
+      if (!user.professionalInfo?.billing?.address?.locality?.trim()) missingFields.push('Localidad Fiscal');
+      if (!user.professionalInfo?.billing?.address?.province?.trim()) missingFields.push('Provincia Fiscal');
+    }
+
+    if (missingFields.length > 0) {
+      alert("Faltan datos obligatorios marcados con *. Por favor, completa la información resaltada en rojo para poder guardar.");
+      return;
+    }
+
+    setIsSaving(true);
     
     try {
       const userRef = doc(db, "users", user.id);
-      const { id, gallery, ...dataToUpdate } = user;
+      let { id, gallery, ...dataToUpdate } = user;
+      
+      if (user.role === "user" && !user.hasClaimedPromotion) {
+        try {
+          const promoConfigSnap = await getDoc(doc(db, "settings", "promotions_config"));
+          if (promoConfigSnap.exists()) {
+            const promoConfig = promoConfigSnap.data();
+            if (promoConfig.promotions) {
+              const usersSnap = await getDocs(collection(db, "users"));
+              const userRecs = usersSnap.docs.filter((d: any) => {
+                const uData = d.data();
+                return uData?.referredBy && (uData.referredBy === user.id || (user.customId && uData.referredBy === user.customId) || (user.email && uData.referredBy === user.email));
+              }).length || (user.recommendationRegistrationsCount || 0);
+
+              const activePromo = promoConfig.promotions.find((p: any) => {
+                if (!p.isActive) return false;
+                const matchesAudience = p.targetAudience === "user" || p.targetAudience === "both";
+                if (!matchesAudience) return false;
+                if (p.minRecommendations && p.minRecommendations > 0 && userRecs < p.minRecommendations) {
+                  return false;
+                }
+                return true;
+              });
+              if (activePromo) {
+                const claimedUsersCount = usersSnap.docs.filter((d: any) => {
+                  const u = d.data();
+                  return u.hasClaimedPromotion && (u.claimedPromotionId === activePromo.id || activePromo.id === "default");
+                }).length;
+
+                if (claimedUsersCount + 1 >= activePromo.userRangeStart && claimedUsersCount + 1 <= activePromo.userRangeEnd) {
+                  dataToUpdate = {
+                    ...dataToUpdate,
+                    hasClaimedPromotion: true,
+                    claimedPromotionId: activePromo.id,
+                  };
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error al aplicar promoción en perfil a particular:", error);
+        }
+      }
       
       const payload: any = { ...dataToUpdate, hasGallery: (gallery || []).length > 0 };
       await updateDoc(userRef, payload);
+      setGlobalUser({ ...user, ...dataToUpdate } as UserProfile);
+
+      // Sync availability to listings if the user has professional availability
+      if (dataToUpdate.professionalInfo?.availability) {
+        try {
+          const listingsQuery = query(
+            collection(db, "listings"),
+            where("author.id", "==", user.id)
+          );
+          const listingsSnap = await getDocs(listingsQuery);
+          const listingsPromises = listingsSnap.docs.map((listingDoc) =>
+            updateDoc(doc(db, "listings", listingDoc.id), {
+              "availability": dataToUpdate.professionalInfo.availability,
+            })
+          );
+          await Promise.all(listingsPromises);
+        } catch (error) {
+          console.error("Error al sincronizar disponibilidad con las publicaciones:", error);
+        }
+      }
       
       if (gallery && gallery.length > 0) {
         const galleryRef = doc(db, "users", user.id, "private", "gallery");
@@ -8513,41 +10786,46 @@ const SettingsModal = ({
 
   useEffect(() => {
     if (initialType) {
-      // On mobile, we prefer showing the main settings menu (null)
-      // instead of default 'general' sub-page when opening.
       if (
-        typeof window !== "undefined" &&
-        window.innerWidth < 1024 &&
-        initialType === "general"
+        (initialType === "personal" || initialType === "general") &&
+        (typeof window === "undefined" || window.innerWidth >= 1024 || searchParams.get("tab") || pathSegment)
+      ) {
+        setActiveType("general");
+        setGeneralTab(null);
+      } else if (
+        (initialType === "personal" || initialType === "general")
       ) {
         setActiveType(null);
-      } else {
-        setActiveType(initialType);
-      }
-
-      if (
-        initialType === "personal" ||
+        setGeneralTab(null);
+      } else if (
         initialType === "profesional" ||
         initialType === "disponibilidad" ||
         initialType === "verificacion"
       ) {
         setActiveType("general");
         setGeneralTab(
-          initialType === "personal"
-            ? "personal"
-            : initialType === "profesional"
-              ? "professional"
-              : initialType === "disponibilidad"
-                ? "availability"
-                : "verification",
+          initialType === "profesional"
+            ? "professional"
+            : initialType === "disponibilidad"
+              ? "availability"
+              : "verification",
         );
-      } else if (initialType === "facturacion") {
+      } else if (initialType === "facturacion" || initialType === "billing") {
         setActiveType("billing");
-      } else if (
-        initialType === "general" &&
-        (typeof window === "undefined" || window.innerWidth >= 1024)
-      ) {
-        setGeneralTab(null);
+      } else if (initialType === "seguridad" || initialType === "security") {
+        setActiveType("security");
+      } else if (initialType === "notificaciones" || initialType === "notifications") {
+        setActiveType("notifications");
+      } else {
+        if (
+          typeof window !== "undefined" &&
+          window.innerWidth < 1024 &&
+          initialType === "general"
+        ) {
+          setActiveType(null);
+        } else {
+          setActiveType(initialType);
+        }
       }
     }
   }, [initialType]);
@@ -8598,51 +10876,60 @@ const SettingsModal = ({
     }
   }, [user?.professionalInfo?.workLocation, generalTab]);
 
-  const MOCK_TRANSACTIONS = [
-    {
-      id: "T1",
-      type: "in",
-      amount: 350.0,
-      concept: "Servicio Limpieza Premium",
-      date: "2024-04-24",
-      status: "completed",
-    },
-    {
-      id: "T2",
-      type: "out",
-      amount: 15.0,
-      concept: "Tasa Gestión Plataforma",
-      date: "2024-04-23",
-      status: "completed",
-    },
-    {
-      id: "T3",
-      type: "in",
-      amount: 120.0,
-      concept: "Montaje de muebles",
-      date: "2024-04-20",
-      status: "completed",
-    },
-    {
-      id: "T4",
-      type: "out",
-      amount: 2.5,
-      concept: "Seguro Profesional diario",
-      date: "2024-04-20",
-      status: "completed",
-    },
-  ];
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
 
-  if (!isOpen) return null;
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const diffX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const diffY = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
+    if (diffX > 70 && diffY < 50) {
+      if (generalTab) {
+        setGeneralTab(null);
+      } else if (activeType) {
+        setActiveType(null);
+      }
+    }
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
+
+
+
 
   const menuItems = [
-    { id: "general", label: "Configuración General", icon: Settings },
+    { id: "general", label: "Área Personal", icon: Settings },
     { id: "billing", label: "Facturación", icon: Wallet },
     { id: "security", label: "Seguridad", icon: Lock },
     { id: "notifications", label: "Notificaciones", icon: Bell },
   ];
 
   const renderContent = () => {
+    if (!user) {
+      return (
+        <div className="flex flex-col items-center justify-center p-12 text-center h-full">
+          <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 text-primary">
+            <User className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-on-surface mb-2">Inicia sesión para ver tu configuración</h3>
+          <p className="text-xs text-on-surface-variant/60 max-w-xs mb-6">
+            Debes iniciar sesión con tu cuenta para acceder a la gestión de tu perfil.
+          </p>
+          <Link
+            to="/login"
+            className="px-6 py-3 primary-gradient text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg"
+          >
+            Iniciar Sesión
+          </Link>
+        </div>
+      );
+    }
+
     if (!activeType) {
       return (
         <div className="flex flex-col h-full pb-4 px-1">
@@ -8692,7 +10979,6 @@ const SettingsModal = ({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: menuItems.length * 0.05 }}
               onClick={async () => {
-                onClose();
                 try {
                   await auth.signOut();
                   setGlobalUser(null);
@@ -8729,17 +11015,29 @@ const SettingsModal = ({
     switch (activeType) {
       case "billing":
         return (
-          <div className="space-y-6 lg:space-y-8 h-full flex flex-col">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight">
-                  Facturación
-                </h3>
-                <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
-                  Tus movimientos financieros.
-                </p>
+          <div 
+            className="space-y-6 lg:space-y-8 h-full flex flex-col"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveType(null)}
+                  className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="space-y-1">
+                  <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight whitespace-nowrap">
+                    Facturación
+                  </h3>
+                  <p className="text-[10px] lg:text-sm text-on-surface-variant/40 whitespace-nowrap">
+                    Tus movimientos financieros.
+                  </p>
+                </div>
               </div>
-              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner">
+              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner w-full lg:w-fit">
                 <button
                   onClick={() => {
                     setBillingTab("transactions");
@@ -8771,63 +11069,124 @@ const SettingsModal = ({
             <div className="flex-1 min-h-0 pt-4 lg:pt-6">
               {billingTab === "transactions" ? (
                 <div className="flex flex-col gap-2 overflow-y-auto no-scrollbar pb-8">
-                  {MOCK_TRANSACTIONS.map((tx) => (
-                    <div
-                      key={tx.id}
-                      className="p-3 lg:p-6 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/5 flex items-center justify-between group hover:border-primary/20 transition-all shadow-sm"
-                    >
-                      <div className="flex items-center gap-3 lg:gap-6">
-                        <div
-                          className={cn(
-                            "p-2 lg:p-4 rounded-xl shadow-inner",
-                            tx.type === "in"
-                              ? "bg-green-500/10 text-green-500"
-                              : "bg-red-500/10 text-red-500",
-                          )}
-                        >
-                          {tx.type === "in" ? (
-                            <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" />
-                          ) : (
-                            <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 rotate-180" />
-                          )}
+                  {transactions.map((tx) => {
+                    const isIncome = tx.type === "in" || tx.type === "income";
+                    const isCash = tx.isBooking ? tx.paymentMethod !== "stripe" : tx.paymentMethod === "cash";
+
+                    let iconBgColor = "";
+                    let iconTextColor = "";
+                    let amountColor = "";
+
+                    if (isIncome) {
+                      if (isCash) {
+                        iconBgColor = "bg-yellow-500/10";
+                        iconTextColor = "text-yellow-600";
+                        amountColor = "text-yellow-600";
+                      } else {
+                        iconBgColor = "bg-green-500/10";
+                        iconTextColor = "text-green-500";
+                        amountColor = "text-green-600";
+                      }
+                    } else {
+                      // Pagos como cliente siempre en rojo
+                      iconBgColor = "bg-red-500/10";
+                      iconTextColor = "text-red-500";
+                      amountColor = "text-red-600";
+                    }
+
+                    return (
+                      <div
+                        key={tx.id}
+                        className="p-3 lg:p-6 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/5 flex items-center justify-between group hover:border-primary/20 transition-all shadow-sm"
+                      >
+                        <div className="flex items-center gap-3 lg:gap-6">
+                          <div
+                            className={cn(
+                              "p-2 lg:p-4 rounded-xl shadow-inner",
+                              iconBgColor,
+                              iconTextColor
+                            )}
+                          >
+                            {isIncome ? (
+                              <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6" />
+                            ) : (
+                              <TrendingUp className="w-4 h-4 lg:w-6 lg:h-6 rotate-180" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-display font-black text-on-surface tracking-tight text-[11px] lg:text-base truncate max-w-[120px] sm:max-w-none">
+                              {tx.concept || (isIncome ? "Ingreso por servicio" : "Pago por servicio")}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
+                                {tx.date}
+                              </p>
+                              {!isIncome ? (
+                                <span className="text-[8px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                  *Pago como cliente*
+                                </span>
+                              ) : isCash ? (
+                                <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                  *Cobro en mano*
+                                </span>
+                              ) : (
+                                <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                  *Cobro mediante web*
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-display font-black text-on-surface tracking-tight text-[11px] lg:text-base truncate max-w-[120px] sm:max-w-none">
-                            {tx.concept}
-                          </p>
-                          <p className="text-[8px] lg:text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest">
-                            {tx.date}
+                        <div className="text-right shrink-0">
+                          <p
+                            className={cn(
+                              "text-xs lg:text-xl font-display font-black",
+                              amountColor
+                            )}
+                          >
+                            {isIncome ? "+" : "-"}
+                            {Number(tx.amount || 0).toFixed(2)}€
                           </p>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p
-                          className={cn(
-                            "text-xs lg:text-xl font-display font-black",
-                            tx.type === "in"
-                              ? "text-green-600"
-                              : "text-red-600",
-                          )}
-                        >
-                          {tx.type === "in" ? "+" : "-"}
-                          {tx.amount.toFixed(2)}€
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <div className="h-full">
+                <div className="h-full flex flex-col gap-4">
                   {!selectedInvoice ? (
-                    <div className="grid grid-cols-2 gap-2 lg:gap-4 pb-8">
-                      {[1, 2, 3].map((i) => (
+                    <>
+                      <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner w-full lg:w-fit mb-2">
                         <button
-                          key={i}
+                          onClick={() => setInvoiceSubTab("services")}
+                          className={cn(
+                            "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                            invoiceSubTab === "services"
+                              ? "bg-white text-primary shadow-sm"
+                              : "text-on-surface-variant/40",
+                          )}
+                        >
+                          Facturas por servicios
+                        </button>
+                        <button
+                          onClick={() => setInvoiceSubTab("months")}
+                          className={cn(
+                            "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                            invoiceSubTab === "months"
+                              ? "bg-white text-primary shadow-sm"
+                              : "text-on-surface-variant/40",
+                          )}
+                        >
+                          Facturas por mes
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 lg:gap-4 pb-8 overflow-y-auto no-scrollbar">
+                      {(invoiceSubTab === "services" ? servicesInvoices : monthlyInvoices).map((inv) => (
+                        <button
+                          key={inv.id}
                           onClick={() =>
                             setSelectedInvoice({
-                              id: `INV-24-00${i}`,
-                              date: `2024-04-1${i}`,
-                              amount: 150 * i,
+                              ...inv,
                               client: "Cliente Final",
                             })
                           }
@@ -8840,21 +11199,22 @@ const SettingsModal = ({
                           </div>
                           <div>
                             <p className="text-[7px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40">
-                              2024/00{i}
+                              {inv.id}
                             </p>
                             <p className="font-display font-black text-[11px] lg:text-xl text-on-surface leading-tight">
-                              Abril 2024
+                              {inv.date}
                             </p>
                           </div>
                           <div className="pt-2 border-t border-outline-variant/10 flex justify-between items-center mt-auto">
                             <p className="text-[10px] lg:text-sm font-black text-primary">
-                              {150 * i}€
+                              {Number(inv.amount).toFixed(2)}€
                             </p>
                             <ChevronRight className="w-3 h-3 lg:w-5 lg:h-5 text-on-surface-variant/20 group-hover:text-primary transition-all" />
                           </div>
                         </button>
                       ))}
                     </div>
+                    </>
                   ) : (
                     <div className="bg-surface-container-low rounded-[2rem] lg:rounded-[3rem] p-5 lg:p-10 h-full border border-outline-variant/10 animate-in zoom-in-95 duration-300 flex flex-col overflow-hidden">
                       <div className="flex justify-between items-center mb-6 lg:mb-10 shrink-0 px-2 lg:px-0">
@@ -8864,7 +11224,7 @@ const SettingsModal = ({
                         >
                           <ArrowLeft className="w-4 h-4" /> Volver
                         </button>
-                        <button className="flex items-center gap-3 px-6 py-3 bg-on-surface text-surface rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
+                        <button onClick={handleDownloadPDF} className="flex items-center gap-3 px-6 py-3 bg-on-surface text-surface rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
                           <Download className="w-4 h-4" /> PDF
                         </button>
                       </div>
@@ -8982,7 +11342,7 @@ const SettingsModal = ({
                             </div>
                           </div>
                           <p className="text-[10px] text-on-surface-variant/20 font-medium mt-6 text-center w-full italic">
-                            Gracias por confiar en JobPop
+                            Gracias por confiar en GigeJob
                           </p>
                         </div>
                       </div>
@@ -8995,17 +11355,29 @@ const SettingsModal = ({
         );
       case "security":
         return (
-          <div className="space-y-6 lg:space-y-8 h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight">
-                  Verificaciones y Seguridad
-                </h3>
-                <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
-                  Gestiona tu acceso.
-                </p>
+          <div 
+            className="space-y-6 lg:space-y-8 h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setActiveType(null)}
+                  className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="space-y-1">
+                  <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight truncate whitespace-nowrap">
+                    Verificaciones y Seguridad
+                  </h3>
+                  <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
+                    Gestiona tu acceso.
+                  </p>
+                </div>
               </div>
-              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner">
+              <div className="flex bg-surface-container-low p-1 rounded-xl lg:rounded-2xl border border-outline-variant/10 shadow-inner overflow-x-auto no-scrollbar w-fit">
                 <button
                   onClick={() => setSecurityTab("verify")}
                   className={cn(
@@ -9027,6 +11399,28 @@ const SettingsModal = ({
                   )}
                 >
                   Seguridad
+                </button>
+                <button
+                  onClick={() => setSecurityTab("blocked")}
+                  className={cn(
+                    "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                    securityTab === "blocked"
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-on-surface-variant/40",
+                  )}
+                >
+                  Bloqueados
+                </button>
+                <button
+                  onClick={() => setSecurityTab("account")}
+                  className={cn(
+                    "flex-1 lg:flex-none whitespace-nowrap px-4 lg:px-8 py-2 lg:py-3 rounded-lg lg:rounded-xl text-[9px] lg:text-[10px] font-black uppercase tracking-widest transition-all",
+                    securityTab === "account"
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-on-surface-variant/40",
+                  )}
+                >
+                  Cuenta
                 </button>
               </div>
             </div>
@@ -9076,7 +11470,7 @@ const SettingsModal = ({
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : securityTab === "security" ? (
                 <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/10 space-y-6 shadow-sm">
                   <div className="space-y-4">
                     {passwordError && (
@@ -9137,7 +11531,7 @@ const SettingsModal = ({
                     className="w-full py-3.5 lg:py-5 primary-gradient text-white rounded-xl lg:rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-xs shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
                   >
                     {isUpdatingPassword ? (
-                      <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                      <CustomLoader className="w-4 h-4 shrink-0" />
                     ) : (
                       <Lock className="w-4 h-4 shrink-0" />
                     )}
@@ -9146,20 +11540,158 @@ const SettingsModal = ({
                       : "Actualizar Contraseña"}
                   </button>
                 </div>
+              ) : securityTab === "blocked" ? (
+                <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-outline-variant/10 space-y-6 shadow-sm">
+                  <div className="space-y-4">
+                    <h4 className="text-sm lg:text-base font-black uppercase tracking-wider text-on-surface-variant">
+                      Usuarios Bloqueados
+                    </h4>
+                    {(!user?.blockedUsers || user.blockedUsers.length === 0) ? (
+                      <p className="text-sm text-on-surface-variant">No tienes usuarios bloqueados.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {user.blockedUsers.map((blockedId: string) => (
+                          <BlockedUserItem
+                            key={blockedId}
+                            blockedId={blockedId}
+                            date={user.blockedUsersDates?.[blockedId]}
+                            isDark={false}
+                            onUnblock={async () => {
+                              if (confirm("¿Estás seguro de que deseas desbloquear a este usuario?")) {
+                                const newBlocked = user.blockedUsers!.filter((id: string) => id !== blockedId);
+                                const newDates = { ...(user.blockedUsersDates || {}) };
+                                delete newDates[blockedId];
+                                try {
+                                  await updateDoc(doc(db, "users", user.id), {
+                                    blockedUsers: newBlocked,
+                                    blockedUsersDates: newDates
+                                  });
+                                  // Update local state if needed (usually handled by listener, but we force it just in case)
+                                  setUser({ ...user, blockedUsers: newBlocked, blockedUsersDates: newDates });
+                                } catch (e) {
+                                  console.error("Error al desbloquear", e);
+                                  alert("Error al desbloquear el usuario.");
+                                }
+                              }
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 lg:p-10 bg-surface-container-low rounded-2xl lg:rounded-[2.5rem] border border-error/20 space-y-6 shadow-sm">
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-error">
+                        <AlertCircle className="w-5 h-5 shrink-0" />
+                        <h4 className="text-sm lg:text-base font-black uppercase tracking-wider">
+                          Eliminar cuenta y datos permanentemente
+                        </h4>
+                      </div>
+                      <p className="text-[10px] lg:text-xs text-on-surface-variant/70 font-medium leading-relaxed pt-1">
+                        Al confirmar esta acción, tu perfil, todos tus datos personales, publicaciones, fotos de galería y registros de actividad serán borrados definitivamente de nuestra base de datos en cumplimiento con las directivas de privacidad (RGPD / App Store / Google Play). Esta acción es <strong className="text-error font-bold">irreversible</strong>.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setDeleteConfirmInput("");
+                      setShowDeleteConfirmModal(true);
+                    }}
+                    className="w-full py-3.5 lg:py-5 bg-error text-white rounded-xl lg:rounded-2xl font-black uppercase tracking-widest text-[9px] lg:text-xs shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    Eliminar cuenta y datos permanentemente
+                  </button>
+
+                  {/* Confirmation Modal */}
+                  {showDeleteConfirmModal && (
+                    <div className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                      <div className="bg-surface rounded-[2.5rem] p-6 lg:p-8 max-w-md w-full border border-error/30 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-3 text-error">
+                            <div className="p-3 bg-error/10 rounded-2xl">
+                              <AlertCircle className="w-6 h-6" />
+                            </div>
+                            <h3 className="text-lg font-display font-black text-on-surface">
+                              Confirmación requerida
+                            </h3>
+                          </div>
+                          <button
+                            onClick={() => setShowDeleteConfirmModal(false)}
+                            className="p-2 hover:bg-surface-container rounded-full text-on-surface-variant"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-xs text-on-surface-variant font-medium leading-relaxed">
+                            Para evitar borrados accidentales, confirma que deseas eliminar tu cuenta permanentemente escribiendo la palabra <strong className="text-error font-black">ELIMINAR</strong> a continuación:
+                          </p>
+                          <input
+                            type="text"
+                            value={deleteConfirmInput}
+                            onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                            placeholder='Escribe "ELIMINAR"'
+                            className="w-full px-4 py-3.5 bg-surface-container-low rounded-xl font-mono font-bold text-center border border-outline-variant/30 text-sm focus:outline-none focus:border-error"
+                          />
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setShowDeleteConfirmModal(false)}
+                            disabled={isDeletingAccount}
+                            className="flex-1 py-3.5 bg-surface-container-low hover:bg-surface-container text-on-surface-variant font-bold text-xs rounded-xl transition-all disabled:opacity-50"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={handleExecuteAccountDeletion}
+                            disabled={isDeletingAccount || deleteConfirmInput.trim().toUpperCase() !== "ELIMINAR"}
+                            className="flex-1 py-3.5 bg-error text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40 disabled:hover:scale-100 flex items-center justify-center gap-2"
+                          >
+                            {isDeletingAccount ? (
+                              <CustomLoader className="w-4 h-4" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                            Confirmar Borrado
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
         );
       case "notifications":
         return (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h3 className="text-xl font-display font-black text-on-surface tracking-tight">
-                Notificaciones
-              </h3>
-              <p className="text-[10px] text-on-surface-variant/60 font-medium">
-                Gestiona tus preferencias.
-              </p>
+          <div 
+            className="space-y-4"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setActiveType(null)}
+                className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="space-y-1">
+                <h3 className="text-xl font-display font-black text-on-surface tracking-tight">
+                  Notificaciones
+                </h3>
+                <p className="text-[10px] text-on-surface-variant/60 font-medium">
+                  Gestiona tus preferencias.
+                </p>
+              </div>
             </div>
             <div className="flex flex-col gap-2">
               {["Email", "Push", "SMS"].map((type) => {
@@ -9250,16 +11782,28 @@ const SettingsModal = ({
 
       case "general":
         return (
-          <div className="space-y-6">
+          <div 
+            className="space-y-6"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             {!generalTab ? (
               <>
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
-                    Configuración General
-                  </h3>
-                  <p className="text-sm text-on-surface-variant/60">
-                    Gestiona tu documentación y datos profesionales.
-                  </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setActiveType(null)}
+                    className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div className="space-y-1">
+                    <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
+                      Área Personal
+                    </h3>
+                    <p className="text-sm text-on-surface-variant/60">
+                      Gestiona tu documentación y datos profesionales.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -9323,13 +11867,13 @@ const SettingsModal = ({
                 </div>
               </>
             ) : (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-8 lg:pt-16">
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-2 lg:pt-16 pb-4 lg:pb-0">
                 {/* Back Button */}
                 <button
                   onClick={() => setGeneralTab(null)}
-                  className="absolute -top-2 -left-2 lg:-left-16 lg:top-0 p-3 hover:bg-surface-container-low rounded-2xl text-on-surface-variant/40 hover:text-on-surface transition-all"
+                  className="flex items-center gap-2 mb-4 p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant text-xs font-bold transition-all"
                 >
-                  <ArrowLeft className="w-6 h-6" />
+                  <ArrowLeft className="w-5 h-5" /> Volver a Área Personal
                 </button>
                 {user && generalTab === "personal" && (
                   <div className="space-y-3 lg:space-y-4 w-full">
@@ -9339,8 +11883,9 @@ const SettingsModal = ({
                           Nombre de Usuario
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5 disabled:opacity-50 disabled:cursor-not-allowed"
                           value={user.username || ""}
+                          disabled={true}
                           onChange={(e) =>
                             setUser({ ...user, username: e.target.value })
                           }
@@ -9348,10 +11893,15 @@ const SettingsModal = ({
                       </div>
                       <div className="space-y-1">
                         <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
-                          Nombre
+                          Nombre *
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.firstName?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
                           value={user.firstName || ""}
                           onChange={(e) =>
                             setUser({ ...user, firstName: e.target.value })
@@ -9360,10 +11910,15 @@ const SettingsModal = ({
                       </div>
                       <div className="space-y-1">
                         <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
-                          1º Apellido
+                          1º Apellido *
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.lastName1?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
                           value={user.lastName1 || ""}
                           onChange={(e) =>
                             setUser({ ...user, lastName1: e.target.value })
@@ -9384,13 +11939,37 @@ const SettingsModal = ({
                       </div>
                       <div className="space-y-1">
                         <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
-                          DNI / NIE
+                          DNI / NIE *
                         </label>
                         <input
-                          className="w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm border border-outline-variant/5"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.documentId?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
                           value={user.documentId || ""}
                           onChange={(e) =>
                             setUser({ ...user, documentId: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] lg:text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-2">
+                          Teléfono *
+                        </label>
+                        <input
+                          type="tel"
+                          placeholder="+34 600 000 000"
+                          className={cn(
+                            "w-full px-5 py-4 bg-surface-container rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all text-[#1a1a1a] shadow-sm",
+                            hasAttemptedSave && !user.phoneNumber?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/5"
+                          )}
+                          value={user.phoneNumber || ""}
+                          onChange={(e) =>
+                            setUser({ ...user, phoneNumber: e.target.value })
                           }
                         />
                       </div>
@@ -9398,7 +11977,7 @@ const SettingsModal = ({
 
                     <div className="p-6 lg:p-8 bg-surface-container-low rounded-3xl lg:rounded-[2rem] space-y-4 border border-outline-variant/5">
                       <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em] px-2 mb-2">
-                        Dirección de contacto
+                        Dirección de contacto *
                       </p>
                       <div className="flex flex-col gap-4">
                         <select
@@ -9414,15 +11993,22 @@ const SettingsModal = ({
                             })
                           }
                         >
-                          <option>Calle</option>
-                          <option>Av. de</option>
-                          <option>Plaza de</option>
-                          <option>Pasaje</option>
-                          <option>Camino</option>
+                          <option value="Calle">Calle</option>
+                          <option value="Avenida">Avenida</option>
+                          <option value="Plaza">Plaza</option>
+                          <option value="Camino">Camino</option>
+                          <option value="Carretera">Carretera</option>
+                          <option value="Paseo">Paseo</option>
+                          <option value="Travesía">Travesía</option>
                         </select>
                         <input
-                          className="w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm transition-all"
-                          placeholder="Nombre de la vía"
+                          className={cn(
+                            "w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm transition-all",
+                            hasAttemptedSave && !user.address?.streetName?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/10"
+                          )}
+                          placeholder="Nombre de la vía *"
                           value={user.address?.streetName || ""}
                           onChange={(e) =>
                             setUser({
@@ -9438,8 +12024,13 @@ const SettingsModal = ({
                       <div className="flex flex-col gap-4">
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                           <input
-                            placeholder="Nº"
-                            className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                            placeholder="Nº *"
+                            className={cn(
+                              "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                              hasAttemptedSave && !user.address?.number?.trim()
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : "border border-outline-variant/10"
+                            )}
                             value={user.address?.number || ""}
                             onChange={(e) =>
                               setUser({
@@ -9494,8 +12085,13 @@ const SettingsModal = ({
                             }
                           />
                           <input
-                            placeholder="CP"
-                            className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                            placeholder="CP *"
+                            className={cn(
+                              "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                              hasAttemptedSave && !user.address?.postalCode?.trim()
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : "border border-outline-variant/10"
+                            )}
                             value={user.address?.postalCode || ""}
                             onChange={(e) =>
                               setUser({
@@ -9509,8 +12105,13 @@ const SettingsModal = ({
                           />
                         </div>
                         <input
-                          placeholder="Localidad"
-                          className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                          placeholder="Localidad *"
+                          className={cn(
+                            "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                            hasAttemptedSave && !user.address?.locality?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/10"
+                          )}
                           value={user.address?.locality || ""}
                           onChange={(e) =>
                             setUser({
@@ -9523,8 +12124,13 @@ const SettingsModal = ({
                           }
                         />
                         <input
-                          placeholder="Provincia"
-                          className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                          placeholder="Provincia *"
+                          className={cn(
+                            "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                            hasAttemptedSave && !user.address?.province?.trim()
+                              ? "border-red-500 ring-1 ring-red-500"
+                              : "border border-outline-variant/10"
+                          )}
                           value={user.address?.province || ""}
                           onChange={(e) =>
                             setUser({
@@ -9587,12 +12193,17 @@ const SettingsModal = ({
                       <div className="space-y-6">
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                            Nombre Fiscal / Empresa
+                            Nombre Fiscal / Empresa *
                           </label>
                           <input
-                            className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-                            value={user.professionalInfo?.billing.name || ""}
-                            placeholder="Razón Social Completa"
+                            className={cn(
+                              "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
+                              hasAttemptedSave && !user.professionalInfo?.billing?.name?.trim()
+                                ? "border-red-500 ring-1 ring-red-500"
+                                : "border border-outline-variant/10"
+                            )}
+                            value={user.professionalInfo?.billing?.name || ""}
+                            placeholder="Razón Social Completa *"
                             onChange={(e) => {
                               if (!user) return;
                               const currentInfo = user.professionalInfo || {
@@ -9606,7 +12217,7 @@ const SettingsModal = ({
                                 professionalInfo: {
                                   ...currentInfo,
                                   billing: {
-                                    ...currentInfo.billing,
+                                    ...(currentInfo.billing || EMPTY_BILLING),
                                     name: e.target.value,
                                   },
                                 },
@@ -9618,14 +12229,19 @@ const SettingsModal = ({
                         <div className="flex flex-col gap-4">
                           <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                              CIF / NIF Fiscal
+                              CIF / NIF Fiscal *
                             </label>
                             <input
-                              className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
+                              className={cn(
+                                "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
+                                hasAttemptedSave && !user.professionalInfo?.billing?.documentId?.trim()
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : "border border-outline-variant/10"
+                              )}
                               value={
-                                user.professionalInfo?.billing.documentId || ""
+                                user.professionalInfo?.billing?.documentId || ""
                               }
-                              placeholder="B-12345678"
+                              placeholder="B-12345678 *"
                               onChange={(e) => {
                                 if (!user) return;
                                 const currentInfo = user.professionalInfo || {
@@ -9639,7 +12255,7 @@ const SettingsModal = ({
                                   professionalInfo: {
                                     ...currentInfo,
                                     billing: {
-                                      ...currentInfo.billing,
+                                      ...(currentInfo.billing || EMPTY_BILLING),
                                       documentId: e.target.value,
                                     },
                                   },
@@ -9649,12 +12265,17 @@ const SettingsModal = ({
                           </div>
                           <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                              Teléfono de Facturación
+                              Teléfono de Facturación *
                             </label>
                             <input
-                              className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none border border-outline-variant/10 focus:ring-2 focus:ring-primary/20 transition-all shadow-sm"
-                              value={user.professionalInfo?.billing.phone || ""}
-                              placeholder="+34 600 000 000"
+                              className={cn(
+                                "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none focus:ring-2 focus:ring-primary/20 transition-all shadow-sm",
+                                hasAttemptedSave && !user.professionalInfo?.billing?.phone?.trim()
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : "border border-outline-variant/10"
+                              )}
+                              value={user.professionalInfo?.billing?.phone || ""}
+                              placeholder="+34 600 000 000 *"
                               onChange={(e) => {
                                 if (!user) return;
                                 const currentInfo = user.professionalInfo || {
@@ -9715,7 +12336,7 @@ const SettingsModal = ({
                               <select
                                 className="w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.streetType || "Calle"
                                 }
                                 onChange={(e) => {
@@ -9743,13 +12364,21 @@ const SettingsModal = ({
                                 <option value="Calle">Calle</option>
                                 <option value="Avenida">Avenida</option>
                                 <option value="Plaza">Plaza</option>
-                                <option value="Pasaje">Pasaje</option>
+                                <option value="Camino">Camino</option>
+                                <option value="Carretera">Carretera</option>
+                                <option value="Paseo">Paseo</option>
+                                <option value="Travesía">Travesía</option>
                               </select>
                               <input
-                                className="w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
-                                placeholder="Nombre de la vía"
+                                className={cn(
+                                  "w-full px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.streetName?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
+                                placeholder="Nombre de la vía *"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.streetName || ""
                                 }
                                 onChange={(e) => {
@@ -9777,10 +12406,15 @@ const SettingsModal = ({
                             </div>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                               <input
-                                placeholder="Nº"
-                                className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                                placeholder="Nº *"
+                                className={cn(
+                                  "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.number?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.number || ""
                                 }
                                 onChange={(e) => {
@@ -9809,7 +12443,7 @@ const SettingsModal = ({
                                 placeholder="Bloque"
                                 className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.block || ""
                                 }
                                 onChange={(e) => {
@@ -9838,7 +12472,7 @@ const SettingsModal = ({
                                 placeholder="Planta"
                                 className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.floor || ""
                                 }
                                 onChange={(e) => {
@@ -9867,7 +12501,7 @@ const SettingsModal = ({
                                 placeholder="Puerta"
                                 className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.door || ""
                                 }
                                 onChange={(e) => {
@@ -9895,10 +12529,15 @@ const SettingsModal = ({
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                               <input
-                                placeholder="CP"
-                                className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                                placeholder="CP *"
+                                className={cn(
+                                  "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.postalCode?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.postalCode || ""
                                 }
                                 onChange={(e) => {
@@ -9924,10 +12563,15 @@ const SettingsModal = ({
                                 }}
                               />
                               <input
-                                placeholder="Localidad"
-                                className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                                placeholder="Localidad *"
+                                className={cn(
+                                  "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                  hasAttemptedSave && !user.professionalInfo?.billing?.address?.locality?.trim()
+                                    ? "border-red-500 ring-1 ring-red-500"
+                                    : "border border-outline-variant/10"
+                                )}
                                 value={
-                                  user.professionalInfo?.billing.address
+                                  user.professionalInfo?.billing?.address
                                     ?.locality || ""
                                 }
                                 onChange={(e) => {
@@ -9954,10 +12598,15 @@ const SettingsModal = ({
                               />
                             </div>
                             <input
-                              placeholder="Provincia"
-                              className="px-6 py-4 bg-white rounded-2xl font-bold outline-none border border-outline-variant/10 shadow-sm"
+                              placeholder="Provincia *"
+                              className={cn(
+                                "px-6 py-4 bg-white rounded-2xl font-bold outline-none shadow-sm",
+                                hasAttemptedSave && !user.professionalInfo?.billing?.address?.province?.trim()
+                                  ? "border-red-500 ring-1 ring-red-500"
+                                  : "border border-outline-variant/10"
+                              )}
                               value={
-                                user.professionalInfo?.billing.address
+                                user.professionalInfo?.billing?.address
                                   ?.province || ""
                               }
                               onChange={(e) => {
@@ -10293,9 +12942,14 @@ const SettingsModal = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {proPlans.map((plan) => {
                         const isRecommended = plan.isRecommended;
+                        let mappedUserPlan = user?.professionalInfo?.plan;
+                        if (mappedUserPlan === "Premium Pro") mappedUserPlan = "premium-pro";
+                        else if (mappedUserPlan === "Premium") mappedUserPlan = "premium";
+                        else if (mappedUserPlan === "Pro") mappedUserPlan = "medium";
+
                         const isCurrent =
-                          user?.professionalInfo?.plan === plan.id ||
-                          (!user?.professionalInfo?.plan &&
+                          mappedUserPlan === plan.id ||
+                          (!mappedUserPlan &&
                             plan.id === "basic");
                         const displayPrice = isQuarterlyView ? plan.priceQuarterly : plan.price;
                         const displayComparePrice = isQuarterlyView ? plan.comparePriceQuarterly : plan.comparePrice;
@@ -10433,58 +13087,44 @@ const SettingsModal = ({
                                   } else if (!isCurrent) {
                                     const now = new Date();
                                     const cycle = plan.id === "basic" ? "monthly" : (isQuarterlyView ? "quarterly" : "monthly");
-                                    const endDate = new Date(now);
-                                    if (cycle === "quarterly") {
-                                      endDate.setMonth(endDate.getMonth() + 3);
-                                    } else {
-                                      endDate.setMonth(endDate.getMonth() + 1);
-                                    }
-
+                                    
                                     if (plan.id !== "basic") {
                                       const displayPrice = isQuarterlyView ? plan.priceQuarterly : plan.price;
                                       try {
-                                        const res = await fetch("/api/create-checkout-session", {
-                                          method: "POST",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({
-                                            planId: plan.id,
-                                            planName: plan.name,
-                                            price: displayPrice,
-                                            cycle: cycle,
-                                            userId: user.id
-                                          })
+                                        const res = await processStripePayment({
+                                          planId: plan.id,
+                                          planName: plan.name,
+                                          price: displayPrice,
+                                          cycle: cycle,
+                                          userId: user.id
                                         });
-                                        const data = await res.json();
-                                        if (data.url) {
-                                          window.location.href = data.url;
-                                        } else {
-                                          throw new Error(data.error || "Error al crear sesión de pago");
+                                        if (!res.success) {
+                                          alert(res.error || "No se pudo iniciar el proceso de pago.");
                                         }
-                                      } catch (err: any) {
-                                        console.error("Checkout error:", err);
-                                        if (err.message === "Failed to fetch") {
-                                          alert("Error de conexión. Es posible que el servidor se esté reiniciando. Por favor, inténtalo de nuevo en unos segundos.");
-                                        } else {
-                                          alert("Error al iniciar el proceso de pago: " + (err.message || ""));
-                                        }
+                                      } catch (e: any) {
+                                        alert("Error de pago: " + (e.message || e));
                                       }
                                       return;
                                     }
-                                    
+
+
+                                    const endDate = new Date(now);
+                                    endDate.setMonth(endDate.getMonth() + 1);
+
                                     let newHistory = user?.professionalInfo?.planHistory || [];
                                     if (user?.professionalInfo?.plan && user?.professionalInfo?.plan !== "basic") {
-                                        const prevPlanName = proPlans.find((p: any) => p.id === user.professionalInfo?.plan)?.name || user.professionalInfo.plan;
-                                        newHistory = [
-                                            ...newHistory,
-                                            {
-                                                planId: user.professionalInfo.plan,
-                                                planName: prevPlanName,
-                                                startDate: user.professionalInfo.planStartDate || now.toISOString().split("T")[0],
-                                                endDate: now.toISOString().split("T")[0],
-                                                status: 'expired',
-                                                paymentMethod: user.professionalInfo.planPaymentMethod || "Ninguno"
-                                            }
-                                        ];
+                                      const prevPlanName = proPlans.find((p: any) => p.id === user.professionalInfo?.plan)?.name || user.professionalInfo.plan;
+                                      newHistory = [
+                                        ...newHistory,
+                                        {
+                                          planId: user.professionalInfo.plan,
+                                          planName: prevPlanName,
+                                          startDate: user.professionalInfo.planStartDate || now.toISOString().split("T")[0],
+                                          endDate: now.toISOString().split("T")[0],
+                                          status: 'expired',
+                                          paymentMethod: user.professionalInfo.planPaymentMethod || "Ninguno"
+                                        }
+                                      ];
                                     }
 
                                     const updatedUser = {
@@ -10500,7 +13140,7 @@ const SettingsModal = ({
                                         planEndDate: endDate.toISOString().split("T")[0],
                                         planStatus: "active",
                                         planBillingCycle: cycle,
-                                        planAutoRenew: plan.id !== "basic" ? true : false,
+                                        planAutoRenew: false,
                                         planHistory: newHistory,
                                       },
                                     } as UserProfile;
@@ -10910,105 +13550,10 @@ const SettingsModal = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-end lg:items-center justify-center lg:p-4 bg-black/60 backdrop-blur-md"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 100 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="w-full max-w-4xl bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] lg:h-[700px] h-full lg:ambient-shadow relative overflow-hidden flex flex-col lg:flex-row shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Sidebar / Mobile Header */}
-        <div className="lg:w-72 w-full bg-white lg:bg-surface-container-low border-b lg:border-b-0 lg:border-r border-outline-variant/10 lg:p-10 p-5 flex flex-col shrink-0 relative transition-all duration-300">
-          <div className="flex items-center justify-between lg:mb-12 mb-0 lg:px-0 px-1 shrink-0 relative z-20">
-            <div className="flex items-center gap-3">
-              <AnimatePresence mode="wait">
-                {activeType && window.innerWidth < 1024 ? (
-                  <motion.button
-                    key="back-button"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    onClick={() => setActiveType(null)}
-                    className="lg:hidden p-2.5 bg-primary/10 rounded-2xl text-primary transition-all active:scale-90 flex items-center gap-2 group"
-                  >
-                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                      Volver
-                    </span>
-                  </motion.button>
-                ) : (
-                  <motion.div
-                    key="settings-title"
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 10 }}
-                    className="flex items-center gap-2.5"
-                  >
-                    <div className="primary-gradient p-2 rounded-xl shadow-lg shadow-primary/20">
-                      <Settings className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-xl lg:text-2xl font-display font-black tracking-tight text-on-surface">
-                      Configuración
-                    </span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            <button
-              onClick={onClose}
-              className="lg:p-2 p-2.5 bg-surface-container-low lg:bg-transparent rounded-full text-on-surface-variant/20 hover:text-primary transition-all active:scale-95 lg:hidden"
-            >
-              <X className="w-6 h-6" />
-            </button>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {activeType && window.innerWidth < 1024 && (
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="lg:hidden mb-4 px-1"
-              >
-                <div className="flex items-center gap-2 mb-0.5">
-                  <div className="h-[2px] w-5 bg-primary rounded-full" />
-                  <h2 className="text-xl font-display font-black text-on-surface tracking-tight">
-                    {menuItems.find((i) => i.id === activeType)?.label}
-                  </h2>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <nav className="hidden lg:flex flex-col space-y-2 lg:overflow-y-auto no-scrollbar pb-2 lg:pb-0 relative z-10 scroll-smooth">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveType(item.id)}
-                className={cn(
-                  "flex items-center gap-2 lg:gap-4 px-5 lg:px-6 py-3 lg:py-4 rounded-2xl text-[10px] lg:text-sm font-black uppercase tracking-widest lg:normal-case lg:font-bold transition-all whitespace-nowrap",
-                  activeType === item.id
-                    ? "bg-primary text-white shadow-xl shadow-primary/20"
-                    : "bg-white lg:bg-transparent text-on-surface-variant/60 hover:bg-surface-container-high hover:text-primary border border-outline-variant/10 lg:border-transparent lg:shadow-none",
-                )}
-              >
-                <item.icon className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" />
-                {item.label}
-              </button>
-            ))}
-          </nav>
-
-          {/* Removed redundant "Cerrar" button */}
-        </div>
+    <div className="w-full h-full bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col">
 
         {/* Content */}
-        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent">
+        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-24 lg:pb-16">
           <div className="lg:hidden h-px w-full bg-outline-variant/10" />
           <AnimatePresence>
             {showSaveToast && (
@@ -11024,14 +13569,8 @@ const SettingsModal = ({
             )}
           </AnimatePresence>
 
-          <button
-            onClick={onClose}
-            className="hidden lg:block absolute top-10 right-10 p-3 hover:bg-surface-container-low rounded-full transition-colors text-on-surface-variant/20 hover:text-on-surface"
-          >
-            <X className="w-6 h-6" />
-          </button>
           <AnimatePresence mode="wait" initial={false}>
-            <motion.div
+              <motion.div
               key={activeType || "menu"}
               initial={{ opacity: 0, y: 10, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -11042,13 +13581,12 @@ const SettingsModal = ({
                 damping: 30,
                 opacity: { duration: 0.2 },
               }}
-              className="h-full p-4 lg:p-0"
+              className="h-full p-4 lg:p-0 pb-4 lg:pb-0"
             >
               {renderContent()}
             </motion.div>
           </AnimatePresence>
         </div>
-      </motion.div>
     </div>
   );
 };
@@ -11098,6 +13636,110 @@ const SettingsOptions = ({
           <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
         </button>
       ))}
+    </div>
+  );
+};
+
+const CategoriesBar = () => {
+  const navigate = useNavigate();
+  const [isOpen, setIsOpen] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (isOpen) {
+      timeoutRef.current = setTimeout(() => {
+        setIsOpen(false);
+      }, 3000);
+    }
+  };
+
+  const popularCategories = [
+    "Limpieza",
+    "Montaje de muebles",
+    "Electricidad",
+  ];
+
+  return (
+    <div className="hidden lg:block bg-surface-container-lowest border-b border-outline-variant">
+      <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center gap-6 py-3">
+          <div
+            className="relative"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className={cn(
+                "flex items-center gap-2 text-[11px] font-black uppercase tracking-widest transition-colors",
+                isOpen
+                  ? "text-primary"
+                  : "text-on-surface-variant/60 hover:text-primary",
+              )}
+            >
+              <Menu className="w-3.5 h-3.5" />
+              Todas las categorías
+              <ChevronDown
+                className={cn(
+                  "w-3 h-3 transition-transform",
+                  isOpen && "rotate-180",
+                )}
+              />
+            </button>
+
+            <AnimatePresence>
+              {isOpen && (
+                <motion.div
+                  key="categories-dropdown"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                  className="absolute top-full left-0 mt-2 w-64 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant p-3 z-50"
+                >
+                  <div className="grid grid-cols-1 gap-1">
+                    {CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => {
+                          navigate(`/explorar?category=${encodeURIComponent(cat)}`);
+                          setIsOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-surface-container-low rounded-xl text-xs font-bold text-on-surface-variant hover:text-primary transition-all flex items-center justify-between group"
+                      >
+                        {cat}
+                        <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="h-3 w-[1px] bg-outline-variant"></div>
+
+          <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
+            {popularCategories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => navigate(`/explorar?category=${encodeURIComponent(cat)}`)}
+                className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant/50 hover:text-primary transition-colors whitespace-nowrap"
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -11182,34 +13824,49 @@ const Navbar = ({
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-50 glass-nav border-b border-outline-variant h-14 sm:h-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
+      <nav
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest h-14 sm:h-16 hidden lg:flex lg:bg-white lg:border-b lg:border-outline-variant",
+        )}
+      >
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-full">
           <div className="flex justify-between h-full items-center gap-4">
             {/* Desktop/Tablet Logo */}
-            <div className="hidden lg:flex items-center gap-8">
+            <div className="hidden lg:flex items-center gap-8 shrink-0">
               <Link to="/" className="flex items-center gap-3">
-                {config.logoImageUrl ? (
-                  <img src={config.logoImageUrl} alt="App Logo" className="h-8 md:h-10 w-auto object-contain" />
-                ) : (
-                  <>
-                    <div className="primary-gradient p-2 rounded-xl shadow-sm">
-                      <Briefcase className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                    </div>
-                    <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
-                      {config.logoText1}<span className="text-primary">{config.logoText2}</span>
-                    </span>
-                  </>
-                )}
+                <img src="/logo.png?v=3" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
+                  {config.logoText1}<span className="text-primary">{config.logoText2}</span>
+                </span>
               </Link>
             </div>
 
+            {/* Web Search Bar (Navbar) */}
+            <div className="hidden lg:flex flex-1 min-w-0 items-center">
+              <div className="w-full max-w-xl mx-auto flex items-center bg-surface-container-low rounded-full px-4 py-2 border border-outline-variant/10 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                <Search className="text-on-surface-variant/30 w-4 h-4 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Busca un profesional cerca de ti"
+                  className="flex-1 bg-transparent border-none outline-none text-xs font-medium placeholder:text-on-surface-variant/20 min-w-0"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      navigate(`/explorar?q=${search}`);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
             {/* Mobile Search Bar (Top) */}
-            <div className="flex lg:hidden flex-1 items-center gap-3">
+            <div className="hidden">
               <div className="flex-1 flex items-center bg-surface-container-low rounded-full px-4 py-2 border border-outline-variant/10 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
                 <Search className="text-on-surface-variant/30 w-4 h-4 mr-2" />
                 <input
                   type="text"
-                  placeholder="¿Qué servicio buscas?"
+                  placeholder="Busca un profesional cerca de ti"
                   className="flex-1 bg-transparent border-none outline-none text-xs font-medium placeholder:text-on-surface-variant/20"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -11262,7 +13919,7 @@ const Navbar = ({
                         Buzón
                       </span>
                     </Link>
-                    {user?.email === "daviidjg1991@gmail.com" && (
+                    {(user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") && location.pathname !== "/admin" && (
                       <Link
                         to="/admin"
                         className="flex flex-col items-center gap-1 text-on-surface-variant/60 hover:text-primary transition-all group"
@@ -11290,9 +13947,7 @@ const Navbar = ({
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full primary-gradient flex items-center justify-center text-white font-bold shadow-sm group-hover:scale-110 transition-transform text-xs">
-                          {(user?.username || user?.firstName || "?").charAt(0)}
-                        </div>
+                        <img src="/default-avatar.svg" alt="Avatar" className="w-8 h-8 rounded-full object-cover shadow-sm group-hover:scale-110 transition-transform" />
                       )}
                       <span className="text-[9px] font-black uppercase tracking-widest">
                         Tú
@@ -11315,7 +13970,7 @@ const Navbar = ({
                               {user?.username || user?.firstName || "Usuario"}
                             </div>
                             <div className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
-                              ID: {user?.customId}
+                              ID: {user?.username ? "@" + user.username : user?.customId}
                             </div>
                             <div className="text-[10px] text-on-surface-variant/40 uppercase tracking-widest font-bold mt-1">
                               {user?.email || ""}
@@ -11394,18 +14049,7 @@ const Navbar = ({
                               Idioma
                             </button>
 
-                            {user?.email === "daviidjg1991@gmail.com" && (
-                              <button
-                                onClick={() => {
-                                  navigate("/admin");
-                                  setActiveDropdown(null);
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-container-low rounded-xl text-sm font-bold text-on-surface-variant hover:text-primary transition-all"
-                              >
-                                <ShieldCheck className="w-4 h-4" />
-                                Panel de Administración
-                              </button>
-                            )}
+
 
                             <div className="mt-4 pt-4 border-t border-outline-variant">
                               <button
@@ -11552,21 +14196,32 @@ const ListingCard = ({
   isFavorite,
   onToggleFavorite,
   onReactivate,
+  onDelete,
+  onEdit,
+  user,
 }: {
   listing: JobListing;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
   key?: string;
 }) => {
   const navigate = useNavigate();
   if (!listing || !listing.author) return null;
 
-  const isExpired = listing.expiresAt
-    ? new Date(listing.expiresAt) < new Date()
-    : false;
+  const isOwner = !!(
+    user &&
+    listing.author &&
+    ((user.id && listing.author.id && user.id === listing.author.id) ||
+      (user.email && listing.author.email && user.email === listing.author.email))
+  );
+
+  const isExpired = checkIsListingExpired(listing, listing.author);
   const isInactive =
-    listing.status === "inactive" || listing.status === "disabled" || isExpired;
+    listing.status === "inactive" || listing.status === "disabled" || listing.status === "expired" || isExpired;
 
   return (
     <motion.div
@@ -11580,12 +14235,14 @@ const ListingCard = ({
       )}
     >
       <Link
-        to={`/anuncio/${listing.id}`}
+        to={`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}/${createSlug(listing.title)}`}
         className="relative block aspect-[4/3] overflow-hidden"
       >
         <img
           src={
+            listing.headerImage ||
             listing.imageUrl ||
+            (listing.images && listing.images[0]) ||
             `https://picsum.photos/seed/${listing.id}/800/600`
           }
           alt={listing.title}
@@ -11597,10 +14254,10 @@ const ListingCard = ({
         />
 
         {/* Top-left label */}
-        <div className="absolute top-3 left-3 sm:top-4 sm:left-4 flex flex-col gap-2">
+        <div className="absolute top-2 left-2 sm:top-4 sm:left-4 flex flex-col gap-1.5 sm:gap-2">
           <span
             className={cn(
-              "px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md",
+              "px-2 sm:px-4 py-0.5 sm:py-1.5 rounded-full text-[7px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md",
               listing.type === "offer"
                 ? "bg-primary text-white"
                 : "bg-surface-container-highest text-on-surface-variant",
@@ -11609,16 +14266,16 @@ const ListingCard = ({
             {listing.type === "offer" ? "Ofrezco" : "Busco"}
           </span>
           {isInactive && (
-            <span className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-orange-500 text-white">
-              {listing.status === "disabled" || listing.status === "inactive"
-                ? "DESACTIVADO"
-                : isExpired
-                  ? "CADUCADO"
+            <span className="px-2 sm:px-4 py-0.5 sm:py-1.5 rounded-full text-[7px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-orange-500 text-white">
+              {listing.status === "expired" || isExpired
+                ? "CADUCADO"
+                : listing.status === "disabled" || listing.status === "inactive"
+                  ? "DESACTIVADO"
                   : "INACTIVO"}
             </span>
           )}
           {listing.status === "deleted" && (
-            <span className="px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-red-500 text-white">
+            <span className="px-2 sm:px-4 py-0.5 sm:py-1.5 rounded-full text-[7px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg backdrop-blur-md bg-red-500 text-white">
               ELIMINADO
             </span>
           )}
@@ -11626,11 +14283,11 @@ const ListingCard = ({
 
         {/* Top-right price */}
         {listing.price !== undefined && (
-          <div className="absolute top-3 right-3 sm:top-4 sm:right-4">
-            <div className="bg-white/90 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl shadow-lg">
-              <span className="text-primary font-black text-sm sm:text-base">
+          <div className="absolute top-2 right-2 sm:top-4 sm:right-4">
+            <div className="bg-white/90 backdrop-blur-md px-1.5 sm:px-3 py-0.5 sm:py-1.5 rounded-lg sm:rounded-2xl shadow-lg">
+              <span className="text-primary font-black text-xs sm:text-base">
                 {listing.price}€
-                <span className="text-[10px] opacity-60 font-bold">
+                <span className="text-[8px] sm:text-[10px] opacity-60 font-bold">
                   /
                   {listing.unit === "hour"
                     ? "h"
@@ -11643,52 +14300,49 @@ const ListingCard = ({
           </div>
         )}
       </Link>
-      <div className="p-4 sm:p-5 flex flex-col flex-1">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+      <div className="p-3 sm:p-5 flex flex-col flex-1">
+        <div className="flex items-start justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-1 min-w-0">
             <div
-              className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-surface-container-low shadow-sm cursor-pointer hover:border-primary transition-colors"
+              className="w-8 h-8 sm:w-12 sm:h-12 rounded-full overflow-hidden flex-shrink-0 border-2 border-surface-container-low shadow-sm cursor-pointer hover:border-primary transition-colors"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                navigate(`/perfil/${listing.author?.id || ""}`);
+                navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`);
               }}
             >
-              {listing.author?.photoUrl ? (
-                <img
-                  src={listing.author.photoUrl}
-                  alt={listing.author.name || "Autor"}
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="w-full h-full primary-gradient flex items-center justify-center text-white font-bold text-lg">
-                  {(listing.author?.name || "?").charAt(0)}
-                </div>
-              )}
+              <AvatarDisplay 
+                author={listing.author} 
+                className="w-full h-full object-cover" 
+                referrerPolicy="no-referrer" 
+              />
             </div>
             <div className="flex flex-col min-w-0">
-              <Link to={`/anuncio/${listing.id}`}>
-                <h3 className="text-sm sm:text-base font-display font-black text-on-surface hover:text-primary transition-colors line-clamp-1 leading-tight">
+              <Link to={`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}/${createSlug(listing.title)}`}>
+                <h3 className="text-xs sm:text-base font-display font-black text-on-surface hover:text-primary transition-colors line-clamp-1 leading-tight">
                   {listing.title || "Sin título"}
                 </h3>
               </Link>
-              <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 flex-wrap">
                 <span
-                  className="text-[10px] sm:text-[11px] font-bold text-on-surface-variant/80 cursor-pointer hover:text-primary transition-colors truncate"
+                  className="text-[9px] sm:text-[11px] font-bold text-on-surface-variant/80 cursor-pointer hover:text-primary transition-colors truncate"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    navigate(`/perfil/${listing.author?.id || ""}`);
+                    navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`);
                   }}
                 >
-                  {listing.author.name || "Anónimo"}
+                  <UsernameDisplay author={listing.author} />
                 </span>
                 {listing.author?.isVerified === true && (
                   <div className="bg-amber-500 rounded-full p-0.5 shrink-0">
                     <ShieldCheck className="w-2.5 h-2.5 text-white stroke-[3px]" />
                   </div>
                 )}
+                <div className="flex items-center gap-0.5 sm:gap-1 ml-0.5 sm:ml-1 text-amber-500 font-bold text-[8px] sm:text-[10px] bg-amber-500/10 px-1 sm:px-1.5 py-0.5 rounded-md">
+                  <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-amber-500" />
+                  {Number(listing.author?.rating || 0).toFixed(1)}
+                </div>
               </div>
             </div>
           </div>
@@ -11699,26 +14353,29 @@ const ListingCard = ({
               e.stopPropagation();
               onToggleFavorite(listing.id);
             }}
+            disabled={!auth.currentUser}
             className={cn(
-              "p-2 sm:p-2.5 rounded-full transition-all shadow-sm flex-shrink-0",
-              isFavorite
-                ? "bg-primary/10 text-primary"
-                : "bg-surface-container-low text-on-surface-variant/40 hover:bg-primary/5 hover:text-primary",
+              "p-1.5 sm:p-2.5 rounded-full transition-all shadow-sm flex-shrink-0",
+              !auth.currentUser
+                ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                : isFavorite
+                  ? "bg-primary/10 text-primary"
+                  : "bg-surface-container-low text-on-surface-variant/40 hover:bg-primary/5 hover:text-primary",
             )}
           >
             <Heart
               className={cn(
-                "w-4 h-4 sm:w-5 sm:h-5",
+                "w-3.5 h-3.5 sm:w-5 sm:h-5",
                 isFavorite && "fill-primary",
               )}
             />
           </button>
         </div>
 
-        <div className="flex items-center gap-3 mt-4">
-          <div className="flex items-center text-[9px] sm:text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-wider truncate flex-1">
+        <div className="flex items-center gap-2 sm:gap-3 mt-2.5 sm:mt-4">
+          <div className="flex items-center text-[8px] sm:text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-wider truncate flex-1">
             <MapPin className="w-3 h-3 mr-1 shrink-0" />
-            {listing.location || "Sin ubicación"}
+            {formatLocation(listing.location)}
           </div>
 
           {listing.type === "offer" &&
@@ -11737,130 +14394,55 @@ const ListingCard = ({
             )}
         </div>
 
-        {isInactive && onReactivate && (
-          <div className="mt-4 pt-4 border-t border-outline-variant/10">
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onReactivate(listing.id);
-              }}
-              className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              Reactivar Anuncio
-            </button>
+        {(isOwner || onReactivate || onDelete) && (
+          <div className="mt-4 pt-4 border-t border-outline-variant/10 flex flex-col gap-2">
+            {isOwner && onEdit && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onEdit(listing);
+                }}
+                className="w-full py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+                title="Editar tu anuncio"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                Editar
+              </button>
+            )}
+            <div className="flex items-center gap-2 w-full">
+              {isInactive && onReactivate && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onReactivate(listing.id);
+                  }}
+                  className="flex-1 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Reactivar Anuncio
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDelete(listing.id);
+                  }}
+                  className="flex-1 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+                  title="Borrar anuncio permanentemente"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Borrar
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
     </motion.div>
-  );
-};
-
-const CategorySubBar = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const navigate = useNavigate();
-
-  const handleMouseEnter = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (isOpen) {
-      timeoutRef.current = setTimeout(() => {
-        setIsOpen(false);
-      }, 3000);
-    }
-  };
-
-  const toggleDropdown = () => {
-    setIsOpen(!isOpen);
-  };
-
-  const popularCategories = [
-    "Limpieza",
-    "Montaje de muebles",
-    "Electricidad",
-    "Clases particulares",
-    "Cuidado de personas",
-    "Informática",
-  ];
-
-  return (
-    <div className="hidden lg:block bg-surface-container-lowest border-b border-outline-variant py-1.5 relative z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-6">
-        <div
-          className="relative"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
-          <button
-            onClick={toggleDropdown}
-            className={cn(
-              "flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-colors",
-              isOpen
-                ? "text-primary"
-                : "text-on-surface-variant/60 hover:text-primary",
-            )}
-          >
-            <Menu className="w-3.5 h-3.5" />
-            Todas las categorías
-            <ChevronDown
-              className={cn(
-                "w-3 h-3 transition-transform",
-                isOpen && "rotate-180",
-              )}
-            />
-          </button>
-
-          <AnimatePresence>
-            {isOpen && (
-              <motion.div
-                key="category-dropdown"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute top-full left-0 mt-2 w-64 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant p-3 z-50"
-              >
-                <div className="grid grid-cols-1 gap-1">
-                  {CATEGORIES.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => {
-                        navigate(`/explorar?category=${cat}`);
-                        setIsOpen(false);
-                      }}
-                      className="w-full text-left px-4 py-3 hover:bg-surface-container-low rounded-xl text-xs font-bold text-on-surface-variant hover:text-primary transition-all flex items-center justify-between group"
-                    >
-                      {cat}
-                      <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="h-3 w-[1px] bg-outline-variant"></div>
-
-        <div className="flex items-center gap-6 overflow-x-auto no-scrollbar">
-          {popularCategories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => navigate(`/explorar?category=${cat}`)}
-              className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 hover:text-primary transition-colors whitespace-nowrap"
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
   );
 };
 
@@ -11871,6 +14453,9 @@ const HomePage = ({
   favorites,
   onToggleFavorite,
   onReactivate,
+  onDelete,
+  onEdit,
+  user,
   search,
   setSearch,
 }: {
@@ -11878,6 +14463,9 @@ const HomePage = ({
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
   search: string;
   setSearch: (s: string) => void;
 }) => {
@@ -11886,6 +14474,45 @@ const HomePage = ({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  useEffect(() => {
+    const hasPromptedLocation = localStorage.getItem("GigeJob_location_prompted");
+    if (!hasPromptedLocation && "geolocation" in navigator) {
+      setIsLocationModalOpen(true);
+    }
+  }, []);
+
+  const handleConfirmLocationPermission = () => {
+    setIsLocationModalOpen(false);
+    localStorage.setItem("GigeJob_location_prompted", "true");
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (err) => {
+          console.warn("Could not get location", err);
+        }
+      );
+    }
+  };
+
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   useEffect(() => {
     const cat = searchParams.get("category");
@@ -11896,6 +14523,7 @@ const HomePage = ({
 
   const filteredListings = useMemo(() => {
     if (!Array.isArray(listings)) return [];
+    const blockedList = Array.isArray(user?.blockedUsers) ? user.blockedUsers : [];
     return listings.filter((l) => {
       if (
         !l ||
@@ -11905,17 +14533,28 @@ const HomePage = ({
         !l.author
       )
         return false;
-      const title = l.title || "";
-      const description = l.description || "";
-      const matchesSearch =
-        title.toLowerCase().includes(search.toLowerCase()) ||
-        description.toLowerCase().includes(search.toLowerCase());
+      if (blockedList.length > 0 && l.author && (blockedList.includes(l.author.id) || (l.author.email && blockedList.includes(l.author.email)))) {
+        return false;
+      }
+      const matchesSearch = isSearchMatch(search, l);
       const matchesTab = activeTab === "all" || l.type === activeTab;
       const matchesCategory =
         !selectedCategory || l.category === selectedCategory;
       return matchesSearch && matchesTab && matchesCategory;
+    }).sort((a, b) => {
+      if (userLocation) {
+        const distA = a.coordinates ? getDistance(userLocation.lat, userLocation.lng, a.coordinates.lat, a.coordinates.lng) : Infinity;
+        const distB = b.coordinates ? getDistance(userLocation.lat, userLocation.lng, b.coordinates.lat, b.coordinates.lng) : Infinity;
+        
+        if (distA !== distB) {
+          return distA - distB;
+        }
+      }
+      const dateA = new Date(a.createdAt || 0).getTime();
+      const dateB = new Date(b.createdAt || 0).getTime();
+      return dateB - dateA;
     });
-  }, [listings, search, activeTab, selectedCategory]);
+  }, [listings, search, activeTab, selectedCategory, userLocation, user?.blockedUsers]);
 
   const popularCategories = [
     { name: "Limpieza", icon: Sparkles, color: "bg-primary/5 text-primary" },
@@ -11938,80 +14577,70 @@ const HomePage = ({
     { name: "Informática", icon: Laptop, color: "bg-primary/5 text-primary" },
   ];
 
+  const handleRefresh = async () => {
+    window.location.reload();
+  };
+
   return (
-    <div className="min-h-screen bg-surface pb-20">
-      <CategorySubBar />
+    <>
+      <div className="min-h-screen bg-surface pb-36 md:pb-20 shrink-0">
       <div 
-        className="bg-surface-container-lowest pt-8 sm:pt-12 pb-12 sm:pb-20 relative bg-cover bg-center"
+        className="bg-surface-container-lowest pt-8 sm:pt-16 pb-12 sm:pb-16 relative bg-cover bg-center"
         style={config.homeImageUrl ? { backgroundImage: `url(${config.homeImageUrl})` } : {}}
       >
-        {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none" />}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <motion.h1
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
+        {config.homeImageUrl && <div className="absolute inset-0 bg-white/80 dark:bg-black/60 backdrop-blur-sm pointer-events-none z-0" />}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
+          <h1
             className="text-2xl sm:text-3xl md:text-5xl font-display font-black text-on-surface mb-3 tracking-tighter leading-tight drop-shadow-sm"
           >
             {config.homeTitle1} <br />{" "}
             <span className="text-primary">{config.homeTitle2}</span>
-          </motion.h1>
-          <p className="text-on-surface-variant text-sm sm:text-base max-w-xl mx-auto mb-6 sm:mb-8 font-medium opacity-80 drop-shadow-sm">
+          </h1>
+          <p className="text-on-surface-variant text-sm sm:text-base max-w-xl mx-auto font-medium opacity-80 drop-shadow-sm">
             {config.homeSubtitle}
           </p>
+        </div>
+      </div>
 
-          <div className="max-w-3xl mx-auto w-full">
-            <div className="relative flex items-center bg-surface-container-lowest rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
-              <Search className="ml-3 sm:ml-5 text-on-surface-variant/30 w-4 h-4 sm:w-5 sm:h-5" />
-              <input
-                type="text"
-                placeholder="¿Qué servicio necesitas?"
-                className="flex-1 px-3 sm:px-4 py-3 bg-transparent border-none outline-none text-sm sm:text-base font-medium placeholder:text-on-surface-variant/20"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    navigate(`/explorar?q=${search}`);
-                  }
-                }}
-              />
-              <button
-                onClick={() => navigate(`/explorar?q=${search}`)}
-                className="bg-primary text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-black uppercase tracking-widest text-[9px] sm:text-[10px] hover:scale-105 transition-all shadow-lg"
-              >
-                Buscar
-              </button>
-            </div>
+      <div className="bg-white/90 backdrop-blur-md px-4 sm:px-6 lg:px-8 lg:pb-4 lg:pt-4 border-b border-outline-variant/10 shadow-sm lg:hidden relative z-10">
+        <div className="max-w-3xl mx-auto w-full flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => navigate('/explorar')}
+            className="flex-shrink-0 flex items-center justify-center p-3 sm:p-4 rounded-full bg-surface text-on-surface-variant hover:text-primary hover:bg-surface-container-low border border-outline-variant/20 shadow-sm transition-all"
+            aria-label="Filtros"
+          >
+            <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
+          </button>
+          <div className="relative flex-1 flex items-center bg-surface rounded-full p-1 sm:p-1.5 ambient-shadow border border-outline-variant/20 focus-within:ring-4 focus-within:ring-primary/5 transition-all">
+            <Search className="ml-3 sm:ml-5 text-on-surface-variant/30 w-4 h-4 sm:w-5 sm:h-5" />
+            <input
+              type="text"
+              placeholder="Busca un profesional cerca de ti"
+              className="flex-1 px-3 sm:px-4 py-3 bg-transparent border-none outline-none text-sm sm:text-base font-medium placeholder:text-on-surface-variant/20"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  navigate(`/explorar?q=${search}`);
+                }
+              }}
+            />
+            <button
+              onClick={() => navigate(`/explorar?q=${search}`)}
+              className="bg-primary text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-black uppercase tracking-widest text-[9px] sm:text-[10px] hover:scale-105 transition-all shadow-lg"
+            >
+              Buscar
+            </button>
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        <div className="flex justify-start items-center mb-8 border-b border-outline-variant/10 pb-6">
-          <div className="flex p-1 bg-surface-container-low rounded-xl">
-            {[
-              { id: "all", label: "Todos" },
-              { id: "offer", label: "Servicios" },
-              { id: "search", label: "Ofertas" },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id as any)}
-                className={cn(
-                  "px-5 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all",
-                  activeTab === t.id
-                    ? "bg-surface-container-lowest text-primary shadow-sm"
-                    : "text-on-surface-variant/40 hover:text-on-surface-variant",
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         {/* Results Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
           <AnimatePresence>
             {filteredListings.map((listing) => (
               <ListingCard
@@ -12020,6 +14649,9 @@ const HomePage = ({
                 isFavorite={favorites.includes(listing.id)}
                 onToggleFavorite={onToggleFavorite}
                 onReactivate={onReactivate}
+                onDelete={onDelete}
+                onEdit={onEdit}
+                user={user}
               />
             ))}
           </AnimatePresence>
@@ -12044,7 +14676,18 @@ const HomePage = ({
           </div>
         )}
       </div>
+      <div className="h-20 shrink-0 w-full lg:hidden block" aria-hidden="true" />
     </div>
+    <PermissionModal
+      isOpen={isLocationModalOpen}
+      type="location"
+      onConfirm={handleConfirmLocationPermission}
+      onCancel={() => {
+        setIsLocationModalOpen(false);
+        localStorage.setItem("GigeJob_location_prompted", "true");
+      }}
+    />
+    </>
   );
 };
 
@@ -12087,7 +14730,12 @@ const MapView = ({
               <Popup className="custom-popup">
                 <div className="w-64 p-2">
                   <img
-                    src={listing.imageUrl}
+                    src={
+                      listing.headerImage ||
+                      listing.imageUrl ||
+                      (listing.images && listing.images[0]) ||
+                      `https://picsum.photos/seed/${listing.id}/800/600`
+                    }
                     alt={listing.title}
                     className="w-full h-32 object-cover rounded-xl mb-3"
                     referrerPolicy="no-referrer"
@@ -12114,7 +14762,7 @@ const MapView = ({
                     <div
                       className="flex items-center gap-2 mb-2 cursor-pointer group"
                       onClick={() =>
-                        navigate(`/perfil/${listing.author?.id || ""}`)
+                        navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`)
                       }
                     >
                       <img
@@ -12127,7 +14775,7 @@ const MapView = ({
                       </span>
                     </div>
                     <Link
-                      to={`/anuncio/${listing.id}`}
+                      to={`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}/${createSlug(listing.title)}`}
                       className="block w-full py-2 bg-primary text-white text-center rounded-lg font-black uppercase tracking-widest text-[8px] mt-2"
                     >
                       Ver Detalles
@@ -12147,10 +14795,14 @@ const ExplorePage = ({
   listings,
   favorites,
   onToggleFavorite,
+  onEdit,
+  user,
 }: {
   listings: JobListing[];
   favorites: string[];
   onToggleFavorite: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -12170,6 +14822,7 @@ const ExplorePage = ({
 
   const filteredListings = useMemo(() => {
     if (!Array.isArray(listings)) return [];
+    const blockedList = Array.isArray(user?.blockedUsers) ? user.blockedUsers : [];
     return listings.filter((l) => {
       if (
         !l ||
@@ -12179,11 +14832,14 @@ const ExplorePage = ({
         !l.author
       )
         return false;
+      if (blockedList.length > 0 && l.author && (blockedList.includes(l.author.id) || (l.author.email && blockedList.includes(l.author.email)))) {
+        return false;
+      }
+      if (l.status && l.status !== 'active') return false;
+      
       const matchesType = type === "all" || l.type === type;
       const matchesCategory = category === "all" || l.category === category;
-      const matchesSearch =
-        l.title.toLowerCase().includes(search.toLowerCase()) ||
-        l.description.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = isSearchMatch(search, l);
 
       const price = l.price || 0;
       const matchesMinPrice = !minPrice || price >= Number(minPrice);
@@ -12227,39 +14883,13 @@ const ExplorePage = ({
   ]);
 
   return (
-    <div className="min-h-screen bg-surface pb-32 relative">
+    <div className="min-h-screen bg-surface pb-32 relative shrink-0">
       {/* Filter Bar - Top Position */}
-      <div className="lg:sticky lg:top-20 z-40 bg-surface/80 backdrop-blur-md border-b border-outline-variant/10 py-6">
+      <div className="bg-surface border-b border-outline-variant/10 py-6 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            {/* Left: Type Tabs */}
+            {/* Left: Filter button */}
             <div className="flex items-center gap-4">
-              <div className="flex p-1 bg-surface-container-low rounded-xl w-fit">
-                {[
-                  { id: "all", label: "Todos" },
-                  { id: "offer", label: "Servicios" },
-                  { id: "search", label: "Ofertas" },
-                ].map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      const params = new URLSearchParams(searchParams);
-                      if (t.id === "all") params.delete("type");
-                      else params.set("type", t.id);
-                      setSearchParams(params);
-                    }}
-                    className={cn(
-                      "px-5 py-2.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all",
-                      type === t.id
-                        ? "bg-surface-container-lowest text-primary shadow-sm"
-                        : "text-on-surface-variant/40 hover:text-on-surface-variant",
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-
               <button
                 onClick={() => setShowAdvanced(!showAdvanced)}
                 className={cn(
@@ -12531,7 +15161,7 @@ const ExplorePage = ({
         </div>
 
         {viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
             <AnimatePresence>
               {filteredListings.map((listing) => (
                 <ListingCard
@@ -12539,6 +15169,8 @@ const ExplorePage = ({
                   listing={listing}
                   isFavorite={favorites.includes(listing.id)}
                   onToggleFavorite={onToggleFavorite}
+                  onEdit={onEdit}
+                  user={user}
                 />
               ))}
             </AnimatePresence>
@@ -12575,6 +15207,7 @@ const checkUserProBooking24hGap = async (
   professionalId: string,
   requestedDateObj: Date,
   startTimeStr: string,
+  listingId?: string,
 ): Promise<boolean> => {
   try {
     const bookingsRef = collection(db, "bookings");
@@ -12585,12 +15218,7 @@ const checkUserProBooking24hGap = async (
     );
     const snapshot = await getDocs(q);
 
-    const [reqStartHour, reqStartMin] = String(startTimeStr || "00:00")
-      .split(":")
-      .map(Number);
     const proposedTime = new Date(requestedDateObj);
-    proposedTime.setHours(reqStartHour, reqStartMin, 0, 0);
-    const proposedMs = proposedTime.getTime();
 
     const months = {
       enero: 0,
@@ -12610,6 +15238,13 @@ const checkUserProBooking24hGap = async (
     return snapshot.docs.some((doc) => {
       const data = doc.data();
       if (["cancelled", "rejected"].includes(data.status)) return false;
+      
+      // Permitir si es diferente trabajo/anuncio
+      if (listingId) {
+        if (data.listingId !== listingId) return false;
+      } else {
+        if (data.listingId) return false;
+      }
 
       let parsedDate = new Date();
       if (data.date) {
@@ -12630,14 +15265,12 @@ const checkUserProBooking24hGap = async (
         }
       }
 
-      const [bStartHour, bStartMin] = String(data.time || "00:00")
-        .split(":")
-        .map(Number);
-      parsedDate.setHours(bStartHour, bStartMin, 0, 0);
+      const isSameDay = 
+        parsedDate.getFullYear() === proposedTime.getFullYear() &&
+        parsedDate.getMonth() === proposedTime.getMonth() &&
+        parsedDate.getDate() === proposedTime.getDate();
 
-      const existingMs = parsedDate.getTime();
-      const diffMs = Math.abs(proposedMs - existingMs);
-      return diffMs < 24 * 60 * 60 * 1000;
+      return isSameDay;
     });
   } catch (e) {
     console.error(e);
@@ -12650,13 +15283,14 @@ const checkBookingOverlap = async (
   requestedDate: string,
   startTime: string,
   durationStr: string,
+  excludeBookingId?: string,
 ): Promise<{ allowed: boolean; reason?: string }> => {
   try {
     // 1. Obtener plan del profesional
     const profDocSnap = await getDoc(doc(db, "users", professionalId));
-    let planId = "basic";
+    let profData: any = null;
     if (profDocSnap.exists()) {
-      planId = profDocSnap.data().professionalInfo?.plan || "basic";
+      profData = profDocSnap.data();
     }
 
     const planConfigDoc = await getDoc(doc(db, "settings", "pro_plans_config"));
@@ -12664,9 +15298,9 @@ const checkBookingOverlap = async (
     if (planConfigDoc.exists() && planConfigDoc.data().plans) {
       plans = planConfigDoc.data().plans;
     }
-    const plan = plans.find((p: any) => p.id === planId) || plans[0];
-    const maxBookingsPerDay = plan.limits?.maxBookingsPerDay ?? 1;
-    const maxConcurrentBookings = plan.limits?.maxConcurrentBookings ?? 1;
+    const plan = getUserPlan(profData, plans);
+    const maxBookingsPerDay = Number(plan?.limits?.maxBookingsPerDay ?? 1);
+    const maxConcurrentBookings = Number(plan?.limits?.maxConcurrentBookings ?? 1);
 
     // 2. Comprobar reservas
     const bookingsRef = collection(db, "bookings");
@@ -12680,34 +15314,33 @@ const checkBookingOverlap = async (
     let overlapCount = 0;
 
     snapshot.forEach((docSnap) => {
+      if (excludeBookingId && docSnap.id === excludeBookingId) return;
       const data = docSnap.data();
-      if (data.status !== "rejected" && data.status !== "cancelled" && data.date === requestedDate) {
+      if (data.status === "accepted" && data.date === requestedDate) {
         sameDayCount++;
         
         // Comprobar solapamiento
-        if (data.status === "accepted") {
-          const bDurationHours = parseInt(String(data.duration || "1h").replace(/\D/g, "") || "1") || 1;
-          const [bStartHour, bStartMin] = String(data.time || "00:00").split(":").map(Number);
-          const bStartTotalMins = (bStartHour || 0) * 60 + (bStartMin || 0);
-          const bEndTotalMins = bStartTotalMins + bDurationHours * 60;
+        const bDurationHours = parseInt(String(data.duration || "1h").replace(/\D/g, "") || "1") || 1;
+        const [bStartHour, bStartMin] = String(data.time || "00:00").split(":").map(Number);
+        const bStartTotalMins = (bStartHour || 0) * 60 + (bStartMin || 0);
+        const bEndTotalMins = bStartTotalMins + bDurationHours * 60;
 
-          const reqDurationHours = parseInt(String(durationStr || "1h").replace(/\D/g, "") || "1") || 1;
-          const [reqStartHour, reqStartMin] = String(startTime || "00:00").split(":").map(Number);
-          const reqStartTotalMins = (reqStartHour || 0) * 60 + (reqStartMin || 0);
-          const reqEndTotalMins = reqStartTotalMins + reqDurationHours * 60;
+        const reqDurationHours = parseInt(String(durationStr || "1h").replace(/\D/g, "") || "1") || 1;
+        const [reqStartHour, reqStartMin] = String(startTime || "00:00").split(":").map(Number);
+        const reqStartTotalMins = (reqStartHour || 0) * 60 + (reqStartMin || 0);
+        const reqEndTotalMins = reqStartTotalMins + reqDurationHours * 60;
 
-          if (reqStartTotalMins < bEndTotalMins && reqEndTotalMins > bStartTotalMins) {
-            overlapCount++;
-          }
+        if (reqStartTotalMins < bEndTotalMins && reqEndTotalMins > bStartTotalMins) {
+          overlapCount++;
         }
       }
     });
 
-    if (sameDayCount >= maxBookingsPerDay && maxBookingsPerDay < 999) {
+    if (sameDayCount >= maxBookingsPerDay && maxBookingsPerDay < 9999) {
        return { allowed: false, reason: `El profesional ha alcanzado su límite de reservas diarias (${maxBookingsPerDay}).` };
     }
-    if (overlapCount >= maxConcurrentBookings && maxConcurrentBookings < 999) {
-       return { allowed: false, reason: `El profesional ha alcanzado su límite de reservas concurrentes (${maxConcurrentBookings}).` };
+    if (overlapCount >= maxConcurrentBookings && maxConcurrentBookings < 9999) {
+       return { allowed: false, reason: `El profesional ha alcanzado su límite de reservas en la misma franja horaria (${maxConcurrentBookings}).` };
     }
 
     return { allowed: true };
@@ -12715,6 +15348,89 @@ const checkBookingOverlap = async (
     console.error("Error checking limits/overlap", e);
     return { allowed: false, reason: "Error al comprobar disponibilidad del profesional." };
   }
+};
+const ConfirmServiceActionModal = ({
+  isOpen,
+  actionType,
+  onConfirm,
+  onCancel,
+}: {
+  isOpen: boolean;
+  actionType: "request" | "professionalEdit" | "clientAccept";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) => {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      setLoading(true);
+      getDoc(doc(db, "settings", "services")).then((snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (actionType === "request")
+            setText(
+              data.requestText ||
+                "Por favor, confirma que deseas enviar la solicitud de reserva.",
+            );
+          if (actionType === "professionalEdit")
+            setText(
+              data.professionalEditText ||
+                "Por favor, confirma que deseas editar este servicio.",
+            );
+          if (actionType === "clientAccept")
+            setText(
+              data.clientAcceptText ||
+                "Por favor, confirma que deseas aceptar la propuesta final.",
+            );
+        } else {
+          setText("¿Estás seguro de continuar con esta acción?");
+        }
+        setLoading(false);
+      });
+    }
+  }, [isOpen, actionType]);
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
+      <div className="bg-surface-container-lowest w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+        <h3 className="text-xl font-bold font-display tracking-tight mb-4 text-on-surface">
+          Confirmación requerida
+        </h3>
+        {loading ? (
+          <div className="animate-pulse flex space-x-4">
+            <div className="flex-1 space-y-4 py-1">
+              <div className="h-4 bg-surface-container rounded w-3/4"></div>
+              <div className="h-4 bg-surface-container rounded"></div>
+            </div>
+          </div>
+        ) : (
+          <p className="text-on-surface-variant font-medium whitespace-pre-wrap">
+            {text}
+          </p>
+        )}
+        <div className="mt-8 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-5 py-2.5 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="px-5 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            Aceptar y Continuar
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 };
 
 const AvailabilityPicker = ({
@@ -12731,26 +15447,43 @@ const AvailabilityPicker = ({
   authorPhotoUrl?: string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const clearDropdownTimeout = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
-
-  const startDropdownTimeout = () => {
-    clearDropdownTimeout();
-    timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 3000);
-  };
-
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [acceptedBookings, setAcceptedBookings] = useState<any[]>([]);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchAcceptedBookings = async () => {
+      if (!selectedDate || !authorId) {
+        setAcceptedBookings([]);
+        return;
+      }
+      try {
+        const dateStr = selectedDate.toLocaleDateString("es-ES", {
+          day: "numeric",
+          month: "long",
+        });
+        const bookingsRef = collection(db, "bookings");
+        const q = query(
+          bookingsRef,
+          where("professionalId", "==", authorId)
+        );
+        const snapshot = await getDocs(q);
+        const accepted: any[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.status === "accepted" && data.date === dateStr) {
+            accepted.push(data);
+          }
+        });
+        setAcceptedBookings(accepted);
+      } catch (e) {
+        console.error("Error fetching accepted bookings:", e);
+      }
+    };
+    fetchAcceptedBookings();
+  }, [selectedDate, authorId]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -12807,28 +15540,67 @@ const AvailabilityPicker = ({
     "19:00",
     "20:00",
   ];
+
+  const isTimeBlocked = (t: string) => {
+    const reqDurationHours = 1; // Picker always checks 1h
+    const [reqStartHour, reqStartMin] = String(t || "00:00").split(":").map(Number);
+    const reqStartTotalMins = (reqStartHour || 0) * 60 + (reqStartMin || 0);
+    const reqEndTotalMins = reqStartTotalMins + reqDurationHours * 60;
+
+    return acceptedBookings.some((booking) => {
+      const bDurationHours = parseInt(String(booking.duration || "1h").replace(/\D/g, "") || "1") || 1;
+      const [bStartHour, bStartMin] = String(booking.time || "00:00").split(":").map(Number);
+      const bStartTotalMins = (bStartHour || 0) * 60 + (bStartMin || 0);
+      const bEndTotalMins = bStartTotalMins + bDurationHours * 60;
+
+      return reqStartTotalMins < bEndTotalMins && reqEndTotalMins > bStartTotalMins;
+    });
+  };
+
   const availableTimes = useMemo(() => {
     if (!availability || availability.length === 0) return allTimes;
 
-    // This is a simplified version for AvailabilityPicker which doesn't know the exact selected date yet inside this memo
-    // but we can show all possible hours defined in any day shift
-    return allTimes.filter((t) =>
-      availability.some((avail) =>
+    let relevantAvail = availability;
+    if (selectedDate) {
+      const daysWeek = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+      const dayName = daysWeek[selectedDate.getDay()];
+      relevantAvail = availability.filter(a => a.day === dayName);
+    }
+
+    return allTimes.filter((t) => {
+      const isWithinSlots = relevantAvail.some((avail) =>
         avail.slots.some((slot) => {
           const tVal = parseInt(t.replace(":", ""));
           const sVal = parseInt(slot.start.replace(":", ""));
           const eVal = parseInt(slot.end.replace(":", ""));
           return tVal >= sVal && tVal <= eVal;
-        }),
-      ),
-    );
-  }, [availability]);
+        })
+      );
+      return isWithinSlots && !isTimeBlocked(t);
+    });
+  }, [availability, selectedDate, acceptedBookings]);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const [errorText, setErrorText] = useState<string | null>(null);
 
+  const handleInitialConfirm = () => {
+    setErrorText(null);
+    if (!selectedDate || !selectedTime) {
+      setErrorText("Por favor, selecciona un día y una hora para la cita.");
+      return;
+    }
+    const firebaseUid = auth.currentUser?.uid;
+    if (!firebaseUid || !user) {
+      setErrorText("Debes iniciar sesión para concertar una cita.");
+      return;
+    }
+    setShowConfirmModal(true);
+  };
+
   const handleConfirm = async () => {
+    setShowConfirmModal(false);
     setErrorText(null);
     if (!selectedDate || !selectedTime) {
       setErrorText("Por favor, selecciona un día y una hora para la cita.");
@@ -12866,7 +15638,7 @@ const AvailabilityPicker = ({
       selectedTime,
     );
     if (is24hOverlap) {
-      setErrorText("Ya tiene una solicitud próxima a la fecha seleccionada.");
+      setErrorText("Ya tiene una solicitud para este profesional en la fecha seleccionada.");
       setIsProcessing(false);
       return;
     }
@@ -12960,7 +15732,11 @@ const AvailabilityPicker = ({
         lastMessageSenderId: firebaseUid,
         lastUpdatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
-        serviceRequestedAt: serverTimestamp(), // For checking 24h limit
+        serviceRequestedAt: serverTimestamp(),
+        unreadCount: {
+          [firebaseUid]: 0,
+          [authorId]: 1,
+        },
       });
 
       console.log(
@@ -13037,13 +15813,15 @@ const AvailabilityPicker = ({
     <div className="space-y-4">
       <div className="relative">
         <button
-          onClick={() => {
-            const nextState = !isOpen;
-            setIsOpen(nextState);
-            if (nextState) startDropdownTimeout();
-            else clearDropdownTimeout();
-          }}
-          className="w-full flex justify-between items-center p-4 bg-surface-container-low rounded-2xl hover:bg-surface-container-high transition-all"
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={!user}
+          className={cn(
+            "w-full flex justify-between items-center p-4 rounded-2xl transition-all",
+            user
+              ? "bg-surface-container-low hover:bg-surface-container-high"
+              : "bg-surface-container-low/50 opacity-50 cursor-not-allowed"
+          )}
+          title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
         >
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary" />
@@ -13065,8 +15843,6 @@ const AvailabilityPicker = ({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              onMouseEnter={clearDropdownTimeout}
-              onMouseLeave={startDropdownTimeout}
               className="absolute top-full left-0 right-0 mt-2 bg-surface-container-lowest rounded-3xl ambient-shadow border border-outline-variant/10 p-6 z-50 min-w-[320px]"
             >
               {!selectedDate ? (
@@ -13202,7 +15978,7 @@ const AvailabilityPicker = ({
                       </div>
                     )}
                     <button
-                      onClick={handleConfirm}
+                      onClick={handleInitialConfirm}
                       disabled={isProcessing}
                       className={cn(
                         "w-full py-4 rounded-full font-black uppercase tracking-widest text-[9px] shadow-lg flex items-center justify-center gap-2 transition-all",
@@ -13236,6 +16012,12 @@ const AvailabilityPicker = ({
           )}
         </AnimatePresence>
       </div>
+      <ConfirmServiceActionModal
+        isOpen={showConfirmModal}
+        actionType="request"
+        onConfirm={handleConfirm}
+        onCancel={() => setShowConfirmModal(false)}
+      />
     </div>
   );
 };
@@ -13460,36 +16242,36 @@ const JobRequestModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      if (user?.address) {
-        setLocation(
-          [
-            user.address.streetType,
-            user.address.streetName,
-            user.address.number,
-            user.address.block ? `Blq. ${user.address.block}` : "",
-            user.address.floor ? `Pl. ${user.address.floor}` : "",
-            user.address.door ? `Pta. ${user.address.door}` : "",
-            user.address.locality,
-            user.address.province,
-            user.address.postalCode,
-          ]
-            .filter(Boolean)
-            .join(", "),
-        );
-      } else {
-        setLocation("");
-      }
+      setLocation("");
       setSelectedDate(null);
       setStartTime("");
       setDuration(1);
       setDescription("");
       setErrorText(null);
     }
-  }, [isOpen, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const handleInitialConfirm = () => {
+    setErrorText(null);
+    if (!selectedDate || !location.trim() || !description || !startTime) {
+      setErrorText("Por favor, rellena todos los campos del servicio.");
+      return;
+    }
+    const firebaseUid = auth.currentUser?.uid;
+    if (!firebaseUid || !user) {
+      setErrorText("Debes iniciar sesión para realizar solicitudes.");
+      return;
+    }
+    setShowConfirmModal(true);
+  };
 
   const handleConfirm = async () => {
+    setShowConfirmModal(false);
     setErrorText(null);
-    if (!selectedDate || !location || !description || !startTime) {
+    if (!selectedDate || !location.trim() || !description || !startTime) {
       setErrorText("Por favor, rellena todos los campos del servicio.");
       return;
     }
@@ -13525,9 +16307,10 @@ const JobRequestModal = ({
       authorId,
       selectedDate,
       startTime,
+      listing.id
     );
     if (is24hOverlap) {
-      setErrorText("Ya tiene una solicitud próxima a la fecha seleccionada.");
+      setErrorText("Ya tiene una solicitud para este profesional y anuncio en la fecha seleccionada.");
       setIsProcessing(false);
       return;
     }
@@ -13610,6 +16393,10 @@ const JobRequestModal = ({
         lastUpdatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
         serviceRequestedAt: serverTimestamp(),
+        unreadCount: {
+          [firebaseUid]: 0,
+          [authorId]: 1,
+        },
       });
 
       console.log("JobRequestModal: Sending initial message to collection...");
@@ -13629,6 +16416,26 @@ const JobRequestModal = ({
         "JobRequestModal: Navigation triggered to:",
         `/mensajes?chatId=${conversationId}`,
       );
+
+      // Notificar al profesional de la nueva solicitud
+      try {
+        await fetch("https://us-central1-gigejob01.cloudfunctions.net/notifyRequest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientName: user?.firstName || "Un cliente",
+            professionalEmail: listing.author.email,
+            serviceTitle: listing.title,
+            dateStr,
+            startTime,
+            location: location,
+            description,
+          }),
+        });
+      } catch (err) {
+        console.error("Failed to send request email", err);
+      }
+
       setTimeout(() => {
         navigate(`/mensajes?chatId=${conversationId}`);
         onClose();
@@ -13672,7 +16479,7 @@ const JobRequestModal = ({
             </div>
             <div>
               <h2 className="text-lg sm:text-xl font-bold text-on-surface tracking-tight">
-                Solicitud de Servicio
+                Concretar una Cita
               </h2>
               <p className="text-[9px] sm:text-[10px] text-on-surface-variant/40 font-black uppercase tracking-widest mt-0.5 truncate max-w-[200px] sm:max-w-none">
                 para: {listing.title}
@@ -13877,7 +16684,7 @@ const JobRequestModal = ({
                 </div>
               )}
               <button
-                onClick={handleConfirm}
+                onClick={handleInitialConfirm}
                 disabled={isProcessing}
                 className={cn(
                   "w-full py-5 text-white rounded-[1.5rem] font-black uppercase tracking-[0.15em] text-[10px] shadow-xl transition-all flex items-center justify-center gap-3",
@@ -13900,6 +16707,12 @@ const JobRequestModal = ({
           </div>
         </div>
       </motion.div>
+      <ConfirmServiceActionModal
+        isOpen={showConfirmModal}
+        actionType="request"
+        onConfirm={handleConfirm}
+        onCancel={() => setShowConfirmModal(false)}
+      />
     </div>
   );
 };
@@ -13909,19 +16722,58 @@ const ListingDetail = ({
   setListings,
   favorites,
   onToggleFavorite,
+  onDelete,
+  onEdit,
   user,
 }: {
   listings: JobListing[];
   setListings: React.Dispatch<React.SetStateAction<JobListing[]>>;
   favorites: string[];
   onToggleFavorite: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
   user: UserProfile | null;
 }) => {
-  const { id } = useParams();
+  const { id, username, serviceTitle } = useParams();
   const navigate = useNavigate();
   const { openReportModal } = React.useContext(ReportContext);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const listing = listings.find((l) => l && l.id === id);
+  
+  const listing = listings.find((l) => {
+    if (!l) return false;
+    if (id && l.id === id) return true;
+    if (username && serviceTitle && l.author) {
+      const authorMatch = createSlug(l.author.name) === username || l.author.id === username;
+      const titleMatch = createSlug(l.title) === serviceTitle;
+      return authorMatch && titleMatch;
+    }
+    return false;
+  });
+  const isOwner = !!(user && listing?.author && (user.id === listing.author.id || user.email === listing.author.email));
+
+  const checkPersonalDataComplete = (u: UserProfile | null) => {
+    if (!u) return false;
+    return !!(
+      u.firstName?.trim() &&
+      u.lastName1?.trim() &&
+      u.documentId?.trim() &&
+      u.phoneNumber?.trim() &&
+      u.address?.streetName?.trim() &&
+      u.address?.number?.trim() &&
+      u.address?.postalCode?.trim() &&
+      u.address?.locality?.trim() &&
+      u.address?.province?.trim()
+    );
+  };
+
+  const handleConcretarCita = () => {
+    if (!user) return;
+    if (!checkPersonalDataComplete(user)) {
+      alert("Para concretar una cita, debes rellenar todos tus datos personales obligatorios en tu perfil.");
+      return;
+    }
+    setIsRequestModalOpen(true);
+  };
 
   const [reviews, setReviews] = useState<any[]>([]);
   const [completedJobsCount, setCompletedJobsCount] = useState(0);
@@ -13938,11 +16790,38 @@ const ListingDetail = ({
     }
   };
 
+  const handleBlockAuthor = async (authorId: string) => {
+    if (!user || !user.id) {
+      alert("Debes iniciar sesión para bloquear a un usuario.");
+      return;
+    }
+    if (!confirm("¿Estás seguro de que deseas bloquear a este usuario? No volverás a ver sus anuncios ni mensajes.")) return;
+
+    try {
+      const userRef = doc(db, "users", user.id);
+      const currentBlocked = user.blockedUsers || [];
+      if (!currentBlocked.includes(authorId)) {
+        const updated = [...currentBlocked, authorId];
+        const newBlockedUsersDates = { ...(user.blockedUsersDates || {}) };
+        newBlockedUsersDates[authorId] = new Date().toISOString();
+        await updateDoc(userRef, { 
+          blockedUsers: updated,
+          blockedUsersDates: newBlockedUsersDates
+        });
+      }
+      alert("Usuario bloqueado con éxito.");
+      navigate("/");
+    } catch (e) {
+      console.error("Error al bloquear usuario:", e);
+      alert("Ocurrió un error al bloquear el usuario.");
+    }
+  };
+
   useEffect(() => {
     if (!listing?.author?.id) return;
     const qReviews = query(
       collection(db, "reviews"),
-      where("professionalId", "==", listing.author.id),
+      where("targetId", "==", listing.author.id),
       orderBy("createdAt", "desc"),
     );
     const unsubscribeReviews = onSnapshot(
@@ -14017,9 +16896,7 @@ const ListingDetail = ({
   const isOwnListing =
     user &&
     (user.id === listing.author?.id || user.email === listing.author?.email);
-  const isExpired = listing.expiresAt
-    ? new Date(listing.expiresAt) < new Date()
-    : false;
+  const isExpired = checkIsListingExpired(listing, listing.author);
   const isInactive =
     listing.status === "inactive" || listing.status === "disabled" || isExpired;
 
@@ -14027,7 +16904,7 @@ const ListingDetail = ({
   if (
     isInactive &&
     !isOwnListing &&
-    !(user?.email === "daviidjg1991@gmail.com")
+    !((user?.role === "admin" || user?.email === "daviidjg1991@gmail.com"))
   ) {
     return (
       <div className="p-20 text-center font-display font-bold text-2xl">
@@ -14041,7 +16918,9 @@ const ListingDetail = ({
       ? (
           reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
         ).toFixed(1)
-      : "0.0";
+      : (listing.author?.rating || 0) > 0
+        ? Number(listing.author?.rating).toFixed(1)
+        : "0.0";
 
   const isFavorite = favorites.includes(listing.id);
 
@@ -14049,15 +16928,16 @@ const ListingDetail = ({
     ? user.professionalInfo?.availability || listing.availability
     : listing.availability;
 
-  const displayGallery = isOwnListing
-    ? user.gallery || listing.author?.gallery
-    : listing.author?.gallery;
+  const rawGallery = isOwnListing
+    ? (Array.isArray(user?.gallery) ? user.gallery : Array.isArray(listing.author?.gallery) ? listing.author.gallery : [])
+    : (Array.isArray(listing.author?.gallery) ? listing.author.gallery : []);
 
-  const filteredGallery =
-    displayGallery?.filter((p) => p.category === listing.category) || [];
+  const displayGallery = Array.isArray(rawGallery) ? rawGallery : [];
+
+  const filteredGallery = displayGallery.filter((p) => p && typeof p === "object" && p.category === listing.category);
 
   return (
-    <div className="min-h-screen bg-surface pb-32">
+    <div className="w-full bg-surface">
       {/* Hero Header */}
       <div className="bg-surface-container-lowest border-b border-outline-variant">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -14098,32 +16978,60 @@ const ListingDetail = ({
                   <div
                     className="w-2/3 flex items-center gap-2 cursor-pointer"
                     onClick={() =>
-                      navigate(`/perfil/${listing.author?.id || ""}`)
+                      navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`)
                     }
                   >
                     <div className="w-8 h-8 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-[10px] overflow-hidden">
-                      {listing.author?.photoUrl ? (
-                        <img
-                          src={listing.author.photoUrl}
-                          alt={listing.author.name || "Autor"}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        (listing.author?.name || "?").charAt(0)
-                      )}
+                      <AvatarDisplay 
+                        author={listing.author} 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                      />
                     </div>
                     <span className="font-black text-xs text-on-surface truncate">
-                      {listing.author?.name || "Anónimo"}
+                      <UsernameDisplay author={listing.author} />
                     </span>
                   </div>
                   <div className="w-1/3 text-right">
-                    <button
-                      onClick={() => setIsRequestModalOpen(true)}
-                      className="bg-primary text-white text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-lg shadow-sm active:scale-95 transition-transform w-full"
-                    >
-                      CONCRETAR CITA
-                    </button>
+                    {isOwner ? (
+                      <div className="flex flex-col gap-1.5 w-full">
+                        {onEdit && listing && (
+                          <button
+                            onClick={() => onEdit(listing)}
+                            className="text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg shadow-sm transition-all w-full bg-primary hover:bg-primary/90 text-white active:scale-95 flex items-center justify-center gap-1"
+                            title="Editar tu anuncio"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            Editar
+                          </button>
+                        )}
+                        {onDelete && listing && (
+                          <button
+                            onClick={() => {
+                              onDelete(listing.id);
+                              navigate(-1);
+                            }}
+                            className="text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg shadow-sm transition-all w-full bg-red-600 hover:bg-red-700 text-white active:scale-95 flex items-center justify-center gap-1"
+                            title="Borrar tu anuncio"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Borrar
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleConcretarCita}
+                        disabled={!user}
+                        className={cn(
+                          "text-[9px] font-black uppercase tracking-widest px-6 py-2 rounded-lg shadow-sm transition-all w-full",
+                          !user ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50" : "bg-primary text-white active:scale-95"
+                        )}
+                        title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
+                      >
+                        CONCRETAR CITA
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -14132,12 +17040,20 @@ const ListingDetail = ({
                   <div className="flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-primary" />
                     <span className="font-bold uppercase tracking-wider">
-                      {listing.location}
+                      {formatLocation(listing.location)}
                     </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-amber-500 font-bold uppercase tracking-wider bg-amber-500/10 px-2 py-0.5 rounded-md">
+                    <Star className="w-3.5 h-3.5 fill-amber-500" />
+                    {realRating}
                   </div>
                   <button
                     onClick={() => onToggleFavorite(listing.id)}
-                    className="ml-auto"
+                    disabled={!user}
+                    className={cn(
+                      "ml-auto",
+                      !user && "opacity-50 cursor-not-allowed grayscale"
+                    )}
                   >
                     <Heart
                       className={cn(
@@ -14150,7 +17066,11 @@ const ListingDetail = ({
                     onClick={() =>
                       openReportModal(listing.author.id, listing.id)
                     }
-                    className="ml-2 hover:text-warning transition-colors"
+                    disabled={!user}
+                    className={cn(
+                      "ml-2 transition-colors",
+                      !user ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50" : "hover:text-warning"
+                    )}
                   >
                     <AlertTriangle className="w-4 h-4" />
                   </button>
@@ -14172,16 +17092,19 @@ const ListingDetail = ({
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-primary" />
                   <span className="font-bold text-xs uppercase tracking-wider">
-                    {listing.location}
+                    {formatLocation(listing.location)}
                   </span>
                 </div>
                 <button
                   onClick={() => onToggleFavorite(listing.id)}
+                  disabled={!user}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
-                    isFavorite
-                      ? "bg-primary text-white shadow-lg"
-                      : "bg-surface-container-low text-on-surface-variant hover:text-primary",
+                    !user 
+                      ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                      : isFavorite
+                        ? "bg-primary text-white shadow-lg"
+                        : "bg-surface-container-low text-on-surface-variant hover:text-primary",
                   )}
                 >
                   <Heart
@@ -14191,11 +17114,61 @@ const ListingDetail = ({
                 </button>
                 <button
                   onClick={() => openReportModal(listing.author.id, listing.id)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest bg-surface-container-low text-on-surface-variant hover:text-warning"
+                  disabled={!user}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
+                    !user 
+                      ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                      : "bg-surface-container-low text-on-surface-variant hover:text-warning hover:bg-warning/10"
+                  )}
+                  title={!user ? "Debes iniciar sesión para denunciar" : "Denunciar contenido"}
                 >
                   <AlertTriangle className="w-4 h-4" />
-                  Reportar
+                  Denunciar contenido
                 </button>
+                {!isOwnListing && (
+                  <button
+                    onClick={() => handleBlockAuthor(listing.author.id)}
+                    disabled={!user}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold text-xs uppercase tracking-widest",
+                      !user 
+                        ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                        : "bg-surface-container-low text-on-surface-variant hover:text-error hover:bg-error/10"
+                    )}
+                    title={!user ? "Debes iniciar sesión para bloquear usuario" : "Bloquear usuario"}
+                  >
+                    <ShieldOff className="w-4 h-4" />
+                    Bloquear usuario
+                  </button>
+                )}
+                {isOwner && listing && (
+                  <div className="flex items-center gap-2 ml-auto">
+                    {onEdit && (
+                      <button
+                        onClick={() => onEdit(listing)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-all font-bold text-xs uppercase tracking-widest"
+                        title="Editar este anuncio"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        Editar Anuncio
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button
+                        onClick={() => {
+                          onDelete(listing.id);
+                          navigate(-1);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-red-50 text-red-600 hover:bg-red-100 transition-all font-bold text-xs uppercase tracking-widest"
+                        title="Borrar este anuncio definitivamente"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Borrar Anuncio
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             {listing.type === "offer" && listing.price !== undefined && (
@@ -14217,7 +17190,7 @@ const ListingDetail = ({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 mb-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           {/* Left Column */}
           <div className="lg:col-span-8 space-y-12">
@@ -14225,7 +17198,9 @@ const ListingDetail = ({
             <div className="relative group rounded-[2.5rem] overflow-hidden ambient-shadow aspect-[16/9] bg-surface-container-low">
               <img
                 src={
+                  listing.headerImage ||
                   listing.imageUrl ||
+                  (listing.images && listing.images[0]) ||
                   `https://picsum.photos/seed/${listing.id}/1200/800`
                 }
                 alt={listing.title}
@@ -14398,97 +17373,26 @@ const ListingDetail = ({
               </div>
             )}
 
-            {/* Reviews */}
-            <div className="hidden lg:block space-y-8">
-              <div className="flex items-center justify-between">
-                <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
-                  Reseñas
-                </h3>
-              </div>
-              <div className="space-y-6">
-                {reviews.length === 0 ? (
-                  <p className="text-on-surface-variant font-medium text-sm">
-                    No hay reseñas para este profesional todavía.
-                  </p>
-                ) : (
-                  reviews.map((r, i) => (
-                    <div
-                      key={i}
-                      className="bg-surface-container-lowest p-8 rounded-[2rem] ambient-shadow space-y-4"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="flex gap-4">
-                          <div className="w-12 h-12 rounded-full primary-gradient flex items-center justify-center text-white font-bold overflow-hidden">
-                            {r.clientPhotoUrl ? (
-                              <img
-                                src={r.clientPhotoUrl}
-                                alt={r.clientName}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              (r.clientName || "?").charAt(0)
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-bold text-on-surface">
-                              {r.clientName || "Anónimo"}
-                            </p>
-                            <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                              {r.createdAt?.seconds
-                                ? new Date(
-                                    r.createdAt.seconds * 1000,
-                                  ).toLocaleDateString()
-                                : "Hace poco"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex text-amber-500">
-                          {[1, 2, 3, 4, 5].map((s) => (
-                            <Star
-                              key={s}
-                              className={cn(
-                                "w-4 h-4",
-                                s <= (r.rating || 0)
-                                  ? "fill-amber-500 text-amber-500"
-                                  : "fill-surface-container-high text-surface-container-high",
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-on-surface-variant font-medium italic opacity-80 leading-relaxed">
-                        "{r.comment}"
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+
           </div>
 
           {/* Right Column: Sidebar */}
           <aside className="hidden lg:col-span-4 lg:block space-y-8">
-            <div className="sticky top-32 space-y-8">
+            <div className="space-y-8">
               <div className="bg-surface-container-lowest rounded-[2.5rem] p-8 sm:p-10 ambient-shadow border border-outline-variant/10">
                 <div
                   className="flex flex-col items-center text-center mb-10 cursor-pointer group"
                   onClick={() =>
-                    navigate(`/perfil/${listing.author?.id || ""}`)
+                    navigate(`/perfil/${(listing.author?.username || createSlug(listing.author?.name || "usuario"))}`)
                   }
                 >
                   <div className="relative mb-4">
                     <div className="w-24 h-24 rounded-full primary-gradient flex items-center justify-center text-white font-black text-3xl shadow-xl overflow-hidden group-hover:scale-105 transition-transform ring-4 ring-white">
-                      {listing.author?.photoUrl ? (
-                        <img
-                          src={listing.author.photoUrl}
-                          alt={listing.author.name || "Autor"}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        (listing.author?.name || "?").charAt(0)
-                      )}
+                      <AvatarDisplay 
+                        author={listing.author} 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer" 
+                      />
                     </div>
                     {listing.author?.isVerified === true && (
                       <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center shadow-md">
@@ -14498,23 +17402,62 @@ const ListingDetail = ({
                   </div>
 
                   <h2 className="text-2xl font-display font-black text-on-surface tracking-tight group-hover:text-primary transition-colors">
-                    {listing.author?.name || "Anónimo"}
+                    <UsernameDisplay author={listing.author} />
                   </h2>
                   <p className="text-[10px] text-on-surface-variant/40 font-black uppercase tracking-[0.2em] mt-1 mb-4">
                     Profesional
                   </p>
 
-                  <div className="space-y-3 mb-6">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsRequestModalOpen(true);
-                      }}
-                      className="w-full p-5 bg-[#005a54] text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-xl shadow-[#005a54]/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      CONCRETAR CITA
-                    </button>
+                  <div className="space-y-3 mb-6 w-full">
+                    {isOwner ? (
+                      <div className="flex flex-col gap-3 w-full">
+                        {onEdit && listing && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEdit(listing);
+                            }}
+                            className="w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all bg-primary hover:bg-primary/90 text-white shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95"
+                            title="Editar tu anuncio"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            EDITAR ANUNCIO
+                          </button>
+                        )}
+                        {onDelete && listing && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(listing.id);
+                              navigate(-1);
+                            }}
+                            className="w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all bg-red-600 hover:bg-red-700 text-white shadow-xl shadow-red-600/20 hover:scale-[1.02] active:scale-95"
+                            title="Borrar tu anuncio"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            BORRAR ANUNCIO
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConcretarCita();
+                        }}
+                        disabled={!user}
+                        className={cn(
+                          "w-full p-5 font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl flex items-center justify-center gap-3 transition-all",
+                          !user 
+                            ? "bg-surface-container-low/50 opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                            : "bg-[#005a54] text-white shadow-xl shadow-[#005a54]/20 hover:scale-[1.02] active:scale-95"
+                        )}
+                        title={!user ? "Debes iniciar sesión para concertar una cita" : ""}
+                      >
+                        <Calendar className="w-4 h-4" />
+                        CONCRETAR CITA
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4">
@@ -14568,7 +17511,7 @@ const ListingDetail = ({
                     ) : (
                       <>
                         <Share2 className="w-4 h-4" />
-                        Compartir
+                        RECOMENDAR
                       </>
                     )}
                   </button>
@@ -14576,11 +17519,318 @@ const ListingDetail = ({
               </div>
             </div>
           </aside>
-          <JobRequestModal
-            isOpen={isRequestModalOpen}
-            onClose={() => setIsRequestModalOpen(false)}
-            listing={listing}
-            user={user}
+        </div>
+
+        <JobRequestModal
+          isOpen={isRequestModalOpen}
+          onClose={() => setIsRequestModalOpen(false)}
+          listing={listing}
+          user={user}
+        />
+      </div>
+    </div>
+  );
+};
+
+const AddGalleryPhotoModal = ({
+  isOpen,
+  onClose,
+  onAddPhoto,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onAddPhoto: (photo: { url: string; category: string; title?: string }) => Promise<void>;
+}) => {
+  const [category, setCategory] = useState(CATEGORIES[0] || "General");
+  const [title, setTitle] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  if (!isOpen) return null;
+
+  const handleProcessBase64 = async (rawBase64: string) => {
+    setIsProcessing(true);
+    try {
+      const optimizedUrl = await compressImage(rawBase64, 800, 800, 0.7);
+      setImagePreview(optimizedUrl);
+    } catch (e) {
+      setImagePreview(rawBase64);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert("La imagen seleccionada es demasiado grande (máximo 10MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        handleProcessBase64(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleNativeCamera = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+        const image = await Camera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+        });
+        if (image && image.dataUrl) {
+          await handleProcessBase64(image.dataUrl);
+        }
+      } else {
+        cameraInputRef.current?.click();
+      }
+    } catch (err: any) {
+      console.warn("Camera cancelled or failed:", err);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!imagePreview) return;
+    setIsProcessing(true);
+    try {
+      await onAddPhoto({
+        url: imagePreview,
+        category: category,
+        title: title.trim() || undefined,
+      });
+      setImagePreview(null);
+      setTitle("");
+      onClose();
+    } catch (e) {
+      console.error(e);
+      alert("Error al guardar la foto en la galería.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-surface rounded-3xl w-full max-w-lg shadow-2xl p-6 sm:p-8 relative max-h-[90vh] overflow-y-auto border border-outline-variant/10">
+        <button
+          onClick={onClose}
+          className="absolute top-5 right-5 p-2 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-3 bg-primary/10 rounded-2xl text-primary">
+            <Camera className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl font-display font-black text-on-surface tracking-tight">
+              Añadir Foto de Trabajo
+            </h2>
+            <p className="text-xs text-on-surface-variant/60 font-medium">
+              Asocia tu foto a una categoría para organizar tu portafolio
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Categoría del Trabajo *
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium bg-surface-container-lowest"
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Título o Descripción Corta (Opcional)
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ej: Reforma de baño, Limpieza de cristales..."
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium bg-surface-container-lowest"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Foto del Trabajo *
+            </label>
+
+            {imagePreview ? (
+              <div className="relative rounded-2xl overflow-hidden border border-outline-variant/20 group">
+                <img
+                  src={imagePreview}
+                  alt="Vista previa foto"
+                  className="w-full h-56 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImagePreview(null)}
+                  className="absolute top-3 right-3 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-all active:scale-95 flex items-center gap-1 text-xs font-bold"
+                  title="Cambiar foto"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Cambiar</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={handleNativeCamera}
+                  disabled={isProcessing}
+                  className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 transition-all text-primary font-bold text-xs group active:scale-95"
+                >
+                  <Camera className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                  <span>Hacer Foto con Cámara</span>
+                  <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                    (Cámara Móvil / Web)
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isProcessing}
+                  className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-outline-variant/30 hover:border-primary bg-surface-container-low/50 hover:bg-surface-container-high transition-all text-on-surface font-bold text-xs group active:scale-95"
+                >
+                  <Upload className="w-8 h-8 text-on-surface-variant group-hover:scale-110 transition-transform" />
+                  <span>Elegir de Galería</span>
+                  <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                    (Fotos del dispositivo)
+                  </span>
+                </button>
+              </div>
+            )}
+
+            <input
+              type="file"
+              ref={cameraInputRef}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3.5 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold rounded-2xl text-xs uppercase tracking-widest transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!imagePreview || isProcessing}
+              className="flex-1 py-3.5 bg-primary text-white font-bold rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Guardando...</span>
+                </>
+              ) : (
+                "Guardar Foto"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const GalleryLightboxModal = ({
+  photo,
+  onClose,
+  onDelete,
+  canDelete,
+}: {
+  photo: { url: string; category: string; title?: string } | null;
+  onClose: () => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
+}) => {
+  if (!photo) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="relative max-w-4xl w-full flex flex-col items-center">
+        <div className="w-full flex items-center justify-between p-4 text-white z-10">
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-primary text-white font-black text-[10px] uppercase tracking-widest">
+              #{photo.category}
+            </span>
+            {photo.title && (
+              <span className="text-sm font-bold text-white/90 line-clamp-1">
+                {photo.title}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            {canDelete && onDelete && (
+              <button
+                onClick={() => {
+                  if (window.confirm("¿Seguro que deseas eliminar esta foto de tu galería?")) {
+                    onDelete();
+                    onClose();
+                  }
+                }}
+                className="p-2.5 bg-red-600/80 hover:bg-red-600 text-white rounded-full transition-colors shadow-lg"
+                title="Eliminar foto"
+              >
+                <Trash2 className="w-5 h-5 text-white" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors shadow-lg"
+              title="Cerrar"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+
+        <div className="max-h-[75vh] w-full flex items-center justify-center overflow-hidden rounded-2xl p-2">
+          <img
+            src={photo.url}
+            alt={photo.title || photo.category}
+            className="max-h-[75vh] max-w-full object-contain rounded-xl shadow-2xl"
           />
         </div>
       </div>
@@ -14595,6 +17845,8 @@ const ProfilePage = ({
   favorites,
   onToggleFavorite,
   onReactivate,
+  onDelete,
+  onEdit,
   onOpenSettings,
 }: {
   user: any;
@@ -14603,10 +17855,13 @@ const ProfilePage = ({
   favorites: string[];
   onToggleFavorite: (id: string) => void;
   onReactivate?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
   onOpenSettings?: (type: string) => void;
 }) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { openReportModal } = React.useContext(ReportContext);
   const [activeTab, setActiveTab] = useState<
     "listings" | "stats" | "wallet" | "gallery" | "reviews" | "notifications"
@@ -14620,23 +17875,61 @@ const ProfilePage = ({
 
   // Determine if this is my own profile
   const isOwnProfile =
-    !id || id === "me" || (user && (id === user.email || id === user.id));
+    !id || id === "me" || (user && (id === user.email || id === user.id || id === createSlug(user.username || "") || id === createSlug((user.firstName + " " + (user.lastName1 || "")).trim())));
 
-  // If not own profile, find the user from listings
+  const [fetchedUser, setFetchedUser] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchUserFromDB = async () => {
+      if (!isOwnProfile && id) {
+        try {
+          let realId = id;
+          const inListings = listings.find(
+            (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id || l.author.username === id),
+          )?.author;
+          if (inListings?.id) {
+            realId = inListings.id;
+          }
+
+          const usersRef = collection(db, "users");
+          const qUser = query(usersRef, where("username", "==", realId.startsWith("@") ? realId : `@${realId}`));
+          const snap = await getDocs(qUser);
+          if (!snap.empty) {
+            setFetchedUser({ id: snap.docs[0].id, ...snap.docs[0].data() });
+            return;
+          }
+          const qId = query(usersRef, where("id", "==", realId));
+          const snapId = await getDocs(qId);
+          if (!snapId.empty) {
+            setFetchedUser({ id: snapId.docs[0].id, ...snapId.docs[0].data() });
+            return;
+          }
+          const docRef = await getDoc(doc(db, "users", realId));
+          if (docRef.exists()) {
+            setFetchedUser({ id: docRef.id, ...docRef.data() });
+          }
+        } catch (e) {
+          console.error("Error fetching user profile:", e);
+        }
+      }
+    };
+    fetchUserFromDB();
+  }, [id, isOwnProfile, listings]);
+
   const profileUser = isOwnProfile
     ? user
-    : listings.find(
-        (l) => l && l.author && (l.author.id === id || l.author.email === id),
+    : fetchedUser || listings.find(
+        (l) => l && l.author && (l.author.id === id || l.author.email === id || createSlug(l.author.name) === id || l.author.username === id),
       )?.author;
 
   const profileName = isOwnProfile
     ? `${user?.firstName || ""} ${user?.lastName1 || ""}`.trim() ||
       user?.username ||
       "Usuario"
-    : profileUser?.name || "Usuario";
+    : profileUser?.name || profileUser?.username || "Usuario";
 
   const canEditProfile =
-    isOwnProfile || user?.email === "daviidjg1991@gmail.com";
+    isOwnProfile || (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
 
   const userListings = listings.filter((l) => {
     if (!l || !l.author) return false;
@@ -14648,10 +17941,10 @@ const ProfilePage = ({
       l.author.id === (isOwnProfile ? user?.id || "" : profileUser?.id || "");
     if (!isAuthor) return false;
 
-    if (l.status === "deleted") return false;
+    if (l.status === "deleted" || l.status === "owner_deleted") return false;
 
     const isActive = l.status === "active" || !l.status;
-    const isExpired = l.expiresAt && new Date(l.expiresAt) <= new Date();
+    const isExpired = checkIsListingExpired(l, isOwnProfile ? user : profileUser);
 
     if (canEditProfile) return true;
     return isActive && !isExpired;
@@ -14664,7 +17957,7 @@ const ProfilePage = ({
     if (!targetUserId) return;
     const q = query(
       collection(db, "reviews"),
-      where("professionalId", "==", targetUserId),
+      where("targetId", "==", targetUserId),
       orderBy("createdAt", "desc"),
     );
     const unsubscribe = onSnapshot(
@@ -14679,12 +17972,120 @@ const ProfilePage = ({
     return unsubscribe;
   }, [isOwnProfile ? user?.id : profileUser?.id]);
 
+  const activeReviews = reviews.filter((r) => !r.deleted);
+
+  const handleBlockUserInProfile = async (targetUserId: string) => {
+    if (!user || !user.id) {
+      alert("Debes iniciar sesión para bloquear a un usuario.");
+      return;
+    }
+    if (!confirm("¿Estás seguro de que deseas bloquear a este usuario? No verás sus publicaciones ni mensajes.")) return;
+
+    try {
+      const userRef = doc(db, "users", user.id);
+      const currentBlocked = user.blockedUsers || [];
+      if (!currentBlocked.includes(targetUserId)) {
+        const updated = [...currentBlocked, targetUserId];
+        const newBlockedUsersDates = { ...(user.blockedUsersDates || {}) };
+        newBlockedUsersDates[targetUserId] = new Date().toISOString();
+        await updateDoc(userRef, { 
+          blockedUsers: updated,
+          blockedUsersDates: newBlockedUsersDates
+        });
+      }
+      alert("Usuario bloqueado con éxito.");
+      navigate("/");
+    } catch (e) {
+      console.error("Error al bloquear usuario:", e);
+      alert("Ocurrió un error al bloquear el usuario.");
+    }
+  };
   const realRating =
-    reviews.length > 0
+    activeReviews.length > 0
       ? (
-          reviews.reduce((acc, r) => acc + (r.rating || 0), 0) / reviews.length
+          activeReviews.reduce((acc, r) => acc + (r.rating || 0), 0) / activeReviews.length
         ).toFixed(1)
-      : "0.0";
+      : (profileUser?.rating || 0) > 0
+        ? Number(profileUser?.rating).toFixed(1)
+        : "0.0";
+  const [copiedRecommendLink, setCopiedRecommendLink] = useState(false);
+  const [recommendationsCount, setRecommendationsCount] = useState<number>(0);
+
+  useEffect(() => {
+    const targetUserId = isOwnProfile ? user?.id : profileUser?.id || id;
+    if (!targetUserId) return;
+
+    const userRef = doc(db, "users", targetUserId);
+    const unsub = onSnapshot(
+      userRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setRecommendationsCount(docSnap.data().recommendationsCount || 0);
+        } else {
+          setRecommendationsCount((profileUser as any)?.recommendationsCount || 0);
+        }
+      },
+      (err) => {
+        console.error("Error fetching user recommendations count:", err);
+        setRecommendationsCount((profileUser as any)?.recommendationsCount || 0);
+      }
+    );
+
+    return () => unsub();
+  }, [isOwnProfile, user?.id, profileUser?.id, id]);
+
+  useEffect(() => {
+    const targetUserId = isOwnProfile ? null : (profileUser?.id || id);
+
+    if (targetUserId) {
+      localStorage.setItem("gigejob_referred_by", targetUserId);
+
+      const sessionKey = `rec_tracked_${targetUserId}`;
+      if (!sessionStorage.getItem(sessionKey)) {
+        sessionStorage.setItem(sessionKey, "true");
+        const userRef = doc(db, "users", targetUserId);
+        updateDoc(userRef, {
+          recommendationsCount: increment(1),
+        }).catch((err) => {
+          console.error("Error incrementing recommendation count:", err);
+        });
+      }
+    }
+  }, [isOwnProfile, user?.id, profileUser?.id, id]);
+
+  const handleRecommendClick = async () => {
+    let profileIdent = id || "";
+    if (!profileIdent) {
+      if (isOwnProfile && user) {
+        profileIdent = user.username || user.id || "";
+      } else if (profileUser) {
+        profileIdent = profileUser.username || profileUser.id || "";
+      }
+    }
+    const link = `${window.location.origin}/perfil/${profileIdent}`;
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedRecommendLink(true);
+      setTimeout(() => setCopiedRecommendLink(false), 3000);
+    } catch (err) {
+      console.error("Error copying link:", err);
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Perfil de ${profileName} en Gigejob`,
+          text: `¡Mira el perfil de ${profileName} en Gigejob!`,
+          url: link,
+        });
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Error sharing:", err);
+        }
+      }
+    }
+  };
 
   const handleProfilePhotoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -14728,48 +18129,58 @@ const ProfilePage = ({
     }
   };
 
-  const handleGalleryUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (file && isOwnProfile && user) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("La imagen es demasiado grande. El límite es 5MB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const optimizedUrl = await compressImage(
-          reader.result as string,
-          800,
-          800,
-          0.6,
-        );
-        const newPhoto = {
-          url: optimizedUrl,
-          category: selectedGalleryCategory,
-        };
-        const updatedGallery = [...(user.gallery || []), newPhoto];
+  const [isAddPhotoModalOpen, setIsAddPhotoModalOpen] = useState(false);
+  const [selectedLightboxPhoto, setSelectedLightboxPhoto] = useState<{
+    url: string;
+    category: string;
+    title?: string;
+    index: number;
+  } | null>(null);
 
-        // Check total size to prevent Firestore 1MB limit error
-        const estimatedSize = JSON.stringify({ items: updatedGallery }).length;
-        if (estimatedSize > 950000) {
-          alert(
-            "Has alcanzado el límite de almacenamiento para tu galería. Por favor, elimina algunas fotos antes de añadir más.",
-          );
-          return;
-        }
+  const saveGalleryToFirestore = async (updatedGallery: any[]) => {
+    if (!user || !isOwnProfile) return;
+    try {
+      const updatedUser = { ...user, gallery: updatedGallery };
+      setUser(updatedUser);
+      localStorage.setItem("GigeJob_user", JSON.stringify(updatedUser));
 
-        setUser({ ...user, gallery: updatedGallery });
-      };
-      reader.readAsDataURL(file);
+      const userRef = doc(db, "users", user.id);
+      await updateDoc(userRef, { gallery: updatedGallery });
+
+      const galleryRef = doc(db, "users", user.id, "private", "gallery");
+      await setDoc(
+        galleryRef,
+        { items: updatedGallery, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+      setFetchedGallery(updatedGallery);
+    } catch (err) {
+      console.error("Error saving gallery to Firestore:", err);
     }
   };
 
-  const removeGalleryPhoto = (index: number) => {
-    if (isOwnProfile && user && user.gallery) {
-      const updatedGallery = user.gallery.filter((_, i) => i !== index);
-      setUser({ ...user, gallery: updatedGallery });
+  const handleAddGalleryPhoto = async (newPhoto: {
+    url: string;
+    category: string;
+    title?: string;
+  }) => {
+    const currentGallery = (isOwnProfile ? user?.gallery : fetchedGallery) || [];
+    const updatedGallery = [...currentGallery, newPhoto];
+
+    const estimatedSize = JSON.stringify({ items: updatedGallery }).length;
+    if (estimatedSize > 950000) {
+      alert("Has alcanzado el límite de almacenamiento para tu galería. Por favor, elimina algunas fotos antes de añadir más.");
+      return;
+    }
+
+    await saveGalleryToFirestore(updatedGallery);
+  };
+
+  const removeGalleryPhoto = async (index: number) => {
+    if (isOwnProfile && user) {
+      const currentGallery = (user.gallery || fetchedGallery) || [];
+      const updatedGallery = currentGallery.filter((_: any, i: number) => i !== index);
+      await saveGalleryToFirestore(updatedGallery);
     }
   };
 
@@ -14777,13 +18188,11 @@ const ProfilePage = ({
 
   useEffect(() => {
     const fetchProfileGallery = async () => {
-      // If it's my own profile, we already have it in 'user' state
       if (isOwnProfile && user?.gallery) {
         setFetchedGallery(user.gallery);
         return;
       }
 
-      // If it's another user, fetch from their private gallery document
       const targetId = id === "me" ? user?.id : id || profileUser?.id;
       if (targetId) {
         try {
@@ -14792,7 +18201,6 @@ const ProfilePage = ({
           if (gallerySnap.exists()) {
             setFetchedGallery(gallerySnap.data().items || []);
           } else {
-            // Fallback to what's in the author object if any
             setFetchedGallery((profileUser as any)?.gallery || []);
           }
         } catch (error) {
@@ -14808,20 +18216,57 @@ const ProfilePage = ({
   }, [activeTab, id, isOwnProfile, user?.id, profileUser?.id]);
 
   return (
-    <div className="min-h-screen bg-surface pb-20 sm:pb-32">
+    <div className="min-h-screen bg-surface pb-40 sm:pb-48">
+      <SeoHead
+        title={`Perfil de ${profileName}`}
+        description={`Consulta las opiniones, valoraciones y trabajos de ${profileName} en GigeJob.`}
+        profileData={{
+          id: profileUser?.id || id || 'profesional',
+          name: profileName,
+          profession: (profileUser as any)?.profession || (profileUser as any)?.title || 'Profesional',
+          image: (profileUser as any)?.avatarUrl || (profileUser as any)?.avatar,
+          description: (profileUser as any)?.bio || (profileUser as any)?.description,
+          rating: Number(realRating) > 0 ? Number(realRating) : 5.0,
+          reviewCount: activeReviews.length > 0 ? activeReviews.length : 1,
+          city: (profileUser as any)?.city || (profileUser as any)?.location || 'España',
+          email: profileUser?.email,
+          phone: (profileUser as any)?.phone,
+        }}
+      />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 sm:mt-12 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
           {/* Left Column: Profile Info */}
           <div className="lg:col-span-4 space-y-6 sm:space-y-8">
             <div className="bg-surface-container-lowest rounded-[2.5rem] sm:rounded-[3.5rem] p-6 sm:p-10 md:p-12 ambient-shadow border border-outline-variant/10 text-center relative">
               {!isOwnProfile && profileUser?.id && (
-                <button
-                  onClick={() => openReportModal(profileUser.id)}
-                  className="absolute top-6 right-6 p-3 text-on-surface-variant/30 hover:text-warning transition-colors rounded-full hover:bg-surface-container-high group"
-                  title="Reportar usuario"
-                >
-                  <AlertTriangle className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                </button>
+                <>
+                  <button
+                    onClick={() => handleBlockUserInProfile(profileUser.id)}
+                    disabled={!user}
+                    className={cn(
+                      "absolute top-6 left-6 p-3 rounded-full transition-all group",
+                      !user 
+                        ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                        : "text-on-surface-variant/30 hover:text-error hover:bg-surface-container-high"
+                    )}
+                    title={!user ? "Debes iniciar sesión para bloquear usuario" : "Bloquear usuario"}
+                  >
+                    <ShieldOff className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  </button>
+                  <button
+                    onClick={() => openReportModal(profileUser.id)}
+                    disabled={!user}
+                    className={cn(
+                      "absolute top-6 right-6 p-3 rounded-full transition-all group",
+                      !user 
+                        ? "opacity-50 cursor-not-allowed grayscale text-on-surface-variant/50"
+                        : "text-on-surface-variant/30 hover:text-warning hover:bg-surface-container-high"
+                    )}
+                    title={!user ? "Debes iniciar sesión para reportar" : "Reportar usuario"}
+                  >
+                    <AlertTriangle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  </button>
+                </>
               )}
               <div className="relative inline-block mb-6 sm:mb-8 group cursor-pointer">
                 <div className="w-32 h-32 sm:w-44 sm:h-44 rounded-[2.5rem] sm:rounded-[3.5rem] primary-gradient flex items-center justify-center text-white font-black text-5xl sm:text-7xl shadow-2xl border-4 sm:border-8 border-surface-container-lowest mx-auto overflow-hidden relative">
@@ -14835,9 +18280,12 @@ const ProfilePage = ({
                       alt={profileUser?.name || "Usuario"}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/default-avatar.svg";
+                      }}
                     />
                   ) : (
-                    (profileUser?.name || "?").charAt(0)
+                    <img src="/default-avatar.svg" alt="Avatar" className="w-full h-full object-cover" />
                   )}
                   {canEditProfile && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -14869,14 +18317,14 @@ const ProfilePage = ({
                   {profileName}
                 </h1>
                 <p className="text-gray-500 font-medium text-[10px] sm:text-xs tracking-tight mb-1">
-                  ID: {profileUser?.customId}
+                  ID:
                 </p>
-                <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight">
-                  {profileUser?.email === "daviidjg1991@gmail.com" ? "Administrador" : (profileUser?.role === "user" ? "Usuario particular" : "Profesional Independiente")}
+                <p className="text-on-surface-variant font-bold text-xs sm:text-sm opacity-40 tracking-tight mb-1">
+                  <UsernameDisplay author={{ id: profileUser?.id, username: profileUser?.username, name: profileName }} />
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-8 sm:mb-10">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
                 <div className="bg-surface-container-low/50 p-4 sm:p-5 rounded-2xl sm:rounded-3xl">
                   <p className="text-xl sm:text-2xl font-display font-black text-on-surface">
                     {realRating}
@@ -14893,6 +18341,29 @@ const ProfilePage = ({
                     Anuncios
                   </p>
                 </div>
+              </div>
+
+              {/* Botón RECOMENDAR con enlace personalizado */}
+              <div className="mb-8 sm:mb-10 text-center">
+                <button
+                  type="button"
+                  onClick={handleRecommendClick}
+                  className="w-full py-3.5 sm:py-4 px-6 rounded-full bg-white text-gray-500 font-bold text-xs sm:text-sm tracking-[0.15em] uppercase shadow-[0_4px_20px_rgba(0,0,0,0.06)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.09)] hover:bg-gray-50/90 active:scale-[0.99] transition-all flex items-center justify-center gap-3 border border-gray-100/80"
+                >
+                  {copiedRecommendLink ? (
+                    <>
+                      <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 stroke-[2]" />
+                      <span className="text-emerald-600">¡ENLACE COPIADO!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 stroke-[1.8]" />
+                      <span>RECOMENDAR</span>
+                    </>
+                  )}
+                </button>
+
+
               </div>
 
               {(isOwnProfile
@@ -14957,11 +18428,7 @@ const ProfilePage = ({
                   label: isOwnProfile ? "Mis Anuncios" : "Servicios",
                 },
                 { id: "gallery", label: "Galería" },
-                ...(isOwnProfile ? [{ id: "wallet", label: "Monedero" }] : []),
                 { id: "reviews", label: "Reseñas" },
-                ...(isOwnProfile
-                  ? [{ id: "notifications", label: "Notificaciones" }]
-                  : []),
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -15004,7 +18471,7 @@ const ProfilePage = ({
                   </div>
 
                   {userListings.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+                    <div className="grid grid-cols-2 md:grid-cols-2 gap-2.5 sm:gap-6 lg:gap-8 mb-16 pb-8">
                       {userListings.map((listing) => (
                         <ListingCard
                           key={listing.id}
@@ -15012,6 +18479,9 @@ const ProfilePage = ({
                           isFavorite={favorites.includes(listing.id)}
                           onToggleFavorite={onToggleFavorite}
                           onReactivate={onReactivate}
+                          onDelete={isOwnProfile || canEditProfile ? onDelete : undefined}
+                          onEdit={isOwnProfile || canEditProfile ? onEdit : undefined}
+                          user={user}
                         />
                       ))}
                     </div>
@@ -15031,14 +18501,14 @@ const ProfilePage = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-low/20 p-5 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-outline-variant/5">
                     <div className="flex items-center gap-3 sm:gap-4">
                       <div className="p-2.5 sm:p-3 bg-primary/10 rounded-xl sm:rounded-2xl text-primary">
-                        <ImageIcon className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
+                        <Camera className="w-5 h-5" />
                       </div>
                       <div>
                         <h2 className="text-lg sm:text-xl font-display font-black text-on-surface tracking-tight">
-                          Galería
+                          Galería de Trabajos
                         </h2>
                         <p className="text-[9px] sm:text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                          Muestra tu trabajo
+                          Fotos de trabajos organizadas por categoría
                         </p>
                       </div>
                     </div>
@@ -15048,9 +18518,9 @@ const ProfilePage = ({
                         <select
                           value={galleryFilter}
                           onChange={(e) => setGalleryFilter(e.target.value)}
-                          className="bg-surface-container-low pl-3 pr-8 py-2 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all hover:bg-surface-container-high min-w-[120px] sm:min-w-[140px]"
+                          className="bg-surface-container-low pl-3 pr-8 py-2.5 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-outline-variant/10 outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer transition-all hover:bg-surface-container-high min-w-[140px]"
                         >
-                          <option value="all">Todo</option>
+                          <option value="all">Todas las categorías</option>
                           {CATEGORIES.map((cat) => (
                             <option key={cat} value={cat}>
                               {cat}
@@ -15061,103 +18531,68 @@ const ProfilePage = ({
                       </div>
 
                       {isOwnProfile && (
-                        <div className="relative">
-                          {!isUploadStep ? (
-                            <button
-                              onClick={() => setIsUploadStep(true)}
-                              className="flex items-center gap-1.5 px-4 sm:px-6 py-2 primary-gradient text-white rounded-xl font-black uppercase tracking-widest text-[9px] sm:text-[10px] shadow-lg transition-all active:scale-95"
-                            >
-                              <PlusCircle className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Subir</span>
-                            </button>
-                          ) : (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              className="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-primary/20 shadow-xl"
-                            >
-                              <select
-                                value={selectedGalleryCategory}
-                                onChange={(e) =>
-                                  setSelectedGalleryCategory(e.target.value)
-                                }
-                                className="bg-transparent pl-2 pr-4 py-1 text-[8px] sm:text-[9px] font-black uppercase tracking-widest outline-none cursor-pointer appearance-none"
-                              >
-                                {CATEGORIES.map((cat) => (
-                                  <option key={cat} value={cat}>
-                                    {cat}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => {
-                                  galleryInputRef.current?.click();
-                                  setIsUploadStep(false);
-                                }}
-                                className="px-3 py-1 bg-primary text-white rounded-lg font-black uppercase tracking-widest text-[8px] transition-colors"
-                              >
-                                OK
-                              </button>
-                              <button
-                                onClick={() => setIsUploadStep(false)}
-                                className="p-1 text-on-surface-variant/40 hover:text-red-500 transition-colors"
-                              >
-                                <X className="w-3 h-3 text-red-500" />
-                              </button>
-                            </motion.div>
-                          )}
-                          <input
-                            type="file"
-                            ref={galleryInputRef}
-                            className="hidden"
-                            accept="image/*"
-                            onChange={handleGalleryUpload}
-                          />
-                        </div>
+                        <button
+                          onClick={() => setIsAddPhotoModalOpen(true)}
+                          className="flex items-center gap-2 px-4 sm:px-6 py-2.5 primary-gradient text-white rounded-xl font-black uppercase tracking-widest text-[9px] sm:text-[10px] shadow-lg shadow-primary/20 transition-all active:scale-95 hover:opacity-95"
+                        >
+                          <Camera className="w-4 h-4" />
+                          <span>Añadir Foto</span>
+                        </button>
                       )}
                     </div>
                   </div>
 
                   {(() => {
-                    const gallery = isOwnProfile
-                      ? user?.gallery || fetchedGallery
-                      : fetchedGallery;
+                    const rawGallery = isOwnProfile
+                      ? (Array.isArray(user?.gallery) ? user.gallery : Array.isArray(fetchedGallery) ? fetchedGallery : [])
+                      : (Array.isArray(fetchedGallery) ? fetchedGallery : []);
+                    const gallery = Array.isArray(rawGallery) ? rawGallery : [];
                     const filteredGallery =
                       galleryFilter === "all"
                         ? gallery
-                        : gallery?.filter(
-                            (p: any) => p.category === galleryFilter,
-                          );
+                        : gallery.filter((p: any) => p && typeof p === "object" && p.category === galleryFilter);
 
-                    return filteredGallery?.length > 0 ? (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+                    return Array.isArray(filteredGallery) && filteredGallery.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
                         {filteredGallery.map((photo: any, i: number) => (
                           <div
                             key={i}
-                            className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-container-low border border-outline-variant/5 ambient-shadow transition-all duration-500 hover:shadow-lg"
+                            onClick={() => setSelectedLightboxPhoto({ ...photo, index: i })}
+                            className="group relative aspect-square rounded-2xl overflow-hidden bg-surface-container-low border border-outline-variant/5 ambient-shadow transition-all duration-300 hover:shadow-xl cursor-pointer"
                           >
                             <img
                               src={photo.url}
-                              alt={`Trabajo ${i}`}
-                              className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                              alt={photo.title || `Trabajo ${i}`}
+                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                               referrerPolicy="no-referrer"
                             />
 
-                            <div className="absolute bottom-2 left-2 right-2">
-                              <div className="bg-black/30 backdrop-blur-md px-2 py-1 rounded-lg border border-white/5 inline-block">
-                                <p className="text-[7px] font-black text-white/90 uppercase tracking-widest">
-                                  #{photo.category}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-90 group-hover:opacity-100 transition-opacity" />
+
+                            <div className="absolute bottom-3 left-3 right-3 space-y-1">
+                              <span className="bg-primary/90 backdrop-blur-md px-2.5 py-0.5 rounded-full text-[8px] font-black text-white uppercase tracking-widest inline-block shadow">
+                                #{photo.category}
+                              </span>
+                              {photo.title && (
+                                <p className="text-xs font-bold text-white line-clamp-1 drop-shadow">
+                                  {photo.title}
                                 </p>
-                              </div>
+                              )}
                             </div>
 
                             {isOwnProfile && (
-                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                 <button
-                                  onClick={() => removeGalleryPhoto(i)}
-                                  className="p-1.5 bg-red-500/90 text-white rounded-lg shadow-lg hover:bg-red-600 transition-all"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (window.confirm("¿Seguro que deseas eliminar esta foto de tu galería?")) {
+                                      removeGalleryPhoto(i);
+                                    }
+                                  }}
+                                  className="p-2 bg-red-600/90 text-white rounded-xl shadow-lg hover:bg-red-600 transition-all active:scale-95"
+                                  title="Eliminar foto"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500" />
+                                  <Trash2 className="w-4 h-4 text-white" />
                                 </button>
                               </div>
                             )}
@@ -15165,18 +18600,52 @@ const ProfilePage = ({
                         ))}
                       </div>
                     ) : (
-                      <div className="bg-surface-container-low/10 py-16 sm:py-20 rounded-2xl sm:rounded-[2.5rem] text-center border border-dashed border-outline-variant/10">
-                        <Camera className="w-8 h-8 sm:w-12 sm:h-12 text-on-surface-variant/10 mx-auto mb-3 sm:mb-4" />
-                        <p className="text-on-surface-variant/40 font-black uppercase tracking-widest text-[8px] sm:text-[9px]">
-                          Sin fotos
-                        </p>
+                      <div className="bg-surface-container-low/10 py-16 sm:py-20 rounded-2xl sm:rounded-[2.5rem] text-center border border-dashed border-outline-variant/20 p-6 space-y-4">
+                        <Camera className="w-12 h-12 text-on-surface-variant/30 mx-auto" />
+                        <div>
+                          <h3 className="text-base sm:text-lg font-bold text-on-surface">
+                            {galleryFilter === "all"
+                              ? "No hay fotos en la galería"
+                              : `No hay fotos en la categoría "${galleryFilter}"`}
+                          </h3>
+                          <p className="text-xs text-on-surface-variant/60 mt-1">
+                            {isOwnProfile
+                              ? "Sube fotos de tus trabajos completados organizadas por categoría"
+                              : "Este profesional aún no ha subido fotos a esta categoría"}
+                          </p>
+                        </div>
+                        {isOwnProfile && (
+                          <button
+                            onClick={() => setIsAddPhotoModalOpen(true)}
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95"
+                          >
+                            <Camera className="w-4 h-4" />
+                            <span>Subir Mi Primera Foto</span>
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
+
+                  <AddGalleryPhotoModal
+                    isOpen={isAddPhotoModalOpen}
+                    onClose={() => setIsAddPhotoModalOpen(false)}
+                    onAddPhoto={handleAddGalleryPhoto}
+                  />
+
+                  <GalleryLightboxModal
+                    photo={selectedLightboxPhoto}
+                    onClose={() => setSelectedLightboxPhoto(null)}
+                    onDelete={
+                      selectedLightboxPhoto && isOwnProfile
+                        ? () => removeGalleryPhoto(selectedLightboxPhoto.index)
+                        : undefined
+                    }
+                    canDelete={isOwnProfile}
+                  />
                 </div>
               )}
 
-              {activeTab === "wallet" && <WalletManager isDashboard={true} />}
 
               {activeTab === "reviews" && (
                 <div className="space-y-6 sm:space-y-10">
@@ -15184,12 +18653,16 @@ const ProfilePage = ({
                     Opiniones
                   </h2>
                   <div className="space-y-5 sm:space-y-6">
-                    {reviews.length === 0 ? (
-                      <p className="text-on-surface-variant font-medium text-sm">
-                        Aún no hay reseñas para este profesional.
-                      </p>
-                    ) : (
-                      reviews.map((review, i) => (
+                    {(() => {
+                      const visibleReviews = activeReviews.filter(r => r.comment && r.comment.trim().length > 0);
+                      if (visibleReviews.length === 0) {
+                        return (
+                          <p className="text-on-surface-variant font-medium text-sm">
+                            Aún no hay reseñas escritas para este profesional.
+                          </p>
+                        );
+                      }
+                      return visibleReviews.map((review, i) => (
                         <div
                           key={i}
                           className="bg-surface-container-lowest rounded-2xl sm:rounded-[2.5rem] p-6 sm:p-10 ambient-shadow border border-outline-variant/10 space-y-4 sm:space-y-6"
@@ -15197,20 +18670,15 @@ const ProfilePage = ({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3 sm:gap-4">
                               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-primary flex items-center justify-center text-white font-black text-xs sm:text-base overflow-hidden">
-                                {review.clientPhotoUrl ? (
-                                  <img
-                                    src={review.clientPhotoUrl}
-                                    alt={review.clientName}
-                                    className="w-full h-full object-cover"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  (review.clientName || "?").charAt(0)
-                                )}
+                                <AvatarDisplay 
+                                  author={{ id: review.authorId, name: review.authorName, photoUrl: review.authorPhotoUrl }}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
                               </div>
                               <div>
                                 <div className="font-black text-on-surface text-sm sm:text-base">
-                                  {review.clientName || "Anónimo"}
+                                  {review.authorName || "Anónimo"}
                                 </div>
                                 <div className="text-[8px] sm:text-[10px] text-on-surface-variant/40 uppercase font-bold tracking-widest">
                                   {review.createdAt?.seconds
@@ -15238,89 +18706,19 @@ const ProfilePage = ({
                           <p className="text-on-surface-variant font-medium text-sm sm:text-base leading-relaxed italic opacity-80">
                             "{review.comment}"
                           </p>
+                          {review.photoUrl && (
+                            <div className="mt-4 rounded-xl overflow-hidden max-w-xs border border-outline-variant/20">
+                              <img src={review.photoUrl} alt="Reseña foto" className="w-full h-auto object-cover" />
+                            </div>
+                          )}
                         </div>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}
 
-              {activeTab === "notifications" && isOwnProfile && (
-                <div className="space-y-6 sm:space-y-10">
-                  <h2 className="text-2xl sm:text-3xl font-display font-black text-on-surface tracking-tighter">
-                    Notificaciones
-                  </h2>
-                  <div className="bg-surface-container-lowest rounded-2xl sm:rounded-[3rem] p-6 sm:p-10 ambient-shadow border border-outline-variant/10 space-y-6 sm:space-y-8">
-                    <div className="space-y-4 sm:space-y-6">
-                      <p className="text-xs sm:text-sm text-on-surface-variant/60">
-                        Configura tus alertas.
-                      </p>
-                      <div className="space-y-3 sm:space-y-4">
-                        {["Email", "Push", "SMS"].map((type) => (
-                          <div
-                            key={type}
-                            className="flex items-center justify-between p-4 sm:p-6 bg-surface-container-low rounded-xl sm:rounded-[2rem]"
-                          >
-                            <div>
-                              <p className="font-black text-on-surface uppercase tracking-widest text-[9px] sm:text-[10px]">
-                                {type}
-                              </p>
-                              <p className="text-[8px] sm:text-[9px] text-on-surface-variant/40 font-bold mt-1">
-                                Avisos por {type.toLowerCase()}
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const key = type.toLowerCase() as
-                                  | "email"
-                                  | "push"
-                                  | "sms";
-                                setUser({
-                                  ...user,
-                                  settings: {
-                                    ...(user.settings || {}),
-                                    notifications: {
-                                      ...(user.settings?.notifications || {
-                                        email: true,
-                                        push: true,
-                                        sms: false,
-                                      }),
-                                      [key]:
-                                        !user.settings?.notifications?.[key],
-                                    },
-                                  },
-                                });
-                              }}
-                              className={cn(
-                                "w-10 sm:w-14 h-5 sm:h-7 rounded-full transition-colors relative",
-                                user.settings?.notifications?.[
-                                  type.toLowerCase() as "email" | "push" | "sms"
-                                ]
-                                  ? "bg-primary"
-                                  : "bg-on-surface-variant/20",
-                              )}
-                            >
-                              <div
-                                className={cn(
-                                  "absolute top-0.5 sm:top-1 w-4 sm:w-5 h-4 sm:h-5 bg-white rounded-full transition-all",
-                                  user.settings?.notifications?.[
-                                    type.toLowerCase() as
-                                      | "email"
-                                      | "push"
-                                      | "sms"
-                                  ]
-                                    ? "right-0.5 sm:right-1"
-                                    : "left-0.5 sm:left-1",
-                                )}
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+
             </div>
           </div>
         </div>
@@ -15356,21 +18754,11 @@ const DashboardSidebar = ({
   ];
 
   const settingsItems = [
-    { icon: User, label: "Datos personales", path: "/configuracion/personal" },
-    {
-      icon: Briefcase,
-      label: "Datos profesionales",
-      path: "/configuracion/profesional",
-    },
-    {
-      icon: Clock,
-      label: "Disponibilidad y mapa",
-      path: "/configuracion/disponibilidad",
-    },
+    { icon: User, label: "Area personal", path: "/configuracion/personal" },
     { icon: Wallet, label: "Facturación", path: "/configuracion/facturacion" },
     {
-      icon: ShieldCheck,
-      label: "Verificaciones y seguridad",
+      icon: Lock,
+      label: "Seguridad",
       path: "/configuracion/seguridad",
     },
     {
@@ -15385,18 +18773,14 @@ const DashboardSidebar = ({
   return (
     <div className="hidden lg:flex w-80 bg-surface-container-lowest border-r border-outline-variant/10 flex-col h-full overflow-y-auto no-scrollbar shrink-0 z-[60]">
       <div className="p-6">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="primary-gradient p-1.5 rounded-lg shadow-sm shrink-0">
-            <Briefcase className="w-5 h-5 text-white" />
-          </div>
-          {/* Sidebar title removed */}
-        </div>
-
         <nav className="space-y-1">
           {menuItems.map((item) => (
             <button
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                setIsSettingsOpen(false);
+                navigate(item.path);
+              }}
               className={cn(
                 "w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap overflow-hidden",
                 location.pathname === item.path
@@ -15416,35 +18800,50 @@ const DashboardSidebar = ({
 
           <div className="pt-4 space-y-1">
             <button
-              onClick={() => onOpenSettings?.("personal")}
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
               className={cn(
-                "w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap overflow-hidden",
+                "w-full flex items-center justify-between px-6 py-4 rounded-2xl text-sm font-bold transition-all whitespace-nowrap overflow-hidden",
                 isSettingsPath
-                  ? "text-primary bg-primary/5"
+                  ? "text-primary bg-primary/5 font-extrabold"
                   : "text-on-surface-variant/60 hover:bg-surface-container-low hover:text-primary",
               )}
             >
-              <Settings className="w-5 h-5 shrink-0" />
-              <span className="truncate">Configuración</span>
+              <div className="flex items-center gap-4">
+                <Settings className="w-5 h-5 shrink-0" />
+                <span className="truncate">Configuración</span>
+              </div>
+              <ChevronDown
+                className={cn(
+                  "w-4 h-4 shrink-0 transition-transform duration-200",
+                  isSettingsOpen && "rotate-180",
+                )}
+              />
             </button>
 
-            {isSettingsPath && (
-              <div className="ml-4 pl-4 border-l-2 border-outline-variant/10 space-y-1">
-                {settingsItems.map((item) => (
-                  <button
-                    key={item.path}
-                    onClick={() => navigate(item.path)}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap overflow-hidden",
-                      location.pathname === item.path
-                        ? "text-primary bg-primary/5"
-                        : "text-on-surface-variant/40 hover:text-primary hover:bg-surface-container-low",
-                    )}
-                  >
-                    <item.icon className="w-4 h-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </button>
-                ))}
+            {isSettingsOpen && (
+              <div className="ml-4 pl-4 border-l-2 border-outline-variant/10 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                {settingsItems.map((item) => {
+                  const isActive =
+                    location.pathname === item.path ||
+                    (item.path === "/configuracion/personal" &&
+                      (location.pathname === "/configuracion" ||
+                        location.pathname === "/configuracion/general"));
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => navigate(item.path)}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap overflow-hidden",
+                        isActive
+                          ? "text-primary bg-primary/5 font-bold"
+                          : "text-on-surface-variant/60 hover:text-primary hover:bg-surface-container-low",
+                      )}
+                    >
+                      <item.icon className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -15469,7 +18868,7 @@ const DashboardLayout = ({
         onOpenSettings={onOpenSettings}
         unreadMessagesCount={unreadMessagesCount}
       />
-      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar">
+      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-0">
         {children}
       </main>
     </div>
@@ -15480,13 +18879,17 @@ const FavoritesPage = ({
   listings,
   favorites,
   onToggleFavorite,
+  onEdit,
+  user,
 }: {
   listings: JobListing[];
   favorites: string[];
   onToggleFavorite: (id: string) => void;
+  onEdit?: (listing: JobListing) => void;
+  user?: UserProfile | null;
 }) => {
   return (
-    <div className="p-0 h-full overflow-y-auto no-scrollbar">
+    <div className="px-4 sm:px-6 lg:px-8 py-8">
       <div className="w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8 sm:mb-12">
           <div>
@@ -15505,13 +18908,15 @@ const FavoritesPage = ({
         </div>
 
         {listings.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-2.5 sm:gap-6 lg:gap-8">
             {listings.map((listing) => (
               <ListingCard
                 key={listing.id}
                 listing={listing}
                 isFavorite={favorites.includes(listing.id)}
                 onToggleFavorite={onToggleFavorite}
+                onEdit={onEdit}
+                user={user}
               />
             ))}
           </div>
@@ -15570,11 +18975,11 @@ const StatsPage = ({ user, listings }: { user: any; listings: any[] }) => {
 
   const userListings = listings
     ? listings.filter(
-        (l) => l?.author?.email === user?.email && l.status !== "deleted",
+        (l) => l?.author?.email === user?.email && l.status !== "deleted" && l.status !== "owner_deleted",
       )
     : [];
   const activeListingsCount = userListings.filter(
-    (l) => l.status === "active" || !l.status,
+    (l) => (l.status === "active" || !l.status) && !checkIsListingExpired(l, user),
   ).length;
   const totalViews = userListings.reduce((sum, l) => sum + (l.views || 0), 0);
 
@@ -15942,37 +19347,106 @@ const WalletManager = ({
   }>({ isOpen: false, type: null });
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-    const q = query(
-      collection(db, "users", auth.currentUser.uid, "transactions"),
-      orderBy("createdAt", "desc"),
-    );
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const txs: any[] = [];
+    let unsubTxs: any;
+    let unsubPro: any;
+    let unsubClient: any;
+
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      const uid = user.uid;
+
+      const qTxs = query(
+        collection(db, "users", uid, "transactions"),
+        orderBy("createdAt", "desc"),
+      );
+      const qPro = query(
+        collection(db, "bookings"),
+        where("professionalId", "==", uid),
+        where("status", "==", "completed")
+      );
+      const qClient = query(
+        collection(db, "bookings"),
+        where("clientId", "==", uid),
+        where("status", "==", "completed")
+      );
+
+      let baseTxs: any[] = [];
+      let proBookings: any[] = [];
+      let clientBookings: any[] = [];
+
+      const updateCombined = () => {
+        const combined = [...baseTxs];
+        proBookings.forEach(b => {
+          combined.push({
+            id: b.id,
+            type: "income",
+            amount: b.totalCost || 0,
+            label: b.listingTitle || "Servicio Prestado",
+            concept: b.listingTitle || "Servicio Prestado",
+            date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
+            status: "completed",
+            paymentMethod: b.paymentMethod || "platform",
+            isBooking: true
+          });
+        });
+        clientBookings.forEach(b => {
+          combined.push({
+            id: b.id,
+            type: "payment",
+            amount: b.totalCost || 0,
+            label: b.listingTitle || "Servicio Contratado",
+            concept: b.listingTitle || "Servicio Contratado",
+            date: b.date || (b.createdAt ? b.createdAt.toDate().toISOString() : new Date().toISOString()),
+            status: "completed",
+            paymentMethod: b.paymentMethod || "platform",
+            isBooking: true
+          });
+        });
+        
+        combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setTransactions(combined);
+        
         let total = 0;
-        snapshot.forEach((doc) => {
+        combined.forEach(data => {
+          const isCashBooking = data.isBooking && data.paymentMethod !== "stripe";
+          if (!isCashBooking) {
+            if (data.type === "income" || data.type === "in") total += Number(data.amount) || 0;
+            if (data.type === "payment" || data.type === "withdrawal" || data.type === "out")
+              total -= Math.abs(Number(data.amount) || 0);
+          }
+        });
+        setBalance(total);
+      };
+
+      unsubTxs = onSnapshot(qTxs, (snapshot) => {
+        baseTxs = snapshot.docs.map(doc => {
           const data = doc.data();
-          txs.push({
+          return {
             id: doc.id,
             ...data,
-            date: data.createdAt
-              ? data.createdAt.toDate().toISOString()
-              : new Date().toISOString(),
-          });
-          if (data.type === "income") total += Number(data.amount) || 0;
-          if (data.type === "payment" || data.type === "withdrawal")
-            total -= Math.abs(Number(data.amount) || 0);
+            date: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+          };
         });
-        setTransactions(txs);
-        setBalance(total);
-      },
-      (error) => {
-        handleFirestoreError(error, OperationType.LIST, "transactions");
-      },
-    );
-    return () => unsubscribe();
+        updateCombined();
+      }, (error) => handleFirestoreError(error, OperationType.LIST, "transactions"));
+
+      unsubPro = onSnapshot(qPro, (snapshot) => {
+        proBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateCombined();
+      });
+
+      unsubClient = onSnapshot(qClient, (snapshot) => {
+        clientBookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        updateCombined();
+      });
+    });
+
+    return () => {
+      unsubAuth();
+      if (unsubTxs) unsubTxs();
+      if (unsubPro) unsubPro();
+      if (unsubClient) unsubClient();
+    };
   }, []);
 
   const handleWithdraw = async () => {
@@ -16168,53 +19642,90 @@ const WalletManager = ({
                   </p>
                 </div>
               ) : (
-                transactions.slice(0, 3).map((tx, i) => (
-                  <div
-                    key={i}
-                    className="p-6 sm:p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
+                transactions.slice(0, 3).map((tx, i) => {
+                  const isIncome = tx.type === "in" || tx.type === "income";
+                  const isCash = tx.isBooking ? tx.paymentMethod !== "stripe" : tx.paymentMethod === "cash";
+
+                  let iconBgColor = "";
+                  let iconTextColor = "";
+                  let amountColor = "";
+
+                  if (isIncome) {
+                    if (isCash) {
+                      iconBgColor = "bg-yellow-500/10";
+                      iconTextColor = "text-yellow-600";
+                      amountColor = "text-yellow-600";
+                    } else {
+                      iconBgColor = "bg-green-500/10";
+                      iconTextColor = "text-green-500";
+                      amountColor = "text-green-500";
+                    }
+                  } else {
+                    iconBgColor = "bg-red-500/10";
+                    iconTextColor = "text-red-500";
+                    amountColor = "text-red-600";
+                  }
+
+                  return (
+                    <div
+                      key={i}
+                      className="p-6 sm:p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0",
+                            iconBgColor,
+                            iconTextColor
+                          )}
+                        >
+                          {isIncome ? (
+                            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
+                          ) : tx.type === "withdrawal" ? (
+                            <Landmark className="w-5 h-5 sm:w-6 sm:h-6" />
+                          ) : (
+                            <CreditCard className="w-5 h-5 sm:w-6 sm:h-6" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-on-surface text-sm truncate">
+                            {tx.label || (isIncome ? "Ingreso por servicio" : "Pago por servicio")}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
+                              {formatTxDate(tx.date)}
+                            </p>
+                            {!isIncome ? (
+                              <span className="text-[8px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Pago como cliente*
+                              </span>
+                            ) : isCash ? (
+                              <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Cobro en mano*
+                              </span>
+                            ) : (
+                              <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Cobro mediante web*
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <p
                         className={cn(
-                          "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0",
-                          tx.type === "income"
-                            ? "bg-green-500/10 text-green-500"
-                            : "bg-on-surface-variant/5 text-on-surface-variant",
+                          "text-base sm:text-lg font-display font-black shrink-0 ml-4",
+                          amountColor
                         )}
                       >
-                        {tx.type === "income" ? (
-                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                        ) : tx.type === "withdrawal" ? (
-                          <Landmark className="w-5 h-5 sm:w-6 sm:h-6" />
-                        ) : (
-                          <CreditCard className="w-5 h-5 sm:w-6 sm:h-6" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-on-surface text-sm truncate">
-                          {tx.label}
-                        </p>
-                        <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                          {formatTxDate(tx.date)}
-                        </p>
-                      </div>
+                        {isIncome ? "+" : "-"}
+                        {Number(tx.amount || 0).toLocaleString("es-ES", {
+                          minimumFractionDigits: 2,
+                        })}
+                        €
+                      </p>
                     </div>
-                    <p
-                      className={cn(
-                        "text-base sm:text-lg font-display font-black shrink-0 ml-4",
-                        tx.type === "income"
-                          ? "text-green-500"
-                          : "text-on-surface",
-                      )}
-                    >
-                      {tx.amount > 0 ? "+" : ""}
-                      {tx.amount.toLocaleString("es-ES", {
-                        minimumFractionDigits: 2,
-                      })}
-                      €
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -16392,58 +19903,95 @@ const WalletManager = ({
           <div className="bg-surface-container-lowest rounded-[3rem] ambient-shadow border border-outline-variant/10 overflow-hidden">
             <div className="divide-y divide-outline-variant/5">
               {filteredTransactions.length > 0 ? (
-                filteredTransactions.map((tx, i) => (
-                  <div
-                    key={i}
-                    className="p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-6">
-                      <div
-                        className={cn(
-                          "w-14 h-14 rounded-2xl flex items-center justify-center",
-                          tx.type === "income"
-                            ? "bg-green-500/10 text-green-500"
-                            : "bg-on-surface-variant/5 text-on-surface-variant",
-                        )}
-                      >
-                        {tx.type === "income" ? (
-                          <TrendingUp className="w-6 h-6" />
-                        ) : tx.type === "withdrawal" ? (
-                          <Landmark className="w-6 h-6" />
-                        ) : (
-                          <CreditCard className="w-6 h-6" />
-                        )}
+                filteredTransactions.map((tx, i) => {
+                  const isIncome = tx.type === "in" || tx.type === "income";
+                  const isCash = tx.isBooking ? tx.paymentMethod !== "stripe" : tx.paymentMethod === "cash";
+
+                  let iconBgColor = "";
+                  let iconTextColor = "";
+                  let amountColor = "";
+
+                  if (isIncome) {
+                    if (isCash) {
+                      iconBgColor = "bg-yellow-500/10";
+                      iconTextColor = "text-yellow-600";
+                      amountColor = "text-yellow-600";
+                    } else {
+                      iconBgColor = "bg-green-500/10";
+                      iconTextColor = "text-green-500";
+                      amountColor = "text-green-500";
+                    }
+                  } else {
+                    iconBgColor = "bg-red-500/10";
+                    iconTextColor = "text-red-500";
+                    amountColor = "text-red-600";
+                  }
+
+                  return (
+                    <div
+                      key={i}
+                      className="p-8 flex items-center justify-between hover:bg-surface-container-low/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-6">
+                        <div
+                          className={cn(
+                            "w-14 h-14 rounded-2xl flex items-center justify-center",
+                            iconBgColor,
+                            iconTextColor
+                          )}
+                        >
+                          {isIncome ? (
+                            <TrendingUp className="w-6 h-6" />
+                          ) : tx.type === "withdrawal" ? (
+                            <Landmark className="w-6 h-6" />
+                          ) : (
+                            <CreditCard className="w-6 h-6" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-bold text-on-surface text-base">
+                            {tx.label || (isIncome ? "Ingreso por servicio" : "Pago por servicio")}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
+                              {formatTxDate(tx.date)}
+                            </p>
+                            {!isIncome ? (
+                              <span className="text-[8px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Pago como cliente*
+                              </span>
+                            ) : isCash ? (
+                              <span className="text-[8px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Cobro en mano*
+                              </span>
+                            ) : (
+                              <span className="text-[8px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                                *Cobro mediante web*
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-on-surface text-base">
-                          {tx.label}
+                      <div className="text-right">
+                        <p
+                          className={cn(
+                            "text-xl font-display font-black",
+                            amountColor
+                          )}
+                        >
+                          {isIncome ? "+" : "-"}
+                          {Number(tx.amount || 0).toLocaleString("es-ES", {
+                            minimumFractionDigits: 2,
+                          })}
+                          €
                         </p>
-                        <p className="text-[10px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-1">
-                          {formatTxDate(tx.date)}
+                        <p className="text-[8px] font-black text-on-surface-variant/30 uppercase tracking-widest mt-1">
+                          Completado
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p
-                        className={cn(
-                          "text-xl font-display font-black",
-                          tx.type === "income"
-                            ? "text-green-500"
-                            : "text-on-surface",
-                        )}
-                      >
-                        {tx.amount > 0 ? "+" : ""}
-                        {tx.amount.toLocaleString("es-ES", {
-                          minimumFractionDigits: 2,
-                        })}
-                        €
-                      </p>
-                      <p className="text-[8px] font-black text-on-surface-variant/30 uppercase tracking-widest mt-1">
-                        Completado
-                      </p>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-20 text-center">
                   <History className="w-12 h-12 text-on-surface-variant/10 mx-auto mb-4" />
@@ -16656,6 +20204,141 @@ const SettingsSubPage = ({
     </div>
   </div>
 );
+const EditBookingModal = ({
+  isOpen,
+  onClose,
+  booking,
+  onSave,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  booking: any;
+  onSave: (date: string, time: string, duration: string, newTotalCost: number) => void;
+}) => {
+  const [dateStr, setDateStr] = useState(booking?.date || "");
+  const [timeStr, setTimeStr] = useState(booking?.time || "");
+  const [durationStr, setDurationStr] = useState(booking?.duration || "1h");
+  
+  // Try to extract numerical hours
+  const currentHours = parseInt(durationStr.replace(/[^0-9]/g, '')) || 1;
+  const originalCost = booking?.totalCost || 0;
+  const originalHours = parseInt((booking?.duration || "1h").replace(/[^0-9]/g, '')) || 1;
+  const hourlyRate = originalHours > 0 ? originalCost / originalHours : 0;
+  
+  const [durationNum, setDurationNum] = useState(currentHours);
+
+  const estimatedTotalCost = durationNum * hourlyRate;
+
+  useEffect(() => {
+    if (isOpen && booking) {
+      setDateStr(booking.date);
+      setTimeStr(booking.time);
+      const h = parseInt((booking.duration || "1h").replace(/[^0-9]/g, '')) || 1;
+      setDurationStr(booking.duration || "1h");
+      setDurationNum(h);
+    }
+  }, [isOpen, booking]);
+
+  if (!isOpen || !booking) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
+      <div className="bg-surface-container-lowest w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+        <div className="flex justify-between items-center mb-6 border-b border-outline-variant/10 pb-4">
+          <h2 className="text-xl font-bold font-display flex items-center gap-2 text-on-surface">
+            <Edit3 className="w-5 h-5 text-primary" /> Editar Reserva
+          </h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-colors"
+          >
+            <X className="w-4 h-4 text-on-surface-variant" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest pl-1">
+              Fecha (ej. 24 de mayo de 2024)
+            </label>
+            <input
+              type="text"
+              value={dateStr}
+              onChange={(e) => setDateStr(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-container-low rounded-xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-primary/20 text-on-surface"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest pl-1">
+              Hora de Inicio (ej. 10:00)
+            </label>
+            <input
+              type="text"
+              value={timeStr}
+              onChange={(e) => setTimeStr(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-container-low rounded-xl text-sm font-bold border-none outline-none focus:ring-2 focus:ring-primary/20 text-on-surface"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest pl-1">
+              Horas Trabajadas (estimadas)
+            </label>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDurationNum(Math.max(1, durationNum - 1))}
+                className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface hover:text-primary transition-all"
+              >
+                -
+              </button>
+              <div className="flex-1 h-10 bg-surface-container-low/50 rounded-xl flex items-center justify-center border border-outline-variant/10">
+                <span className="text-sm font-black text-on-surface">
+                  {durationNum}h
+                </span>
+              </div>
+              <button
+                onClick={() => setDurationNum(durationNum + 1)}
+                className="w-10 h-10 rounded-xl bg-surface-container-low flex items-center justify-center text-on-surface hover:text-primary transition-all"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-outline-variant/10 mt-4">
+            <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] pl-1">
+              NUEVO COSTE TOTAL ESTIMADO
+            </label>
+            <div className="h-10 bg-[#005a54]/5 rounded-xl flex items-center justify-center border border-[#005a54]/10 mt-2">
+              <span className="text-lg font-display font-black text-[#005a54]">
+                {estimatedTotalCost.toFixed(2)}€
+              </span>
+            </div>
+            <p className="text-[9px] text-center text-on-surface-variant/40 font-bold mt-2 uppercase">
+              El coste se ha recalculado automáticamente.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(dateStr, timeStr, `${durationNum}h`, estimatedTotalCost)}
+            className="px-5 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors"
+          >
+            Siguiente
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const navigate = useNavigate();
@@ -16665,8 +20348,30 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   );
   const [showMenu, setShowMenu] = useState(false);
   const { openReportModal } = React.useContext(ReportContext);
-  const menuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showSummary, setShowSummary] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    const diffX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const diffY = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
+    if (diffX > 70 && diffY < 50) {
+      if (selectedChatId) {
+        setSelectedChatId(null);
+        navigate("/mensajes");
+      }
+    }
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  };
+
+  const menuTimeoutRef = useRef<any>(null);
 
   const clearMenuTimeout = () => {
     if (menuTimeoutRef.current) {
@@ -16690,8 +20395,57 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   );
   const [loadingSpecificChat, setLoadingSpecificChat] = useState(false);
   const [specificChat, setSpecificChat] = useState<any>(null);
+
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Forza la ocultación del menú inferior móvil al abrir un chat
+  useEffect(() => {
+    const nav = document.getElementById("mobile-bottom-nav");
+    if (selectedChatId) {
+      document.body.classList.add("messages-page-active");
+      if (nav) nav.style.setProperty("display", "none", "important");
+    } else {
+      document.body.classList.remove("messages-page-active");
+      if (nav) nav.style.display = "";
+    }
+    return () => {
+      document.body.classList.remove("messages-page-active");
+      if (nav) nav.style.display = "";
+    };
+  }, [selectedChatId]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [swipedChatId, setSwipedChatId] = useState<string | null>(null);
+  const itemTouchStartXRef = useRef<number | null>(null);
+  const itemTouchStartYRef = useRef<number | null>(null);
+
+  const [showEditBookingModal, setShowEditBookingModal] = useState(false);
+  const [showProfessionalConfirm, setShowProfessionalConfirm] = useState(false);
+  const [showClientConfirm, setShowClientConfirm] = useState(false);
+  const [pendingEditData, setPendingEditData] = useState<any>(null);
+  const [showCancelServiceMenu, setShowCancelServiceMenu] = useState(false);
+  const [showCancelServiceModal, setShowCancelServiceModal] = useState(false);
+  const cancelServiceMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (cancelServiceMenuRef.current && !cancelServiceMenuRef.current.contains(event.target as Node)) {
+        setShowCancelServiceMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const currentChat =
     chats.find((c: any) => c.id === selectedChatId) || specificChat;
@@ -16699,10 +20453,13 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
   const otherParticipantId = currentChat?.participants.find(
     (p: string) => p !== myActualId,
   );
-  const otherParticipant = participantsInfo[otherParticipantId] ||
-    currentChat?.participantDetails?.[otherParticipantId] || {
-      name: "Usuario",
-    };
+  const otherParticipant = {
+    id: otherParticipantId,
+    ...(participantsInfo[otherParticipantId] ||
+      currentChat?.participantDetails?.[otherParticipantId] || {
+        name: "Usuario",
+      })
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -16744,31 +20501,27 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             ...doc.data(),
           }));
 
-          const isAdmin = user?.email === "daviidjg1991@gmail.com";
+          const isAdmin = (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
 
-          // Filter out conversations older than 24h for non-admins
-          if (!isAdmin) {
-            const now = Date.now();
-            convs = convs.filter((chat: any) => {
-              const requestedAt =
-                chat.serviceRequestedAt?.toMillis() ||
-                chat.createdAt?.toMillis();
-              if (requestedAt && now - requestedAt > 24 * 60 * 60 * 1000) {
-                return false;
-              }
-              return true;
-            });
-          }
+          // 24h filter removed per user request
 
           // Filter out conversations with blocked users
-          if (user?.blockedUsers && user.blockedUsers.length > 0) {
-            convs = convs.filter((chat: any) => {
+          const blockedList = Array.isArray(user?.blockedUsers) ? user.blockedUsers : [];
+          if (blockedList.length > 0) {
+            convs = (Array.isArray(convs) ? convs : []).filter((chat: any) => {
+              if (!chat || !Array.isArray(chat.participants)) return false;
               const otherId = chat.participants.find(
                 (p: string) => p !== firebaseUser.uid,
               );
-              return !user.blockedUsers!.includes(otherId);
+              return otherId ? !blockedList.includes(otherId) : true;
             });
           }
+
+          // Filter out conversations deleted by the current user
+          convs = (Array.isArray(convs) ? convs : []).filter((chat: any) => {
+            if (!chat) return false;
+            return !Array.isArray(chat.deletedBy) || !chat.deletedBy.includes(firebaseUser.uid);
+          });
 
           console.log(
             "MessagesPage [conversations]: Loaded count:",
@@ -16819,22 +20572,11 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             if (snap.exists()) {
               console.log("MessagesPage [URL]: Specific chat loaded:", chatId);
               const chatData = snap.data();
-              const isAdmin = user?.email === "daviidjg1991@gmail.com";
+              const isAdmin = (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com");
               const requestedAt =
                 chatData.serviceRequestedAt?.toMillis() ||
                 chatData.createdAt?.toMillis();
-              if (
-                !isAdmin &&
-                requestedAt &&
-                Date.now() - requestedAt > 24 * 60 * 60 * 1000
-              ) {
-                console.warn(
-                  "MessagesPage [URL]: Specific chat is older than 24h, hiding for non-admin",
-                );
-                setSpecificChat(null);
-              } else {
-                setSpecificChat({ id: snap.id, ...chatData });
-              }
+              setSpecificChat({ id: snap.id, ...chatData });
             } else {
               console.warn(
                 "MessagesPage [URL]: Specific chat not found in Firestore:",
@@ -16936,7 +20678,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           if (snapshot.exists()) {
             setParticipantsInfo((prev) => ({
               ...prev,
-              [pid]: snapshot.data(),
+              [pid]: { id: pid, ...snapshot.data() },
             }));
           }
         },
@@ -16989,22 +20731,208 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
   const activeBooking = bookings[0]; // The latest one
 
-  const handleDeleteConversation = async () => {
-    if (!selectedChatId) return;
-    if (!confirm("¿Estás seguro de que quieres borrar esta conversación?"))
-      return;
+  const parseMillis = (val: any): number => {
+    if (!val) return 0;
+    if (typeof val === "number") return val;
+    if (typeof val.toMillis === "function") return val.toMillis();
+    if (typeof val.toDate === "function") return val.toDate().getTime();
+    if (typeof val.seconds === "number") return val.seconds * 1000;
+    if (val instanceof Date) return val.getTime();
+    if (typeof val === "string") {
+      const parsed = new Date(val).getTime();
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    return 0;
+  };
+
+  const effectiveBookingStatus = useMemo(() => {
+    if (!activeBooking) return null;
+    if (activeBooking.status === "pending" || !activeBooking.status) {
+      const now = Date.now();
+      const createdTime = parseMillis(activeBooking.createdAt) || parseMillis(currentChat?.createdAt) || parseMillis(currentChat?.lastUpdatedAt) || now;
+      if (now - createdTime > 24 * 60 * 60 * 1000) {
+        return "cancelled";
+      }
+    }
+    return activeBooking.status;
+  }, [activeBooking, currentChat]);
+
+  const isChatDisabled = useMemo(() => {
+    const now = Date.now();
+    const DISABLE_DELAY_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+    // If there is no active booking associated with this chat
+    if (!activeBooking) {
+      const chatTime = parseMillis(currentChat?.createdAt) || parseMillis(currentChat?.lastUpdatedAt);
+      if (chatTime > 0 && now - chatTime > DISABLE_DELAY_MS) {
+        return true;
+      }
+      return false;
+    }
+
+    const createdTime = parseMillis(activeBooking.createdAt) || parseMillis(currentChat?.createdAt) || parseMillis(currentChat?.lastUpdatedAt) || now;
+    const updatedTime = parseMillis(activeBooking.updatedAt) || createdTime;
+
+    const currentStatus = effectiveBookingStatus;
+
+    if (currentStatus === "pending" || !currentStatus) {
+      if (now - createdTime > DISABLE_DELAY_MS) {
+        return true;
+      }
+    } else if (currentStatus === "cancelled" || currentStatus === "rejected") {
+      if (now - updatedTime > DISABLE_DELAY_MS) {
+        return true;
+      }
+    } else if (currentStatus === "completed") {
+      return true;
+    } else if (currentStatus === "accepted") {
+      try {
+        if (!activeBooking.date || !activeBooking.time) {
+          if (now - updatedTime > DISABLE_DELAY_MS) return true;
+          return false;
+        }
+
+        let startDate: Date | null = null;
+        if (typeof activeBooking.date === "string") {
+          if (activeBooking.date.includes("-")) {
+            const parts = activeBooking.date.split("-").map(Number);
+            if (parts.length === 3) {
+              const [hours, minutes] = (activeBooking.time || "00:00").split(":").map(Number);
+              startDate = new Date(parts[0], parts[1] - 1, parts[2], hours || 0, minutes || 0);
+            }
+          } else if (activeBooking.date.includes("/")) {
+            const parts = activeBooking.date.split("/").map(Number);
+            if (parts.length === 3) {
+              const [hours, minutes] = (activeBooking.time || "00:00").split(":").map(Number);
+              startDate = new Date(parts[2], parts[1] - 1, parts[0], hours || 0, minutes || 0);
+            }
+          }
+        }
+
+        if (!startDate || isNaN(startDate.getTime())) {
+          startDate = new Date(activeBooking.date);
+        }
+
+        if (!startDate || isNaN(startDate.getTime())) {
+          if (now - updatedTime > DISABLE_DELAY_MS) return true;
+          return false;
+        }
+
+        let durationHours = 0;
+        if (activeBooking.duration) {
+          const match = String(activeBooking.duration).match(/(\d+(\.\d+)?)/);
+          if (match) {
+            durationHours = parseFloat(match[1]);
+          }
+        }
+
+        const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
+        const disableDate = new Date(endDate.getTime() + DISABLE_DELAY_MS);
+
+        return now > disableDate.getTime();
+      } catch (e) {
+        if (now - updatedTime > DISABLE_DELAY_MS) return true;
+        return false;
+      }
+    }
+
+    return false;
+  }, [activeBooking, effectiveBookingStatus, currentChat]);
+
+  const handleDeleteConversation = async (targetChatId?: string, skipConfirm = false) => {
+    const chatIdToDelete = targetChatId || selectedChatId;
+    if (!chatIdToDelete || !myActualId) return;
+    
+    if (!skipConfirm) {
+      if (!confirm("¿Estás seguro de que quieres borrar esta conversación de forma permanente?"))
+        return;
+    }
 
     try {
-      await deleteDoc(doc(db, "conversations", selectedChatId));
-      setSelectedChatId(null);
-      navigate("/mensajes");
-      setShowMenu(false);
+      // Find chat object
+      const chatToDelete = chats.find((c: any) => c.id === chatIdToDelete) || (chatIdToDelete === selectedChatId ? currentChat : null);
+      const otherId = chatToDelete?.participants?.find((p: string) => p !== myActualId);
+
+      // Check and reject any pending bookings between these participants
+      if (otherId) {
+        try {
+          const qPending = query(
+            collection(db, "bookings"),
+            where("clientId", "in", [myActualId, otherId]),
+            where("professionalId", "in", [myActualId, otherId]),
+            where("status", "in", ["pending", "pending_client_approval"])
+          );
+          const pendingSnap = await getDocs(qPending);
+          for (const pendingDoc of pendingSnap.docs) {
+            await updateDoc(doc(db, "bookings", pendingDoc.id), {
+              status: "rejected",
+              updatedAt: serverTimestamp()
+            });
+          }
+        } catch (bookingErr) {
+          console.error("Error rejecting pending bookings on chat delete:", bookingErr);
+        }
+      }
+
+      await updateDoc(doc(db, "conversations", chatIdToDelete), {
+        deletedBy: arrayUnion(myActualId)
+      });
+
+      if (selectedChatId === chatIdToDelete) {
+        setSelectedChatId(null);
+        navigate("/mensajes");
+        setShowMenu(false);
+      }
     } catch (e) {
       console.error("Error deleting conversation:", e);
       alert("Error al borrar la conversación");
     }
   };
 
+  const handleConfirmCancelService = async () => {
+    if (!activeBooking || !myActualId || !otherParticipantId) return;
+
+    try {
+      // Update booking status
+      await updateDoc(doc(db, "bookings", activeBooking.id), {
+        status: "cancelled",
+        cancelledBy: myActualId,
+        cancelledAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Send cancellation email
+      const myInfo = user || participantsInfo[myActualId] || { name: "Usuario", email: "", role: "" };
+      const role = myActualId === activeBooking.clientId ? "client" : "professional";
+      
+      const clientEmail = role === "client" ? myInfo.email : otherParticipant.email;
+      const professionalEmail = role === "professional" ? myInfo.email : otherParticipant.email;
+      
+      const clientName = role === "client" ? myInfo.name : otherParticipant.name;
+      const professionalName = role === "professional" ? myInfo.name : otherParticipant.name;
+
+      if (clientEmail && professionalEmail) {
+        await fetch("https://us-central1-gigejob01.cloudfunctions.net/notifyCancelled", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientEmail,
+            professionalEmail,
+            clientName,
+            professionalName,
+            serviceTitle: activeBooking.serviceTitle || "Servicio",
+            cancelledByRole: role,
+          }),
+        });
+      }
+
+      setShowCancelServiceModal(false);
+      setShowCancelServiceMenu(false);
+    } catch (e) {
+      console.error("Error cancelling service:", e);
+      alert("Error al cancelar el servicio");
+    }
+  };
   const handleUpdateBookingStatus = async (
     bookingId: string,
     status: string,
@@ -17020,6 +20948,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             bookingData.date,
             bookingData.time,
             bookingData.duration || "1h",
+            bookingId,
           );
           if (!bookingCheck.allowed) {
             alert(bookingCheck.reason || "Ya tienes otra reserva aceptada en este horario o has alcanzado tu límite.");
@@ -17032,11 +20961,48 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
         status,
         updatedAt: serverTimestamp(),
       });
+
+      if (status === "accepted") {
+        try {
+          const bookingSnap = await getDoc(doc(db, "bookings", bookingId));
+          if (bookingSnap.exists()) {
+            const bookingData = bookingSnap.data();
+            const clientSnap = await getDoc(doc(db, "users", bookingData.clientId));
+            const proSnap = await getDoc(doc(db, "users", bookingData.professionalId));
+            
+            if (clientSnap.exists() && proSnap.exists()) {
+              const clientData = clientSnap.data();
+              const proData = proSnap.data();
+              
+              await fetch("https://us-central1-gigejob01.cloudfunctions.net/notifyAccepted", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  clientEmail: clientData.email,
+                  professionalEmail: proData.email,
+                  clientName: clientData.firstName || "Cliente",
+                  professionalName: proData.firstName || "Profesional",
+                  serviceTitle: bookingData.listingTitle || "Servicio",
+                  dateStr: bookingData.date,
+                  startTime: bookingData.time,
+                  location: Array.isArray(bookingData.location) ? bookingData.location.join(", ") : (bookingData.location || "No especificado"),
+                  totalCost: bookingData.totalCost || "A convenir"
+                })
+              });
+            }
+          }
+        } catch (emailErr) {
+          console.error("Failed to send accepted email", emailErr);
+        }
+      }
       if (selectedChatId && myActualId) {
-        const textMsg =
-          status === "accepted"
-            ? "¡He aceptado el trabajo!"
-            : "He rechazado la solicitud.";
+        let textMsg = status === "accepted" ? "¡He aceptado el trabajo!" : "He rechazado la solicitud.";
+        if (status === "pending_client_approval") {
+          // If called from handleUpdateBookingStatus, we might just use a basic string or fetch current if needed.
+          // But it's usually confirmProfessionalEdit that sets this.
+          textMsg = "He enviado una propuesta editada. Por favor, revisala y confirma si está deacuerdo.";
+        }
+        
         await addDoc(
           collection(db, "conversations", selectedChatId, "messages"),
           {
@@ -17065,6 +21031,60 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
     }
   };
 
+
+  const confirmProfessionalEdit = async () => {
+    setShowProfessionalConfirm(false);
+    if (!activeBooking || !pendingEditData) return;
+    try {
+      await updateDoc(doc(db, "bookings", activeBooking.id), {
+        date: pendingEditData.date,
+        time: pendingEditData.time,
+        duration: pendingEditData.duration,
+        totalCost: pendingEditData.newTotalCost,
+        status: "pending_client_approval",
+        updatedAt: serverTimestamp(),
+      });
+      setPendingEditData(null);
+      if (selectedChatId && myActualId) {
+        const textMsg = `He enviado una propuesta editada. Por favor, revisala y confirma si está deacuerdo.
+Fecha: ${pendingEditData.date}
+Hora: ${pendingEditData.time}
+Lugar: ${Array.isArray(activeBooking.location) ? activeBooking.location.join(", ") : (activeBooking.location || "No especificado")}
+Presupuesto: ${pendingEditData.newTotalCost}`;
+        await addDoc(
+          collection(db, "conversations", selectedChatId, "messages"),
+          {
+            text: textMsg,
+            senderId: myActualId,
+            createdAt: serverTimestamp(),
+          },
+        );
+        const recipientId = otherParticipantId;
+        const convRef = doc(db, "conversations", selectedChatId);
+        const convSnap = await getDoc(convRef);
+        const currentUnread = convSnap.exists()
+          ? convSnap.data().unreadCount || {}
+          : {};
+
+        await updateDoc(convRef, {
+          lastMessage: textMsg,
+          lastMessageSenderId: myActualId,
+          lastUpdatedAt: serverTimestamp(),
+          [`unreadCount.${recipientId}`]: (currentUnread[recipientId] || 0) + 1,
+        });
+      }
+    } catch (e) {
+      console.error("Error editing booking:", e);
+      handleFirestoreError(e, OperationType.UPDATE, `bookings/${activeBooking.id}`);
+    }
+  };
+
+  const confirmClientAccept = async () => {
+    setShowClientConfirm(false);
+    if (!activeBooking) return;
+    handleUpdateBookingStatus(activeBooking.id, "accepted");
+  };
+
   const handleBlockUser = async () => {
     if (!otherParticipantId || !myActualId) return;
     if (!confirm("¿Estás seguro de que quieres bloquear a este usuario?"))
@@ -17074,8 +21094,12 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       const userRef = doc(db, "users", myActualId);
       const currentBlocked = user?.blockedUsers || [];
       if (!currentBlocked.includes(otherParticipantId)) {
+        const updated = [...currentBlocked, otherParticipantId];
+        const newBlockedUsersDates = { ...(user?.blockedUsersDates || {}) };
+        newBlockedUsersDates[otherParticipantId] = new Date().toISOString();
         await updateDoc(userRef, {
-          blockedUsers: [...currentBlocked, otherParticipantId],
+          blockedUsers: updated,
+          blockedUsersDates: newBlockedUsersDates
         });
       }
       alert("Usuario bloqueado con éxito.");
@@ -17182,7 +21206,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar">
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-[calc(4rem+env(safe-area-inset-bottom))]">
           {chats.length === 0 ? (
             <div className="p-10 text-center space-y-4 opacity-20">
               <MessageSquare className="w-8 h-8 mx-auto mb-2" />
@@ -17196,8 +21220,8 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
               const otherId = chat.participants.find(
                 (p: string) => p !== myActualId,
               );
-              const otherInfo = participantsInfo[otherId] ||
-                chat.participantDetails?.[otherId] || { name: "Usuario" };
+              const otherInfo = { id: otherId, ...(participantsInfo[otherId] ||
+                chat.participantDetails?.[otherId] || { name: "Usuario" }) };
               const time = chat.lastUpdatedAt?.toDate
                 ? (() => {
                     const date = chat.lastUpdatedAt.toDate();
@@ -17214,53 +21238,97 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                   })()
                 : "Ahora";
 
+              const isSwiped = swipedChatId === chat.id;
+
               return (
-                <button
+                <div
                   key={chat.id}
-                  onClick={() => {
-                    setSelectedChatId(chat.id);
-                    navigate(`/mensajes?chatId=${chat.id}`);
+                  className="relative overflow-hidden border-b border-outline-variant/5 group"
+                  onTouchStart={(e) => {
+                    itemTouchStartXRef.current = e.touches[0].clientX;
+                    itemTouchStartYRef.current = e.touches[0].clientY;
                   }}
-                  className={cn(
-                    "w-full p-3 flex items-center gap-2 transition-all border-b border-outline-variant/5",
-                    selectedChatId === chat.id
-                      ? "bg-primary/5"
-                      : "hover:bg-surface-container-low",
-                  )}
+                  onTouchEnd={(e) => {
+                    if (itemTouchStartXRef.current === null || itemTouchStartYRef.current === null) return;
+                    const diffX = itemTouchStartXRef.current - e.changedTouches[0].clientX;
+                    const diffY = Math.abs(itemTouchStartYRef.current - e.changedTouches[0].clientY);
+                    if (diffX > 40 && diffY < 30) {
+                      setSwipedChatId(chat.id);
+                    } else if (diffX < -40) {
+                      setSwipedChatId(null);
+                    }
+                    itemTouchStartXRef.current = null;
+                    itemTouchStartYRef.current = null;
+                  }}
                 >
-                  <div className="relative">
-                    {otherInfo.photoUrl ? (
-                      <img
-                        src={otherInfo.photoUrl}
-                        className="w-10 h-10 rounded-lg object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-black text-sm uppercase">
-                        {(
-                          otherInfo.firstName?.[0] ||
-                          otherInfo.name?.[0] ||
-                          "?"
-                        ).toUpperCase()}
-                      </div>
+                  <div
+                    className={cn(
+                      "flex items-center transition-transform duration-200 ease-out w-full",
+                      isSwiped ? "-translate-x-20" : "translate-x-0"
                     )}
+                  >
+                    <button
+                      onClick={() => {
+                        if (isSwiped) {
+                          setSwipedChatId(null);
+                          return;
+                        }
+                        setSelectedChatId(chat.id);
+                        navigate(`/mensajes?chatId=${chat.id}`);
+                      }}
+                      className={cn(
+                        "w-full p-3 flex items-center gap-2 transition-all text-left",
+                        selectedChatId === chat.id
+                          ? "bg-primary/5"
+                          : "hover:bg-surface-container-low",
+                      )}
+                    >
+                      <div className="relative shrink-0">
+                        <AvatarDisplay 
+                          author={otherInfo} 
+                          className="w-10 h-10 rounded-lg object-cover" 
+                        />
+                      </div>
+                      <div className="flex-1 text-left min-w-0">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="font-black text-on-surface truncate text-xs">
+                            {otherInfo.firstName
+                              ? `${otherInfo.firstName} ${otherInfo.lastName1 || ""}`
+                              : otherInfo.name}
+                          </span>
+                          <span className="text-[8px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
+                            {time}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-on-surface-variant/60 font-medium line-clamp-1 truncate">
+                          {chat.lastMessage}
+                        </p>
+                      </div>
+                    </button>
                   </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="font-black text-on-surface truncate text-xs">
-                        {otherInfo.firstName
-                          ? `${otherInfo.firstName} ${otherInfo.lastName1 || ""}`
-                          : otherInfo.name}
-                      </span>
-                      <span className="text-[8px] text-on-surface-variant/40 font-bold uppercase tracking-widest">
-                        {time}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-on-surface-variant/60 font-medium line-clamp-1 truncate">
-                      {chat.lastMessage}
-                    </p>
+
+                  {/* Red Delete Button visible on swipe right-to-left */}
+                  <div
+                    className={cn(
+                      "absolute right-0 top-0 bottom-0 w-20 bg-red-600 flex items-center justify-center transition-opacity duration-200",
+                      isSwiped ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                    )}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleDeleteConversation(chat.id);
+                        setSwipedChatId(null);
+                      }}
+                      className="w-full h-full flex flex-col items-center justify-center text-white gap-1 active:scale-95 transition-transform"
+                      title="Borrar chat"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="text-[9px] font-black uppercase tracking-wider">Borrar</span>
+                    </button>
                   </div>
-                </button>
+                </div>
               );
             })
           )}
@@ -17268,19 +21336,24 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
       </div>
 
       {/* Chat Area */}
-      <div
-        className={cn(
-          "flex-1 flex flex-col h-full bg-white relative min-w-0",
-          selectedChatId !== null
-            ? "fixed inset-0 z-[100] w-full h-full bg-white md:relative md:inset-auto md:z-auto md:flex md:flex-1"
-            : "hidden md:flex",
-        )}
-      >
-        {/* <--- Changed from fixed to absolute for better positioning */}
+      {(() => {
+        const chatContent = (
+          <>
+          <div
+            className={cn(
+              "flex-1 flex flex-col h-full bg-white relative min-w-0",
+              selectedChatId !== null
+                ? "fixed inset-0 z-[100] w-full bg-white flex flex-col min-w-0 md:relative md:inset-auto md:z-auto md:flex md:flex-1 md:h-full"
+                : "hidden md:flex",
+            )}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
         {selectedChatId ? (
           <>
+            <style>{`.mobile-bottom-nav { display: none !important; }`}</style>
             {/* Header del Chat */}
-            <div className="py-4 px-0 border-b border-outline-variant/10 flex items-center justify-between bg-white/80 backdrop-blur-xl z-20 sticky top-0">
+            <div className="py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] px-4 border-b border-outline-variant/10 flex items-center justify-between bg-white shrink-0 z-20">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => {
@@ -17291,21 +21364,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
-                {otherParticipant.photoUrl ? (
-                  <img
-                    src={otherParticipant.photoUrl}
-                    className="w-12 h-12 rounded-2xl object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black text-lg uppercase">
-                    {(
-                      otherParticipant.firstName?.[0] ||
-                      otherParticipant.name?.[0] ||
-                      "?"
-                    ).toUpperCase()}
-                  </div>
-                )}
+                <AvatarDisplay 
+                  author={otherParticipant} 
+                  className="w-12 h-12 rounded-2xl object-cover" 
+                />
                 <div
                   className="cursor-pointer group"
                   onClick={() =>
@@ -17409,7 +21471,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
             {/* Pinned Booking Summary Bar */}
             {activeBooking && (
-              <div className="px-4 py-2 bg-white/90 backdrop-blur-md border-b border-outline-variant/10 z-10 sticky top-[69px]">
+              <div className="px-4 py-3 bg-white dark:bg-surface-container-lowest border-b border-outline-variant/10 shrink-0 z-10 shadow-xs relative">
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -17459,13 +21521,19 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                 </motion.div>
 
                 {activeBooking.professionalId === myActualId &&
-                (!activeBooking.status ||
-                  activeBooking.status === "pending") ? (
+                (!effectiveBookingStatus ||
+                  effectiveBookingStatus === "pending") ? (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
                     className="flex gap-2 mt-2"
                   >
+                    <button
+                      onClick={() => setShowEditBookingModal(true)}
+                      className="flex-1 bg-surface-container-high text-on-surface rounded-xl py-2 text-[10px] uppercase font-black tracking-widest shadow-sm hover:opacity-90 transition-opacity"
+                    >
+                      Editar Propuesta
+                    </button>
                     <button
                       onClick={() =>
                         handleUpdateBookingStatus(activeBooking.id, "accepted")
@@ -17483,8 +21551,30 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                       Rechazar
                     </button>
                   </motion.div>
-                ) : activeBooking.status &&
-                  activeBooking.status !== "pending" ? (
+                ) : activeBooking.clientId === myActualId &&
+                  effectiveBookingStatus === "pending_client_approval" ? (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="flex gap-2 mt-2"
+                  >
+                    <button
+                      onClick={() => setShowClientConfirm(true)}
+                      className="flex-1 bg-[#005a54] text-white rounded-xl py-2 text-[10px] uppercase font-black tracking-widest shadow-sm hover:opacity-90 transition-opacity"
+                    >
+                      Aceptar Propuesta
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleUpdateBookingStatus(activeBooking.id, "rejected")
+                      }
+                      className="flex-1 bg-red-500/10 text-red-500 rounded-xl py-2 text-[10px] uppercase font-black tracking-widest hover:bg-red-500/20 transition-colors"
+                    >
+                      Rechazar
+                    </button>
+                  </motion.div>
+                ) : effectiveBookingStatus &&
+                  effectiveBookingStatus !== "pending" ? (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
@@ -17492,15 +21582,46 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                   >
                     <div
                       className={cn(
-                        "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center",
-                        activeBooking.status === "accepted"
+                        "flex-1 rounded-xl py-2 text-[10px] uppercase tracking-widest font-black text-center flex items-center justify-center relative",
+                        effectiveBookingStatus === "accepted"
                           ? "bg-[#005a54]/10 text-[#005a54]"
+                          : effectiveBookingStatus === "pending_client_approval" 
+                          ? "bg-surface-container-high text-on-surface"
                           : "bg-red-500/10 text-red-500",
                       )}
                     >
-                      {activeBooking.status === "accepted"
-                        ? "Trabajo Aceptado"
-                        : "Trabajo Rechazado"}
+                      <span>
+                        {effectiveBookingStatus === "accepted"
+                          ? "Trabajo Aceptado"
+                          : effectiveBookingStatus === "pending_client_approval"
+                          ? "Pendiente de respuesta del cliente"
+                          : effectiveBookingStatus === "cancelled"
+                          ? "Trabajo Cancelado"
+                          : "Trabajo Rechazado"}
+                      </span>
+                      {effectiveBookingStatus === "accepted" && (
+                        <div className="absolute right-2" ref={cancelServiceMenuRef}>
+                          <button
+                            onClick={() => setShowCancelServiceMenu(!showCancelServiceMenu)}
+                            className="p-1 rounded-full hover:bg-black/5 transition-colors"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                          {showCancelServiceMenu && (
+                            <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-surface-container-high rounded-xl shadow-lg border border-outline-variant/20 overflow-hidden z-50">
+                              <button
+                                onClick={() => {
+                                  setShowCancelServiceMenu(false);
+                                  setShowCancelServiceModal(true);
+                                }}
+                                className="w-full text-left px-4 py-3 text-sm text-red-500 font-bold hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                              >
+                                Cancelar Servicio
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 ) : null}
@@ -17508,7 +21629,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
             )}
 
             {/* Mensajes */}
-            <div className="flex-1 overflow-y-auto py-2 px-2 space-y-4 bg-surface/30 min-h-0">
+            <div className="flex-1 overflow-y-auto pt-6 pb-6 px-3 space-y-4 bg-surface/30 min-h-0">
               <div className="w-full space-y-4">
                 {loadingSpecificChat ? (
                   <div className="flex items-center justify-center h-full opacity-20">
@@ -17538,8 +21659,11 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                       const isMe = msg.senderId === user?.id;
                       const sender = isMe
                         ? user
-                        : participantsInfo[msg.senderId] ||
-                          currentChat?.participantDetails?.[msg.senderId];
+                        : {
+                            id: msg.senderId,
+                            ...(participantsInfo[msg.senderId] ||
+                              currentChat?.participantDetails?.[msg.senderId] || {})
+                          };
                       const time = msg.createdAt?.toDate
                         ? msg.createdAt
                             .toDate()
@@ -17565,19 +21689,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                                   : "bg-primary/10 text-primary",
                               )}
                             >
-                              {sender?.photoUrl ? (
-                                <img
-                                  src={sender.photoUrl}
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                (
-                                  sender?.firstName?.[0] ||
-                                  sender?.name?.[0] ||
-                                  "?"
-                                ).toUpperCase()
-                              )}
+                              <AvatarDisplay 
+                                author={sender} 
+                                className="w-full h-full object-cover" 
+                              />
                             </div>
                           )}
                           <div
@@ -17625,19 +21740,10 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                                   : "bg-primary/10 text-primary",
                               )}
                             >
-                              {sender?.photoUrl ? (
-                                <img
-                                  src={sender.photoUrl}
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                (
-                                  sender?.firstName?.[0] ||
-                                  sender?.name?.[0] ||
-                                  "?"
-                                ).toUpperCase()
-                              )}
+                              <AvatarDisplay 
+                                author={sender} 
+                                className="w-full h-full object-cover" 
+                              />
                             </div>
                           )}
                         </div>
@@ -17651,40 +21757,47 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
             {/* Input del Chat - Bottom flow */}
             {currentChat && (
-              <div className="py-2 px-2 bg-white border-t border-outline-variant/10">
-                <div className="w-full">
-                  <div className="flex items-center gap-2 bg-surface-container-low rounded-[2rem] p-1 px-3">
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex p-3 text-on-surface-variant/40 hover:text-primary transition-colors"
-                    >
-                      <PlusCircle className="w-6 h-6" />
-                    </button>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      accept="image/*"
-                    />
-                    <input
-                      type="text"
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handleSendMessage()
-                      }
-                      placeholder="Escribe tu mensaje aquí..."
-                      className="flex-1 bg-transparent border-none focus:ring-0 text-sm font-medium py-3 md:py-4"
-                    />
-                    <button
-                      onClick={handleSendMessage}
-                      className="w-12 h-12 md:w-14 md:h-14 primary-gradient text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all font-bold"
-                    >
-                      <Send className="w-4 h-4 md:w-5 md:h-5" />
-                    </button>
+              <div className="p-3 bg-white border-t border-outline-variant/10 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                {isChatDisabled ? (
+                  <div className="text-center text-sm text-on-surface-variant/60 py-4 font-medium flex items-center justify-center gap-2">
+                    <Lock className="w-4 h-4" />
+                    El chat ha sido deshabilitado tras finalizar el servicio.
                   </div>
-                </div>
+                ) : (
+                  <div className="w-full">
+                    <div className="flex items-center gap-2 bg-surface-container-low rounded-[2rem] p-1 px-3">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex p-3 text-on-surface-variant/40 hover:text-primary transition-colors"
+                      >
+                        <PlusCircle className="w-6 h-6" />
+                      </button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        accept="image/*"
+                      />
+                      <input
+                        type="text"
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleSendMessage()
+                        }
+                        placeholder="Escribe tu mensaje aquí..."
+                        className="flex-1 bg-transparent border-none focus:ring-0 text-sm font-medium py-3 md:py-4"
+                      />
+                      <button
+                        onClick={handleSendMessage}
+                        className="w-12 h-12 md:w-14 md:h-14 primary-gradient text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all font-bold"
+                      >
+                        <Send className="w-4 h-4 md:w-5 md:h-5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -17768,7 +21881,9 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                           className={cn(
                             "px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest",
                             booking.status === "pending" || !booking.status
-                              ? "bg-amber-100 text-amber-700"
+                              ? (booking.createdAt && Date.now() - (booking.createdAt.toMillis ? booking.createdAt.toMillis() : booking.createdAt) > 24 * 60 * 60 * 1000)
+                                ? "bg-red-500/10 text-red-500"
+                                : "bg-amber-100 text-amber-700"
                               : booking.status === "completed"
                                 ? "bg-[#005a54]/10 text-[#005a54]"
                                 : booking.status === "accepted"
@@ -17779,7 +21894,9 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                           )}
                         >
                           {booking.status === "pending" || !booking.status
-                            ? "Pendiente"
+                            ? (booking.createdAt && Date.now() - (booking.createdAt.toMillis ? booking.createdAt.toMillis() : booking.createdAt) > 24 * 60 * 60 * 1000)
+                              ? "Cancelado (Automático)"
+                              : "Pendiente"
                             : booking.status === "completed"
                               ? "Completado"
                               : booking.status === "accepted"
@@ -17793,7 +21910,7 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
                         <div className="flex items-center gap-2 text-[9px]">
                           <MapPin className="w-3 h-3 text-on-surface-variant/40" />
                           <span className="font-bold text-on-surface-variant/60 uppercase">
-                            {booking.location}
+                            {formatLocation(booking.location)}
                           </span>
                         </div>
                         <p className="text-xs text-on-surface-variant font-medium line-clamp-2">
@@ -17818,7 +21935,93 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+
+      <EditBookingModal
+        isOpen={showEditBookingModal}
+        onClose={() => setShowEditBookingModal(false)}
+        booking={activeBooking}
+        onSave={(date, time, duration, newTotalCost) => {
+          setPendingEditData({ date, time, duration, newTotalCost });
+          setShowEditBookingModal(false);
+          setShowProfessionalConfirm(true);
+        }}
+      />
+
+      <ConfirmServiceActionModal
+        isOpen={showProfessionalConfirm}
+        actionType="professionalEdit"
+        onConfirm={confirmProfessionalEdit}
+        onCancel={() => setShowProfessionalConfirm(false)}
+      />
+
+      <ConfirmServiceActionModal
+        isOpen={showClientConfirm}
+        actionType="clientAccept"
+        onConfirm={confirmClientAccept}
+        onCancel={() => setShowClientConfirm(false)}
+      />
+
+      <AnimatePresence>
+        {showCancelServiceModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface w-full max-w-sm rounded-[2rem] p-6 shadow-2xl"
+            >
+              <div className="flex justify-center mb-6">
+                <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+              </div>
+              <h2 className="text-xl font-black text-center text-on-surface mb-2 uppercase tracking-tighter">
+                ¿Cancelar Servicio?
+              </h2>
+              <p className="text-center text-sm text-on-surface-variant font-medium mb-6">
+                ¿Estás seguro de que deseas cancelar este servicio?
+              </p>
+
+              {myActualId === activeBooking?.clientId && (
+                <div className="bg-red-500/10 text-red-700 p-4 rounded-xl mb-6 text-xs font-medium">
+                  <strong>Atención Cliente:</strong> Al cancelar un servicio aceptado, 
+                  se aplicarán las políticas de cancelación. Podrían aplicarse penalizaciones o 
+                  restricciones en su cuenta dependiendo de la cercanía a la fecha del servicio.
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelServiceModal(false)}
+                  className="flex-1 py-4 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-black uppercase tracking-widest text-[10px] rounded-2xl transition-all"
+                >
+                  Volver
+                </button>
+                <button
+                  onClick={handleConfirmCancelService}
+                  className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white font-black uppercase tracking-widest text-[10px] rounded-2xl transition-all shadow-lg shadow-red-500/30"
+                >
+                  Sí, Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      </>
+    );
+
+  if (isMobile && selectedChatId !== null) {
+    return createPortal(chatContent, document.body);
+  }
+  return chatContent;
+  })()}
+  </div>
   );
 };
 
@@ -18054,12 +22257,14 @@ const CreateListing = ({
   onAdd,
   listings = [],
   onOpenSettings,
+  isSearchProfessionalsEnabled = null,
 }: {
   user: any;
   setUser: (u: any) => void;
   onAdd: (l: JobListing) => void;
   listings?: any[];
   onOpenSettings?: (type: string) => void;
+  isSearchProfessionalsEnabled?: boolean | null;
 }) => {
   const { plans } = useProPlansConfig();
   const navigate = useNavigate();
@@ -18069,6 +22274,7 @@ const CreateListing = ({
   const [isImageSourceModalOpen, setIsImageSourceModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -18097,19 +22303,32 @@ const CreateListing = ({
     useState(false);
 
   const isPersonalDataComplete = !!(
-    user?.firstName &&
-    user?.lastName1 &&
-    user?.documentId &&
-    user?.phoneNumber &&
-    user?.address?.streetName &&
-    user?.address?.number &&
-    user?.address?.postalCode &&
-    user?.address?.locality &&
-    user?.address?.province &&
+    user?.firstName?.trim() &&
+    user?.lastName1?.trim() &&
+    user?.documentId?.trim() &&
+    user?.phoneNumber?.trim() &&
+    user?.address?.streetName?.trim() &&
+    user?.address?.number?.trim() &&
+    user?.address?.postalCode?.trim() &&
+    user?.address?.locality?.trim() &&
+    user?.address?.province?.trim()
+  );
+
+  const isProfessionalDataComplete = !!(
+    user?.professionalInfo?.billing?.name?.trim() &&
+    user?.professionalInfo?.billing?.documentId?.trim() &&
+    user?.professionalInfo?.billing?.phone?.trim() &&
+    user?.professionalInfo?.billing?.address?.streetName?.trim() &&
+    user?.professionalInfo?.billing?.address?.number?.trim() &&
+    user?.professionalInfo?.billing?.address?.postalCode?.trim() &&
+    user?.professionalInfo?.billing?.address?.locality?.trim() &&
+    user?.professionalInfo?.billing?.address?.province?.trim() &&
     user?.professionalInfo?.workLocation &&
     user?.professionalInfo?.availability &&
     user.professionalInfo.availability.length > 0
   );
+
+  const isProfileReady = isPersonalDataComplete && (formData.type === "offer" ? isProfessionalDataComplete : true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18120,15 +22339,8 @@ const CreateListing = ({
       return;
     }
 
-    if (formData.type === "offer" && !isPersonalDataComplete) {
+    if (!isProfileReady) {
       setShowIncompleteProfileModal(true);
-      return;
-    }
-
-    if (!isProfileComplete && formData.type === "offer") {
-      setError(
-        "Por favor, completa tu disponibilidad y zona de trabajo en Configuración antes de publicar un servicio.",
-      );
       return;
     }
 
@@ -18138,11 +22350,17 @@ const CreateListing = ({
     }
 
     if (formData.type === "offer") {
-      const userPlan = plans.find(p => p.id === (user.professionalInfo?.plan || 'basic')) || plans[0];
-      const limit = userPlan?.limits?.maxListingsPerAccount ?? 1;
-      const currentListings = listings.filter(l => l.author?.id === user.id && l.type === 'offer').length;
-      if (currentListings >= limit) {
-         setError(`Tu plan actual permite un máximo de ${limit} publicación/es de servicio. Amplía tu plan para publicar más.`);
+      const userPlan = getUserPlan(user, plans);
+      const limit = Number(userPlan?.limits?.maxListingsPerAccount ?? 1);
+      const activeListingsCount = listings.filter(l => {
+        const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
+        if (!isUserAuthor || l.type !== 'offer') return false;
+        const isExpired = checkIsListingExpired(l, user, plans);
+        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || l.status === "expired" || isExpired;
+        return !isInactive;
+      }).length;
+      if (activeListingsCount >= limit) {
+         setError(`Tu plan actual permite un máximo de ${limit} servicio(s) activo(s). Tienes ${activeListingsCount} servicio(s) activo(s). Desactiva o elimina un servicio para publicar uno nuevo, o amplía tu plan.`);
          return;
       }
     }
@@ -18153,9 +22371,10 @@ const CreateListing = ({
       const tagsString = String(formData.tags || "");
 
       const creationDate = new Date();
+      const activeDays = getListingActiveDays(user, plans);
       const expirationDate = new Date(
-        creationDate.getTime() + 30 * 24 * 60 * 60 * 1000,
-      ); // 30 days
+        creationDate.getTime() + activeDays * 24 * 60 * 60 * 1000,
+      );
 
       const newListing: JobListing = {
         id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
@@ -18176,6 +22395,7 @@ const CreateListing = ({
           name:
             `${user.firstName || ""} ${user.lastName1 || ""}`.trim() ||
             user.username,
+          username: user.username,
           email: user.email,
           photoUrl: user.photoUrl || "",
           rating: 5.0,
@@ -18190,6 +22410,7 @@ const CreateListing = ({
           formData.headerImage ||
           `https://picsum.photos/seed/${Math.random()}/800/600`,
         createdAt: creationDate.toISOString(),
+        publishedAt: creationDate.toISOString(),
         expiresAt: expirationDate.toISOString(),
         status: "active",
         tags: tagsString
@@ -18215,16 +22436,78 @@ const CreateListing = ({
 
       onAdd(newListing);
 
+      if (user.role === "professional" && !user.hasClaimedPromotion && isProfileReady) {
+        try {
+          const promoConfigSnap = await getDoc(doc(db, "settings", "promotions_config"));
+          if (promoConfigSnap.exists()) {
+            const promoConfig = promoConfigSnap.data();
+            if (promoConfig.promotions) {
+              const usersSnap = await getDocs(collection(db, "users"));
+              const userRecs = usersSnap.docs.filter((d: any) => {
+                const uData = d.data();
+                return uData?.referredBy && (uData.referredBy === user.id || (user.customId && uData.referredBy === user.customId) || (user.email && uData.referredBy === user.email));
+              }).length || (user.recommendationRegistrationsCount || 0);
+
+              const activePromo = promoConfig.promotions.find((p: any) => {
+                if (!p.isActive) return false;
+                const matchesAudience = p.targetAudience === "professional" || p.targetAudience === "both" || !p.targetAudience;
+                if (!matchesAudience) return false;
+                if (p.minRecommendations && p.minRecommendations > 0 && userRecs < p.minRecommendations) {
+                  return false;
+                }
+                return true;
+              });
+              if (activePromo) {
+                const usersSnap = await getDocs(collection(db, "users"));
+                const claimedUsersCount = usersSnap.docs.filter((d: any) => {
+                  const u = d.data();
+                  return u.hasClaimedPromotion && (u.claimedPromotionId === activePromo.id || activePromo.id === "default");
+                }).length;
+
+                if (claimedUsersCount + 1 >= activePromo.userRangeStart && claimedUsersCount + 1 <= activePromo.userRangeEnd) {
+                  const startDate = new Date();
+                  const endDate = new Date();
+                  endDate.setMonth(endDate.getMonth() + (activePromo.planDurationMonths || 12));
+                  
+                  const updatedUser = {
+                    ...user,
+                    hasClaimedPromotion: true,
+                    claimedPromotionId: activePromo.id,
+                    professionalInfo: {
+                      ...(user.professionalInfo || {}),
+                      plan: activePromo.planType || "Premium Pro",
+                      planStatus: "active",
+                      planStartDate: startDate.toISOString(),
+                      planEndDate: endDate.toISOString(),
+                      planBillingCycle: "monthly",
+                      planAutoRenew: false,
+                      planPaymentMethod: "promocion"
+                    }
+                  };
+                  
+                  await updateDoc(doc(db, "users", user.id), {
+                    hasClaimedPromotion: true,
+                    claimedPromotionId: activePromo.id,
+                    professionalInfo: updatedUser.professionalInfo
+                  });
+                  
+                  setUser(updatedUser);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error al aplicar promoción a profesional en publicación:", error);
+        }
+      }
+
       setShowSuccess(true);
       setTimeout(() => {
         navigate("/");
       }, 2000);
     } catch (error: any) {
       console.error("Error creating listing:", error);
-      setError(
-        error.message ||
-          "Hubo un error al publicar el anuncio. Por favor, inténtalo de nuevo.",
-      );
+      setError(getLocalizedFirebaseError(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -18248,12 +22531,20 @@ const CreateListing = ({
             Necesitas estar identificado para publicar anuncios y conectar con
             la comunidad.
           </p>
-          <button
-            onClick={() => navigate("/perfil")}
-            className="w-full py-5 primary-gradient text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:scale-105 transition-all"
-          >
-            Ir a mi perfil
-          </button>
+          <div className="flex flex-col gap-3 w-full">
+            <button
+              onClick={() => navigate("/login", { state: { redirectTo: "/publicar" } })}
+              className="w-full py-4 primary-gradient text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg hover:scale-105 transition-all"
+            >
+              Iniciar sesión
+            </button>
+            <button
+              onClick={() => navigate("/registro", { state: { redirectTo: "/publicar", isProfessional: true } })}
+              className="w-full py-4 bg-surface-container border-2 border-primary text-primary rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-primary/5 transition-all"
+            >
+              Crear cuenta profesional
+            </button>
+          </div>
         </motion.div>
       </div>
     );
@@ -18315,9 +22606,31 @@ const CreateListing = ({
           800,
           0.7,
         );
-        setFormData({ ...formData, headerImage: optimizedUrl });
+        setFormData((prev) => ({ ...prev, headerImage: optimizedUrl }));
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleTakePicture = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+        const image = await Camera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+        });
+        if (image && image.dataUrl) {
+          const optimizedUrl = await compressImage(image.dataUrl, 1200, 800, 0.7);
+          setFormData((prev) => ({ ...prev, headerImage: optimizedUrl }));
+        }
+      } else {
+        fileInputRef.current?.click();
+      }
+    } catch (err: any) {
+      console.warn("User cancelled or camera error:", err);
     }
   };
 
@@ -18377,7 +22690,7 @@ const CreateListing = ({
         )}
       </AnimatePresence>
 
-      <div className="max-w-3xl mx-auto px-4 pt-16">
+      <div className="max-w-3xl mx-auto px-4 pt-16 pb-16">
         <div className="bg-surface-container-lowest rounded-[3rem] ambient-shadow p-10 md:p-16">
           <h1 className="text-4xl font-display font-black text-on-surface mb-3 tracking-tight">
             Publicar anuncio
@@ -18397,32 +22710,7 @@ const CreateListing = ({
                 {error}
               </motion.div>
             )}
-            <div className="grid grid-cols-2 gap-3 p-1.5 bg-surface-container-low rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, type: "offer" })}
-                className={cn(
-                  "py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all",
-                  formData.type === "offer"
-                    ? "bg-surface-container-lowest text-primary shadow-sm"
-                    : "text-on-surface-variant/40",
-                )}
-              >
-                Ofrezco Servicio
-              </button>
-              <button
-                type="button"
-                onClick={() => setFormData({ ...formData, type: "search" })}
-                className={cn(
-                  "py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all",
-                  formData.type === "search"
-                    ? "bg-surface-container-lowest text-primary shadow-sm"
-                    : "text-on-surface-variant/40",
-                )}
-              >
-                Busco Profesional
-              </button>
-            </div>
+
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="md:col-span-2">
@@ -18527,6 +22815,27 @@ const CreateListing = ({
                     </p>
 
                     <div className="grid grid-cols-1 gap-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsImageSourceModalOpen(false);
+                          handleTakePicture();
+                        }}
+                        className="flex items-center gap-4 p-6 bg-surface-container-low hover:bg-primary/5 hover:text-primary rounded-3xl transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                          <Camera className="w-6 h-6" />
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-black uppercase tracking-widest">
+                            Hacer foto
+                          </p>
+                          <p className="text-[9px] font-bold opacity-40 uppercase tracking-widest">
+                            Usar la cámara
+                          </p>
+                        </div>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -18688,9 +22997,7 @@ const CreateListing = ({
                 </div>
               )}
 
-              {!isProfileComplete &&
-                formData.type === "offer" &&
-                isPersonalDataComplete && (
+              {!isProfileReady && (
                   <div className="p-8 bg-amber-500/10 border border-amber-500/20 rounded-[2rem] flex flex-col items-center text-center space-y-4">
                     <div className="w-12 h-12 bg-amber-500/20 rounded-2xl flex items-center justify-center text-amber-500">
                       <AlertTriangle className="w-6 h-6" />
@@ -18700,13 +23007,12 @@ const CreateListing = ({
                         Perfil Incompleto
                       </h4>
                       <p className="text-xs font-medium text-amber-800/60 max-w-xs">
-                        Necesitas configurar tu disponibilidad y zona de trabajo
-                        en los ajustes de perfil antes de publicar un servicio.
+                        Necesitas rellenar tu información personal y profesional en los ajustes de perfil antes de poder publicar un anuncio.
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate("/configuracion/disponibilidad")}
+                      onClick={() => onOpenSettings?.("profile")}
                       className="px-6 py-3 bg-amber-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md"
                     >
                       Ir a Configuración
@@ -18876,11 +23182,12 @@ const CreateListing = ({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !isProfileReady}
                 className={cn(
                   "flex-[2] py-5 primary-gradient text-white rounded-full font-black hover:opacity-90 transition-all shadow-xl uppercase tracking-widest text-xs flex items-center justify-center gap-3",
-                  isSubmitting && "opacity-70 cursor-not-allowed",
+                  (isSubmitting || !isProfileReady) && "opacity-70 cursor-not-allowed",
                 )}
+                title={!isProfileReady ? "Debes completar tu perfil en Configuración antes de publicar" : ""}
               >
                 {isSubmitting ? (
                   <>
@@ -18970,7 +23277,7 @@ const LegalTextModal = ({
         <div className="p-6 overflow-y-auto whitespace-pre-wrap text-sm text-on-surface-variant leading-relaxed">
           {loading ? (
             <div className="flex justify-center py-10">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <CustomLoader className="w-12 h-12 text-primary" />
             </div>
           ) : (
             contentFields[type] || "Aún no se ha configurado este documento."
@@ -18997,11 +23304,21 @@ const AuthPage = ({
   setUser: (user: UserProfile) => void;
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromPopup = (location.state as any)?.fromPopup === true;
   const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [legalModal, setLegalModal] = useState<{
     isOpen: boolean;
     type: "terms" | "privacy" | "data" | null;
   }>({ isOpen: false, type: null });
+
+  const [resetPasswordModal, setResetPasswordModal] = useState({
+    isOpen: false,
+    email: "",
+    message: "",
+    error: "",
+    isLoading: false,
+  });
 
   useEffect(() => {
     setMode(initialMode);
@@ -19024,7 +23341,7 @@ const AuthPage = ({
     lastName2: "",
     documentId: "",
     phoneNumber: "",
-    role: "" as UserRole | "",
+    role: (location.state as any)?.isProfessional ? "professional" : ("" as UserRole | ""),
     address: {
       streetType: "Calle",
       streetName: "",
@@ -19146,7 +23463,9 @@ const AuthPage = ({
       if (
         !personalData.address.streetName ||
         !personalData.address.number ||
-        !personalData.address.postalCode
+        !personalData.address.postalCode ||
+        !personalData.address.locality ||
+        !personalData.address.province
       ) {
         newErrors.address = "La dirección principal es obligatoria";
       }
@@ -19178,6 +23497,15 @@ const AuthPage = ({
         !validatePhone(professionalData.billing.phone)
       ) {
         newErrors.billingPhone = "Teléfono fiscal no válido";
+      }
+      if (
+        !professionalData.billing.address.streetName ||
+        !professionalData.billing.address.number ||
+        !professionalData.billing.address.postalCode ||
+        !professionalData.billing.address.locality ||
+        !professionalData.billing.address.province
+      ) {
+        newErrors.billingAddress = "La dirección fiscal es obligatoria";
       }
     }
 
@@ -19243,6 +23571,9 @@ const AuthPage = ({
       );
       const firebaseUid = userCredential.user.uid;
 
+      let hasClaimedPromo = false;
+      const referredBy = localStorage.getItem("gigejob_referred_by") || undefined;
+
       const finalUser: UserProfile = {
         id: firebaseUid,
         username: finalUsername,
@@ -19254,33 +23585,66 @@ const AuthPage = ({
         documentId: personalData.documentId,
         phoneNumber: personalData.phoneNumber,
         address: personalData.address,
-        photoUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${finalUsername}`,
+        photoUrl: "/default-avatar.svg",
         acceptPromotions,
         acceptTerms,
-        professionalInfo:
-          personalData.role === "professional"
-            ? {
-                availability: professionalData.availability,
-                workLocation: professionalData.workLocation,
-                workRadius: professionalData.workRadius,
-                billing: professionalData.billing,
-              }
-            : undefined,
+        hasClaimedPromotion: hasClaimedPromo,
+        ...(referredBy ? { referredBy } : {}),
         settings: {
           smartSuggestions: true,
           locationRadius: 15,
           notifications: { email: true, push: true, sms: false },
         },
+        createdAt: serverTimestamp(),
+        emailVerified: false,
       };
+
+      if (personalData.role === "professional") {
+        finalUser.professionalInfo = {
+          availability: professionalData.availability,
+          workLocation: professionalData.workLocation,
+          workRadius: professionalData.workRadius,
+          billing: professionalData.billing,
+        };
+      }
 
       await setDoc(doc(db, "users", firebaseUid), finalUser);
 
+      if (referredBy) {
+        try {
+          const referrerRef = doc(db, "users", referredBy);
+          await updateDoc(referrerRef, {
+            recommendationRegistrationsCount: increment(1),
+          });
+          localStorage.removeItem("gigejob_referred_by");
+        } catch (err) {
+          console.error("Error updating referrer count:", err);
+        }
+      }
+
+      try {
+        if (auth.currentUser) {
+          auth.languageCode = navigator.language || 'es';
+          await sendEmailVerification(auth.currentUser);
+        }
+      } catch (err) {
+        console.error("Error sending verification email:", err);
+      }
+
       sessionStorage.setItem("is_first_login_session", "true");
       setUser(finalUser);
-      navigate("/");
+      navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
       console.error("Firebase: Registration error:", error);
-      setErrors({ server: error.message || "Error al registrar el usuario" });
+      if (auth.currentUser && auth.currentUser.email === authData.email) {
+        try {
+          await auth.currentUser.delete();
+          console.log("Rolled back Auth user due to registration error");
+        } catch (deleteError) {
+          console.error("Failed to rollback Auth user:", deleteError);
+        }
+      }
+      setErrors({ server: getLocalizedFirebaseError(error) });
     }
   };
 
@@ -19324,31 +23688,16 @@ const AuthPage = ({
           return;
         }
       } else {
-        finalUserData = {
-          id: firebaseUid,
-          username: authData.email.split("@")[0],
-          email: authData.email,
-          role: "user",
-          firstName: "Usuario",
-          lastName1: "",
-          lastName2: "",
-          documentId: "",
-          phoneNumber: "",
-          address: {
-            streetType: "Calle",
-            streetName: "",
-            number: "",
-            postalCode: "",
-            locality: "",
-            province: "",
-          },
-          photoUrl: `https://i.pravatar.cc/150?u=${authData.email}`,
-          settings: {
-            smartSuggestions: true,
-            locationRadius: 15,
-            notifications: { email: true, push: true, sms: false },
-          },
-        };
+        if (auth.currentUser) {
+          try {
+            await auth.currentUser.delete();
+          } catch (deleteError) {
+            console.error("Failed to delete orphaned Auth user on login:", deleteError);
+          }
+        }
+        await auth.signOut();
+        setErrors({ login: "Tu registro anterior no se completó correctamente. Tu cuenta ha sido eliminada. Por favor, regístrate de nuevo." });
+        return;
       }
 
       if (
@@ -19359,31 +23708,69 @@ const AuthPage = ({
       }
 
       setUser(finalUserData);
-      navigate("/");
+      navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
       console.error("Firebase: Login error:", error);
-      if (
-        error.code === "auth/invalid-credential" ||
-        error.code === "auth/wrong-password" ||
-        error.code === "auth/user-not-found"
-      ) {
-        setErrors({ login: "Email o contraseña incorrectos" });
-      } else {
-        setErrors({ login: `Error: ${error.message}` });
-      }
+      setErrors({ login: getLocalizedFirebaseError(error) });
     }
   };
 
-  const handleSocialLogin = async (providerName: "google" | "facebook") => {
+  const handleSocialLogin = async (providerName: "google" | "facebook" | "apple") => {
     setErrors({});
     try {
-      const provider =
-        providerName === "google"
-          ? new GoogleAuthProvider()
-          : new FacebookAuthProvider();
+      let user: any;
+      const isMobileWeb = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      if (Capacitor.isNativePlatform() && providerName === "google") {
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+        const authResult = await FirebaseAuthentication.signInWithGoogle();
+        const credential = GoogleAuthProvider.credential(authResult.credential?.idToken);
+        const result = await signInWithCredential(auth, credential);
+        user = result.user;
+      } else if (Capacitor.isNativePlatform() && providerName === "apple") {
+        try {
+          const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+          const authResult = await FirebaseAuthentication.signInWithApple();
+          const credential = new OAuthProvider('apple.com').credential({
+            idToken: authResult.credential?.idToken,
+            rawNonce: (authResult.credential as any)?.rawNonce,
+          });
+          const result = await signInWithCredential(auth, credential);
+          user = result.user;
+        } catch (nativeErr: any) {
+          console.warn("Native Apple Sign-In fallback:", nativeErr);
+          const provider = new OAuthProvider("apple.com");
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+      } else if (Capacitor.isNativePlatform() && providerName === "facebook") {
+        const provider = new FacebookAuthProvider();
+        await signInWithRedirect(auth, provider);
+        return;
+      } else if (isMobileWeb) {
+        const provider =
+          providerName === "google"
+            ? new GoogleAuthProvider()
+            : providerName === "apple"
+            ? new OAuthProvider("apple.com")
+            : new FacebookAuthProvider();
+        await signInWithRedirect(auth, provider);
+        return;
+      } else {
+        const provider =
+          providerName === "google"
+            ? new GoogleAuthProvider()
+            : providerName === "apple"
+            ? new OAuthProvider("apple.com")
+            : new FacebookAuthProvider();
+        try {
+          const result = await signInWithPopup(auth, provider);
+          user = result.user;
+        } catch (popupErr: any) {
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+      }
 
       const userDoc = await getDoc(doc(db, "users", user.uid));
       let finalUserData: UserProfile;
@@ -19422,6 +23809,8 @@ const AuthPage = ({
           }
         }
 
+        const referredBy = localStorage.getItem("gigejob_referred_by") || undefined;
+
         finalUserData = {
           id: user.uid,
           username:
@@ -19445,12 +23834,14 @@ const AuthPage = ({
           },
           photoUrl:
             user.photoURL ||
-            `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
+            "/default-avatar.svg",
+          ...(referredBy ? { referredBy } : {}),
           settings: {
             smartSuggestions: true,
             locationRadius: 15,
             notifications: { email: true, push: true, sms: false },
           },
+          createdAt: serverTimestamp(),
         };
       }
 
@@ -19458,10 +23849,23 @@ const AuthPage = ({
         sessionStorage.setItem("is_first_login_session", "true");
         // Always ensure the user doc exists for new users (google/facebook sign in)
         await setDoc(doc(db, "users", user.uid), finalUserData, { merge: true });
+
+        const referredBy = (finalUserData as any).referredBy;
+        if (referredBy) {
+          try {
+            const referrerRef = doc(db, "users", referredBy);
+            await updateDoc(referrerRef, {
+              recommendationRegistrationsCount: increment(1),
+            });
+            localStorage.removeItem("gigejob_referred_by");
+          } catch (err) {
+            console.error("Error updating referrer count:", err);
+          }
+        }
       }
 
       setUser(finalUserData);
-      navigate("/");
+      navigate((location.state as any)?.redirectTo || "/");
     } catch (error: any) {
       if (
         error.code === "auth/popup-closed-by-user" ||
@@ -19471,8 +23875,35 @@ const AuthPage = ({
       }
       console.error(`Firebase: ${providerName} login error:`, error);
       setErrors({
-        login: `Error al iniciar sesión con ${providerName}: ${error.message}`,
+        login: getLocalizedFirebaseError(error),
       });
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetPasswordModal.email) {
+      setResetPasswordModal((prev) => ({
+        ...prev,
+        error: "Por favor, introduce tu correo electrónico.",
+        message: "",
+      }));
+      return;
+    }
+    setResetPasswordModal((prev) => ({ ...prev, isLoading: true, error: "", message: "" }));
+    try {
+      await sendPasswordResetEmail(auth, resetPasswordModal.email);
+      setResetPasswordModal((prev) => ({
+        ...prev,
+        isLoading: false,
+        message: "Se ha enviado un correo con las instrucciones para restablecer tu contraseña.",
+      }));
+    } catch (error: any) {
+      setResetPasswordModal((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: getLocalizedFirebaseError(error),
+      }));
     }
   };
 
@@ -19570,6 +24001,71 @@ const AuthPage = ({
         type={legalModal.type}
         onClose={() => setLegalModal({ isOpen: false, type: null })}
       />
+      <AnimatePresence>
+        {resetPasswordModal.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-surface-container-lowest rounded-[2rem] p-6 w-full max-w-sm shadow-2xl relative"
+            >
+              <button
+                onClick={() => setResetPasswordModal({ isOpen: false, email: "", message: "", error: "", isLoading: false })}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="mb-6">
+                <h3 className="font-display font-black text-on-surface text-xl mb-2">
+                  Restablece tu contraseña
+                </h3>
+                <p className="text-sm text-on-surface-variant">
+                  Introduce la dirección de email vinculada a tu cuenta
+                </p>
+              </div>
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                {resetPasswordModal.error && (
+                  <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <p>{resetPasswordModal.error}</p>
+                  </div>
+                )}
+                {resetPasswordModal.message && (
+                  <div className="p-3 bg-green-50 text-green-600 rounded-xl text-xs font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <p>{resetPasswordModal.message}</p>
+                  </div>
+                )}
+                <div>
+                  <input
+                    required
+                    type="email"
+                    className="w-full px-4 py-3 bg-surface-container-low rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-bold text-sm"
+                    placeholder="ejemplo@correo.com"
+                    value={resetPasswordModal.email}
+                    onChange={(e) =>
+                      setResetPasswordModal({ ...resetPasswordModal, email: e.target.value })
+                    }
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetPasswordModal.isLoading || !!resetPasswordModal.message}
+                  className="w-full py-3 primary-gradient text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resetPasswordModal.isLoading ? "Enviando..." : "Restablecer contraseña"}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="min-h-screen bg-surface-container-lowest flex items-center justify-center p-4 py-20">
         <motion.div
           key={mode}
@@ -19586,7 +24082,7 @@ const AuthPage = ({
               )}
             </div>
             <h1 className="text-3xl font-display font-black text-on-surface tracking-tight mb-2">
-              {mode === "login" ? "Bienvenido a JobPop" : "Registro de Usuario"}
+              {mode === "login" ? "Bienvenido a GigeJob" : "Registro de Usuario"}
             </h1>
             {mode === "register" && (
               <div className="flex justify-center gap-2 mt-6">
@@ -19649,6 +24145,15 @@ const AuthPage = ({
                       setAuthData({ ...authData, password: e.target.value })
                     }
                   />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setResetPasswordModal({ isOpen: true, email: authData.email, message: "", error: "", isLoading: false })}
+                      className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
+                    >
+                      ¿Has olvidado tu contraseña?
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="submit"
@@ -19668,33 +24173,35 @@ const AuthPage = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <button
                     type="button"
                     onClick={() => handleSocialLogin("google")}
-                    className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
+                    className="flex items-center justify-center gap-3 w-full py-5 bg-white border border-[#DADCE0] text-[#4285F4] rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-[#F8F9FA] hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all group"
                   >
                     <img
                       src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                       alt="Google"
                       className="w-5 h-5 group-hover:scale-110 transition-transform"
                     />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-on-surface">
+                    <span className="text-[10px] font-black uppercase tracking-widest">
                       Google
                     </span>
                   </button>
+
                   <button
                     type="button"
-                    onClick={() => handleSocialLogin("facebook")}
-                    className="flex items-center justify-center gap-3 py-4 px-6 bg-[#1877F2] hover:bg-[#166fe5] rounded-2xl transition-all shadow-md group"
+                    onClick={() => handleSocialLogin("apple")}
+                    className="flex items-center justify-center gap-3 w-full py-5 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-neutral-800 hover:shadow-lg hover:scale-[1.02] active:scale-95 transition-all group"
                   >
-                    <img
-                      src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/facebook.svg"
-                      alt="Facebook"
-                      className="w-5 h-5 group-hover:scale-110 transition-transform brightness-0 invert"
-                    />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                      Facebook
+                    <svg
+                      className="w-5 h-5 fill-current shrink-0 group-hover:scale-110 transition-transform"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.87c.66-.8 1.11-1.92.99-3.04-.96.04-2.12.64-2.8 1.44-.61.71-1.14 1.85-.99 2.96 1.07.08 2.14-.56 2.8-1.36z" />
+                    </svg>
+                    <span className="text-[10px] font-black uppercase tracking-widest">
+                      Iniciar sesión con Apple
                     </span>
                   </button>
                 </div>
@@ -19834,47 +24341,53 @@ const AuthPage = ({
                       </button>
                     </div>
 
-                    <div className="relative py-4">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-outline-variant/30"></div>
-                      </div>
-                      <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
-                        <span className="bg-white px-4 text-on-surface-variant/40">
-                          O regístrate con
-                        </span>
-                      </div>
-                    </div>
+                    {!fromPopup && (
+                      <>
+                        <div className="relative py-4">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-outline-variant/30"></div>
+                          </div>
+                          <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest">
+                            <span className="bg-white px-4 text-on-surface-variant/40">
+                              O regístrate con
+                            </span>
+                          </div>
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <button
-                        type="button"
-                        onClick={() => handleSocialLogin("google")}
-                        className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
-                      >
-                        <img
-                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                          alt="Google"
-                          className="w-5 h-5 group-hover:scale-110 transition-transform"
-                        />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-on-surface">
-                          Google
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSocialLogin("facebook")}
-                        className="flex items-center justify-center gap-3 py-4 px-6 bg-[#1877F2] hover:bg-[#166fe5] rounded-2xl transition-all shadow-md group"
-                      >
-                        <img
-                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/facebook.svg"
-                          alt="Facebook"
-                          className="w-5 h-5 group-hover:scale-110 transition-transform brightness-0 invert"
-                        />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                          Facebook
-                        </span>
-                      </button>
-                    </div>
+                        <div className="grid grid-cols-1 gap-4">
+                          <button
+                            type="button"
+                            onClick={() => handleSocialLogin("google")}
+                            className="flex items-center justify-center gap-3 py-4 px-6 bg-white border border-outline-variant hover:bg-surface-container-low rounded-2xl transition-all group"
+                          >
+                            <img
+                              src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                              alt="Google"
+                              className="w-5 h-5 group-hover:scale-110 transition-transform"
+                            />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-on-surface">
+                              Google
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleSocialLogin("apple")}
+                            className="flex items-center justify-center gap-3 py-4 px-6 bg-black text-white hover:bg-neutral-800 rounded-2xl transition-all group"
+                          >
+                            <svg
+                              className="w-5 h-5 fill-current shrink-0 group-hover:scale-110 transition-transform"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.87c.66-.8 1.11-1.92.99-3.04-.96.04-2.12.64-2.8 1.44-.61.71-1.14 1.85-.99 2.96 1.07.08 2.14-.56 2.8-1.36z" />
+                            </svg>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                              Iniciar sesión con Apple
+                            </span>
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -19884,10 +24397,13 @@ const AuthPage = ({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          Nombre
+                          Nombre *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.firstName && "ring-2 ring-red-500"
+                          )}
                           value={personalData.firstName}
                           onChange={(e) =>
                             setPersonalData({
@@ -19899,10 +24415,13 @@ const AuthPage = ({
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          1º Apellido
+                          1º Apellido *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.lastName1 && "ring-2 ring-red-500"
+                          )}
                           value={personalData.lastName1}
                           onChange={(e) =>
                             setPersonalData({
@@ -19932,10 +24451,13 @@ const AuthPage = ({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          DNI / NIE
+                          DNI / NIE *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.documentId && "ring-2 ring-red-500"
+                          )}
                           placeholder="12345678X"
                           value={personalData.documentId}
                           onChange={(e) =>
@@ -19948,10 +24470,13 @@ const AuthPage = ({
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/40 ml-4">
-                          Teléfono
+                          Teléfono *
                         </label>
                         <input
-                          className="w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none"
+                          className={cn(
+                            "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
+                            errors.phoneNumber && "ring-2 ring-red-500"
+                          )}
                           placeholder="600 000 000"
                           value={personalData.phoneNumber}
                           onChange={(e) =>
@@ -19967,7 +24492,7 @@ const AuthPage = ({
                     {/* Address Section */}
                     <div className="p-8 bg-surface-container-low rounded-[2rem] space-y-4">
                       <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">
-                        Dirección Completa
+                        Dirección Completa *
                       </p>
                       <div className="grid grid-cols-3 gap-3">
                         <select
@@ -19992,8 +24517,11 @@ const AuthPage = ({
                           <option value="Travesía">Travesía</option>
                         </select>
                         <input
-                          className="col-span-2 px-6 py-3 bg-white rounded-xl font-bold outline-none"
-                          placeholder="Nombre de la vía"
+                          className={cn(
+                            "col-span-2 px-6 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.streetName && "ring-2 ring-red-500"
+                          )}
+                          placeholder="Nombre de la vía *"
                           value={personalData.address.streetName}
                           onChange={(e) =>
                             setPersonalData({
@@ -20008,8 +24536,11 @@ const AuthPage = ({
                       </div>
                       <div className="grid grid-cols-4 gap-3">
                         <input
-                          placeholder="Nº"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="Nº *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.number && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.number}
                           onChange={(e) =>
                             setPersonalData({
@@ -20066,8 +24597,11 @@ const AuthPage = ({
                       </div>
                       <div className="grid grid-cols-3 gap-3">
                         <input
-                          placeholder="CP"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="CP *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.postalCode && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.postalCode}
                           onChange={(e) =>
                             setPersonalData({
@@ -20080,8 +24614,11 @@ const AuthPage = ({
                           }
                         />
                         <input
-                          placeholder="Localidad"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="Localidad *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.locality && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.locality}
                           onChange={(e) =>
                             setPersonalData({
@@ -20094,8 +24631,11 @@ const AuthPage = ({
                           }
                         />
                         <input
-                          placeholder="Provincia"
-                          className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                          placeholder="Provincia *"
+                          className={cn(
+                            "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                            errors.address && !personalData.address.province && "ring-2 ring-red-500"
+                          )}
                           value={personalData.address.province}
                           onChange={(e) =>
                             setPersonalData({
@@ -20238,32 +24778,43 @@ const AuthPage = ({
                       </div>
                     )}
 
-                    <div className="flex gap-4 pt-4">
-                      <button
-                        onClick={() => setRegisterStep(1)}
-                        className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
-                      >
-                        <ChevronLeft className="w-6 h-6" />
-                      </button>
-                      <button
-                        onClick={handleNextStep}
-                        disabled={
-                          !personalData.role ||
-                          (personalData.role === "user" && !acceptTerms)
-                        }
-                        className={cn(
-                          "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
-                          !personalData.role ||
+                    <div className="flex flex-col gap-4 pt-4">
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setRegisterStep(1)}
+                          className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
+                        >
+                          <ChevronLeft className="w-6 h-6" />
+                        </button>
+                        <button
+                          onClick={handleNextStep}
+                          disabled={
+                            !personalData.role ||
                             (personalData.role === "user" && !acceptTerms)
-                            ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
-                            : "primary-gradient text-white shadow-xl",
-                        )}
-                      >
-                        {personalData.role === "professional"
-                          ? "Datos Profesionales"
-                          : "Finalizar Registro"}
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                          }
+                          className={cn(
+                            "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
+                            !personalData.role ||
+                              (personalData.role === "user" && !acceptTerms)
+                              ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
+                              : "primary-gradient text-white shadow-xl",
+                          )}
+                        >
+                          {personalData.role === "professional"
+                            ? "Datos Profesionales"
+                            : "Finalizar Registro"}
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {Object.values(errors).length > 0 && (
+                        <div className="flex flex-col items-center space-y-1">
+                          {Object.values(errors).map((err, i) => (
+                            <p key={i} className="text-[10px] font-black text-red-500 uppercase tracking-widest text-center">
+                              {err}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -20450,7 +25001,7 @@ const AuthPage = ({
                               "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
                               errors.billingName && "ring-2 ring-red-500",
                             )}
-                            placeholder="Nombre Fiscal"
+                            placeholder="Nombre Fiscal *"
                             value={professionalData.billing.name}
                             onChange={(e) =>
                               setProfessionalData({
@@ -20474,7 +25025,7 @@ const AuthPage = ({
                               "w-full px-6 py-4 bg-surface-container-low rounded-2xl font-bold outline-none",
                               errors.billingDoc && "ring-2 ring-red-500",
                             )}
-                            placeholder="DNI / NIE / CIF"
+                            placeholder="DNI / NIE / CIF *"
                             value={professionalData.billing.documentId}
                             onChange={(e) =>
                               setProfessionalData({
@@ -20529,10 +25080,13 @@ const AuthPage = ({
                               })
                             }
                           >
-                            <option>Calle</option>
-                            <option>Av.</option>
-                            <option>Plaza</option>
-                            <option>Pasaje</option>
+                            <option value="Calle">Calle</option>
+                            <option value="Avenida">Avenida</option>
+                            <option value="Plaza">Plaza</option>
+                            <option value="Camino">Camino</option>
+                            <option value="Carretera">Carretera</option>
+                            <option value="Paseo">Paseo</option>
+                            <option value="Travesía">Travesía</option>
                           </select>
                           <input
                             className="px-6 py-3 bg-white rounded-xl font-bold outline-none"
@@ -20641,8 +25195,11 @@ const AuthPage = ({
                             }
                           />
                           <input
-                            placeholder="Localidad"
-                            className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                            placeholder="Localidad *"
+                            className={cn(
+                              "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                              errors.billingAddress && !professionalData.billing.address.locality && "ring-2 ring-red-500"
+                            )}
                             value={professionalData.billing.address.locality}
                             onChange={(e) =>
                               setProfessionalData({
@@ -20658,8 +25215,11 @@ const AuthPage = ({
                             }
                           />
                           <input
-                            placeholder="Provincia"
-                            className="px-4 py-3 bg-white rounded-xl font-bold outline-none"
+                            placeholder="Provincia *"
+                            className={cn(
+                              "px-4 py-3 bg-white rounded-xl font-bold outline-none",
+                              errors.billingAddress && !professionalData.billing.address.province && "ring-2 ring-red-500"
+                            )}
                             value={professionalData.billing.address.province}
                             onChange={(e) =>
                               setProfessionalData({
@@ -20748,26 +25308,37 @@ const AuthPage = ({
                       </div>
                     </div>
 
-                    <div className="flex gap-4 pt-4">
-                      <button
-                        onClick={() => setRegisterStep(2)}
-                        className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
-                      >
-                        <ChevronLeft className="w-6 h-6" />
-                      </button>
-                      <button
-                        onClick={finishRegistration}
-                        disabled={!acceptTerms}
-                        className={cn(
-                          "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
-                          !acceptTerms
-                            ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
-                            : "primary-gradient text-white shadow-xl",
-                        )}
-                      >
-                        Completar mi Perfil Profesional
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
+                    <div className="flex flex-col gap-4 pt-4">
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => setRegisterStep(2)}
+                          className="w-20 py-5 bg-surface-container-low rounded-2xl flex items-center justify-center hover:bg-surface-container-high transition-colors"
+                        >
+                          <ChevronLeft className="w-6 h-6" />
+                        </button>
+                        <button
+                          onClick={finishRegistration}
+                          disabled={!acceptTerms}
+                          className={cn(
+                            "flex-1 py-5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 transition-all",
+                            !acceptTerms
+                              ? "bg-surface-container-low text-on-surface-variant/40 cursor-not-allowed"
+                              : "primary-gradient text-white shadow-xl",
+                          )}
+                        >
+                          Completar mi Perfil Profesional
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {Object.values(errors).length > 0 && (
+                        <div className="flex flex-col items-center space-y-1">
+                          {Object.values(errors).map((err, i) => (
+                            <p key={i} className="text-[10px] font-black text-red-500 uppercase tracking-widest text-center">
+                              {err}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -20844,12 +25415,1132 @@ const Toast = ({
   </motion.div>
 );
 
+const RichTextEditor = ({
+  value,
+  onChange,
+  placeholder,
+  minHeight = "100px",
+}: {
+  value: string;
+  onChange: (html: string) => void;
+  placeholder?: string;
+  minHeight?: string;
+}) => {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const savedRange = useRef<Range | null>(null);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (editorRef.current && !initialized.current) {
+      editorRef.current.innerHTML = value || "";
+      initialized.current = true;
+    }
+  }, [value]);
+
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current?.contains(sel.anchorNode)) {
+      savedRange.current = sel.getRangeAt(0);
+    }
+  };
+
+  const restoreSelection = () => {
+    if (!savedRange.current) return;
+    const sel = window.getSelection();
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange.current);
+    }
+  };
+
+  const exec = (cmd: string, val?: string) => {
+    editorRef.current?.focus();
+    restoreSelection();
+    document.execCommand(cmd, false, val);
+    onChange(editorRef.current?.innerHTML || "");
+  };
+
+  const applyFontSize = (px: string) => {
+    editorRef.current?.focus();
+    restoreSelection();
+
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || sel.isCollapsed) {
+      onChange(editorRef.current?.innerHTML || "");
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const span = document.createElement("span");
+    span.style.setProperty("font-size", px, "important");
+    try {
+      range.surroundContents(span);
+    } catch {
+      const fragment = range.extractContents();
+      span.appendChild(fragment);
+      range.insertNode(span);
+    }
+    sel.removeAllRanges();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(span);
+    sel.addRange(newRange);
+    onChange(editorRef.current?.innerHTML || "");
+  };
+
+  return (
+    <div className="border border-outline-variant/20 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-1 p-1.5 bg-surface-container border-b border-outline-variant/20 flex-wrap">
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); exec("bold"); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high font-black text-sm"
+          title="Negrita"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 12a4 4 0 0 0 0-8H6v8"/><path d="M15 20a4 4 0 0 0 0-8H6v8"/></svg>
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); exec("italic"); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high italic text-sm"
+          title="Cursiva"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/></svg>
+        </button>
+        <button
+          type="button"
+          onMouseDown={(e) => { e.preventDefault(); exec("underline"); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high underline text-sm"
+          title="Subrayado"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/></svg>
+        </button>
+        <div className="w-px h-6 bg-outline-variant/20 mx-1" />
+        <select
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val) applyFontSize(val);
+            e.target.value = "";
+          }}
+          className="text-xs bg-surface-container-high rounded-lg px-2 py-1 border border-outline-variant/10 outline-none cursor-pointer"
+        >
+          <option value="">Tamaño</option>
+          <option value="14px">Pequeño</option>
+          <option value="16px">Normal</option>
+          <option value="20px">Grande</option>
+          <option value="24px">Muy Grande</option>
+          <option value="32px">Extra Grande</option>
+        </select>
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={() => {
+          onChange(editorRef.current?.innerHTML || "");
+        }}
+        onMouseUp={saveSelection}
+        onKeyUp={saveSelection}
+        className="p-3 outline-none text-sm leading-relaxed empty:before:content-[attr(data-placeholder)] empty:before:text-on-surface-variant/40"
+        data-placeholder={placeholder || ""}
+        style={{ minHeight }}
+      />
+    </div>
+  );
+};
+
 const ScrollToTop = () => {
   const { pathname } = useLocation();
   useEffect(() => {
     window.scrollTo(0, 0);
+    const mainContainer = document.getElementById('main-scroll-container');
+    if (mainContainer) {
+      mainContainer.scrollTo(0, 0);
+    }
   }, [pathname]);
   return null;
+};
+
+const EmailVerificationScreen = ({ user, auth, isModal, setUser }: { user: UserProfile, auth: any, isModal?: boolean, setUser?: any }) => {
+  const [isSending, setIsSending] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const navigate = useNavigate();
+
+  const checkVerification = async () => {
+    if (!auth.currentUser) return;
+    try {
+      await auth.currentUser.reload();
+      if (auth.currentUser.emailVerified) {
+        window.location.reload();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkVerification();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleResend = async () => {
+    if (!auth.currentUser) return;
+    setIsSending(true);
+    try {
+      auth.languageCode = navigator.language || 'es';
+      await sendEmailVerification(auth.currentUser);
+      setMessage("Se ha enviado un nuevo enlace de verificación a tu correo.");
+    } catch (error: any) {
+      console.error(error);
+      if (error.code === 'auth/too-many-requests') {
+        setMessage("Has intentado reenviar el correo demasiadas veces. Por favor, espera unos minutos.");
+      } else {
+        setMessage("Hubo un error al enviar el correo. Por favor, inténtalo más tarde.");
+      }
+    }
+    setIsSending(false);
+  };
+
+  const handleCheck = async () => {
+    if (!auth.currentUser) return;
+    try {
+      await auth.currentUser.reload();
+      if (auth.currentUser.emailVerified) {
+        window.location.reload();
+      } else {
+        setMessage("Todavía no se ha verificado el correo. Revisa tu bandeja de entrada o spam.");
+      }
+    } catch (e) {
+      console.error(e);
+      setMessage("Hubo un error al comprobar la verificación.");
+    }
+  };
+
+  const handleLogout = async () => {
+    if (setUser) setUser(null);
+    await auth.signOut();
+    navigate("/");
+  };
+
+  return (
+    <div className={isModal ? "fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 text-center" : "min-h-screen bg-surface flex flex-col items-center justify-center p-4 text-center"}>
+      <div className="bg-surface-container-lowest rounded-[3rem] p-8 max-w-md w-full shadow-xl pointer-events-auto">
+        <h2 className="text-2xl font-black mb-4">Verifica tu correo electrónico</h2>
+        <p className="text-on-surface-variant mb-8 text-sm">
+          Hemos enviado un enlace de verificación a <br/><strong>{auth.currentUser?.email}</strong>.<br/><br/>
+          Por favor, haz clic en el enlace para activar tu cuenta y poder utilizar la plataforma.
+        </p>
+        
+        {message && (
+          <div className="bg-primary/10 text-primary p-3 rounded-xl mb-6 text-sm font-medium">
+            {message}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <button
+            onClick={handleCheck}
+            className="w-full bg-primary text-white py-4 rounded-xl font-bold shadow-lg"
+          >
+            Ya he verificado mi correo
+          </button>
+          
+          <button
+            onClick={handleResend}
+            disabled={isSending}
+            className="w-full border-2 border-primary/20 text-primary py-4 rounded-xl font-bold hover:bg-primary/5 transition-colors"
+          >
+            {isSending ? "Enviando..." : "Reenviar correo"}
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="w-full text-on-surface-variant mt-4 text-sm font-medium hover:text-on-surface transition-colors"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ReviewModal = ({ booking, user, onComplete }: { booking: any, user: UserProfile, onComplete: () => void }) => {
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [proDetails, setProDetails] = useState<any>(null);
+  const config = DEFAULT_REVIEW_MODAL_CONFIG;
+
+  const targetId = booking.clientId === user.id ? booking.professionalId : booking.clientId;
+
+  useEffect(() => {
+    if (!targetId) return;
+    getDoc(doc(db, "users", targetId)).then((snap) => {
+      if (snap.exists()) {
+        setProDetails(snap.data());
+      }
+    }).catch(err => console.error("Error fetching pro details for modal:", err));
+  }, [targetId]);
+
+  const convertFileToBase64 = (fileToConvert: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(fileToConvert);
+      reader.onload = async () => {
+        try {
+          const rawBase64 = reader.result as string;
+          const compressed = await compressImage(rawBase64, 800, 800, 0.7);
+          resolve(compressed);
+        } catch (e) {
+          resolve(reader.result as string);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      try {
+        const compressed = await convertFileToBase64(selectedFile);
+        setPreviewUrl(compressed);
+      } catch {
+        setPreviewUrl(URL.createObjectURL(selectedFile));
+      }
+    } else {
+      setFile(null);
+      setPreviewUrl(null);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (rating === 0 || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      let photoUrl = "";
+      if (file) {
+        const compressedBase64 = previewUrl || await convertFileToBase64(file);
+        try {
+          const fetchRes = await fetch(compressedBase64);
+          const blob = await fetchRes.blob();
+          const fileName = `reviews/${Date.now()}_${(file.name || "review.jpg").replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+          const storageRef = ref(storage, fileName);
+          const uploadPromise = uploadBytes(storageRef, blob).then(snapshot => getDownloadURL(snapshot.ref));
+          const timeoutPromise = new Promise<string>((_, reject) => setTimeout(() => reject(new Error("Storage timeout")), 4000));
+          photoUrl = await Promise.race([uploadPromise, timeoutPromise]);
+        } catch (storageErr) {
+          console.warn("Storage upload timed out or failed, using compressed base64 fallback:", storageErr);
+          photoUrl = compressedBase64;
+        }
+      }
+
+      await addDoc(collection(db, "reviews"), {
+        bookingId: booking.id,
+        authorId: user.id,
+        authorName: user.firstName ? `${user.firstName} ${user.lastName1 || ''}`.trim() : user.username || "Usuario",
+        authorPhotoUrl: user.photoUrl || "",
+        targetId,
+        rating,
+        comment,
+        photoUrl,
+        createdAt: serverTimestamp(),
+      });
+
+      // Update user and listings ratings to prevent flickering
+      const qReviews = query(collection(db, "reviews"), where("targetId", "==", targetId));
+      const reviewsSnap = await getDocs(qReviews);
+      let totalRating = 0;
+      reviewsSnap.forEach(docSnap => {
+        totalRating += docSnap.data().rating || 0;
+      });
+      const newRating = reviewsSnap.size > 0 ? totalRating / reviewsSnap.size : 5.0;
+
+      await updateDoc(doc(db, "users", targetId), {
+        rating: newRating
+      });
+
+      const qListings = query(collection(db, "listings"), where("author.id", "==", targetId));
+      const listingsSnap = await getDocs(qListings);
+      for (const listingDoc of listingsSnap.docs) {
+        await updateDoc(doc(db, "listings", listingDoc.id), {
+          "author.rating": newRating
+        });
+      }
+
+      onComplete();
+    } catch (err) {
+      console.error("Error submitting review:", err);
+      alert("Error al enviar la valoración. Inténtalo de nuevo.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const renderStars = () => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      const isHalf = hoverRating ? hoverRating + 0.5 === i : rating + 0.5 === i;
+      const isFull = hoverRating ? hoverRating >= i : rating >= i;
+      stars.push(
+        <div 
+          key={i} 
+          className="relative cursor-pointer w-10 h-10"
+          onMouseLeave={() => setHoverRating(0)}
+        >
+          <div 
+            className="absolute left-0 w-1/2 h-full z-10" 
+            onMouseEnter={() => setHoverRating(i - 0.5)}
+            onClick={() => setRating(i - 0.5)}
+          />
+          <div 
+            className="absolute right-0 w-1/2 h-full z-10" 
+            onMouseEnter={() => setHoverRating(i)}
+            onClick={() => setRating(i)}
+          />
+          <Star
+            className={`w-10 h-10 ${isFull ? 'fill-amber-400 text-amber-400' : 'text-outline-variant'} transition-colors`}
+          />
+          {isHalf && (
+            <div className="absolute top-0 left-0 overflow-hidden w-1/2 h-full pointer-events-none">
+              <Star className="w-10 h-10 fill-amber-400 text-amber-400" />
+            </div>
+          )}
+        </div>
+      );
+    }
+    return <div className="flex items-center gap-1">{stars}</div>;
+  };
+
+  const proName = proDetails 
+    ? (proDetails.firstName ? `${proDetails.firstName} ${proDetails.lastName1 || ''}`.trim() : proDetails.username || "Profesional")
+    : (booking.professionalName || "Profesional");
+
+  const serviceTitle = booking.listingTitle || booking.title || booking.serviceTitle || "Servicio contratado";
+  const jobType = booking.listingType === "offer" ? "Oferta de servicio" : (booking.type || "Servicio");
+  const bookingDate = booking.date || "No especificada";
+  const bookingDuration = booking.duration || "1h";
+
+  const handleClose = async () => {
+    if (booking?.id) {
+      try {
+        await updateDoc(doc(db, "bookings", booking.id), {
+          dismissedReview: true
+        });
+      } catch (err) {
+        console.warn("Error marking booking as dismissedReview on close:", err);
+      }
+    }
+    onComplete();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-scrim/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-surface rounded-3xl w-full max-w-md shadow-2xl p-6 sm:p-8 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto relative">
+        <button
+          onClick={handleClose}
+          className="absolute top-5 right-5 p-2 rounded-full text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors"
+          title="Cerrar y no volver a mostrar"
+          aria-label="Cerrar"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <h2 className="text-2xl font-display font-black text-on-surface mb-1 pr-8">
+          {config.title}
+        </h2>
+        <p className="text-on-surface-variant text-sm mb-4 pr-6">
+          {config.subtitle}
+        </p>
+
+        {/* Info card summarizing the booking */}
+        <div className="bg-surface-container-low/50 border border-outline-variant/20 rounded-2xl p-4 mb-6 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-black uppercase tracking-widest text-[9px] px-2.5 py-1 rounded-full bg-primary/10 text-primary">
+              {jobType}
+            </span>
+            <span className="text-on-surface-variant font-medium">
+              Duración: <strong className="text-on-surface font-bold">{bookingDuration}</strong>
+            </span>
+          </div>
+          <div>
+            <span className="text-on-surface-variant font-medium block">Trabajo:</span>
+            <h3 className="font-bold text-sm text-on-surface line-clamp-1">{serviceTitle}</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-outline-variant/10 text-on-surface-variant">
+            <div>
+              <span className="block font-medium">Profesional:</span>
+              <span className="font-bold text-on-surface">{proName}</span>
+            </div>
+            <div>
+              <span className="block font-medium">Fecha:</span>
+              <span className="font-bold text-on-surface">{bookingDate}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-bold text-on-surface mb-2">
+              {config.starLabel}
+            </label>
+            {renderStars()}
+            <p className="text-sm font-bold text-amber-500 mt-1">{rating > 0 ? rating : ''}</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-on-surface mb-2">
+              {config.commentLabel}
+            </label>
+            <textarea
+              className="w-full bg-surface-container-lowest border-2 border-outline-variant rounded-xl p-3.5 text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none resize-none min-h-[100px]"
+              placeholder={config.commentPlaceholder}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-on-surface mb-2">
+              {config.photoLabel}
+            </label>
+            {previewUrl ? (
+              <div className="relative rounded-2xl overflow-hidden border border-outline-variant/30 group">
+                <img src={previewUrl} alt="Vista previa foto" className="w-full h-40 object-cover" />
+                <button
+                  type="button"
+                  onClick={() => { setFile(null); setPreviewUrl(null); }}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                  title="Eliminar foto"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="w-full text-sm text-on-surface-variant file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-colors"
+              />
+            )}
+          </div>
+
+          <button
+            onClick={handleSubmit}
+            disabled={rating === 0 || isSubmitting}
+            className="w-full bg-primary text-white py-4 rounded-xl font-bold shadow-lg shadow-primary/25 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Enviando...</span>
+              </>
+            ) : (
+              config.submitButtonText
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const useReviewPrompt = (user: UserProfile | null) => {
+  const [pendingBooking, setPendingBooking] = useState<any>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const checkBookings = async () => {
+      try {
+        const qClient = query(collection(db, "bookings"), where("clientId", "==", user.id), where("status", "in", ["accepted", "completed"]));
+        const qPro = query(collection(db, "bookings"), where("professionalId", "==", user.id), where("status", "in", ["accepted", "completed"]));
+        
+        const [snapClient, snapPro] = await Promise.all([getDocs(qClient), getDocs(qPro)]);
+        const bookings = [...snapClient.docs, ...snapPro.docs].map(d => ({ id: d.id, ...d.data() }));
+
+        for (const b of bookings as any[]) {
+          if (b.dismissedReview) continue;
+
+          const durationStr = typeof b.duration === 'string' ? b.duration.replace(/\D/g, '') : "1";
+          const durationHours = parseInt(durationStr) || 1;
+          
+          let startDateTime = new Date(`${b.date}T${b.time}`);
+          if (isNaN(startDateTime.getTime()) && typeof b.date === 'string') {
+            const parts = b.date.toLowerCase().split(" de ");
+            if (parts.length >= 2) {
+              const day = parseInt(parts[0]);
+              const months: Record<string, number> = { 'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3, 'mayo': 4, 'junio': 5, 'julio': 6, 'agosto': 7, 'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11 };
+              const month = months[parts[1]] || 0;
+              const year = parts.length === 3 ? parseInt(parts[2]) : new Date().getFullYear();
+              
+              const [hh, mm] = (b.time || "00:00").split(":");
+              startDateTime = new Date(year, month, day, parseInt(hh||"0"), parseInt(mm||"0"));
+            }
+          }
+          
+          if (isNaN(startDateTime.getTime())) {
+            console.log(`[ReviewPrompt] Ignorando reserva ${b.id}: Fecha inválida (${b.date} ${b.time})`);
+            continue;
+          }
+
+          const endDateTime = new Date(startDateTime.getTime() + (durationHours * 60 * 60 * 1000));
+          const triggerTime = new Date(endDateTime.getTime() + (3 * 60 * 60 * 1000));
+          
+          console.log(`[ReviewPrompt] Reserva ${b.id} - Estado: ${b.status} - TriggerTime: ${triggerTime.toLocaleString()} - Ahora: ${new Date().toLocaleString()}`);
+          
+          if (new Date() >= triggerTime) {
+            // Auto-completar el trabajo si aún estaba "aceptado"
+            if (b.status === "accepted") {
+              try {
+                await updateDoc(doc(db, "bookings", b.id), { status: "completed" });
+                b.status = "completed"; // Update local object
+                console.log(`[ReviewPrompt] Reserva ${b.id} auto-completada.`);
+              } catch(e) {
+                console.error("Error auto-completando reserva:", e);
+              }
+            }
+            const qReview = query(collection(db, "reviews"), where("bookingId", "==", b.id), where("authorId", "==", user.id));
+            const reviewSnap = await getDocs(qReview);
+            
+            if (reviewSnap.empty) {
+              setPendingBooking(b);
+              return; 
+            }
+          }
+        }
+        setPendingBooking(null);
+      } catch(e) {
+        console.error("Error checking bookings for reviews:", e);
+      }
+    };
+
+    checkBookings();
+    const interval = setInterval(checkBookings, 5 * 60 * 1000); 
+    return () => clearInterval(interval);
+  }, [user]);
+
+  return { pendingBooking, setPendingBooking };
+};
+
+const EditListingPage = ({
+  user,
+  listings,
+  onUpdate,
+}: {
+  user: any;
+  listings: JobListing[];
+  onUpdate?: (listing: JobListing) => void;
+}) => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [listing, setListing] = useState<JobListing | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+
+  const handleProcessImageBase64 = async (rawBase64: string) => {
+    setIsProcessingImage(true);
+    try {
+      const optimizedUrl = await compressImage(rawBase64, 1000, 800, 0.7);
+      setFormData((prev) => ({ ...prev, headerImage: optimizedUrl }));
+    } catch (e) {
+      setFormData((prev) => ({ ...prev, headerImage: rawBase64 }));
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const handleLocalFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      alert("La imagen elegida es demasiado grande (máximo 10MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        handleProcessImageBase64(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCameraCapture = async () => {
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
+        const image = await Camera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera,
+        });
+        if (image && image.dataUrl) {
+          await handleProcessImageBase64(image.dataUrl);
+        }
+      } else {
+        cameraInputRef.current?.click();
+      }
+    } catch (err: any) {
+      console.warn("Camera trigger cancelled or failed:", err);
+    }
+  };
+  const [error, setError] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    price: "",
+    unit: "hour" as JobListing["unit"],
+    type: "offer" as ListingType,
+    category: CATEGORIES[0] || "",
+    location: "",
+    additionalInfo: "",
+    tags: "",
+    headerImage: "",
+    status: "active" as ListingStatus,
+  });
+
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!id || isLoaded) return;
+    const found = listings.find((l) => l.id === id);
+    if (found) {
+      setListing(found);
+      setFormData({
+        title: found.title || "",
+        description: found.description || "",
+        price: found.price ? String(found.price) : "",
+        unit: found.unit || "hour",
+        type: found.type || "offer",
+        category: found.category || CATEGORIES[0] || "",
+        location: formatLocation(found.location),
+        additionalInfo: found.additionalInfo || "",
+        tags: Array.isArray(found.tags) ? found.tags.join(", ") : "",
+        headerImage: found.headerImage || found.imageUrl || (found.images && found.images[0]) || "",
+        status: found.status || "active",
+      });
+      setIsLoading(false);
+      setIsLoaded(true);
+    } else {
+      getDoc(doc(db, "listings", id))
+        .then((docSnap) => {
+          if (docSnap.exists()) {
+            const data = { id: docSnap.id, ...docSnap.data() } as JobListing;
+            setListing(data);
+            setFormData({
+              title: data.title || "",
+              description: data.description || "",
+              price: data.price ? String(data.price) : "",
+              unit: data.unit || "hour",
+              type: data.type || "offer",
+              category: data.category || CATEGORIES[0] || "",
+              location: formatLocation(data.location),
+              additionalInfo: data.additionalInfo || "",
+              tags: Array.isArray(data.tags) ? data.tags.join(", ") : "",
+              headerImage: data.headerImage || data.imageUrl || (data.images && data.images[0]) || "",
+              status: data.status || "active",
+            });
+            setIsLoaded(true);
+          } else {
+            setError("El anuncio no existe o fue eliminado.");
+          }
+        })
+        .catch((e) => {
+          console.error(e);
+          setError("Error al cargar el anuncio.");
+        })
+        .finally(() => setIsLoading(false));
+    }
+  }, [id, listings, isLoaded]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!listing || !id) return;
+    setIsSubmitting(true);
+    setError(null);
+
+    const priceNum = parseFloat(formData.price) || 0;
+    const tagArray = formData.tags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const updatedListing: JobListing = {
+      ...listing,
+      title: formData.title,
+      description: formData.description,
+      price: priceNum,
+      unit: formData.unit,
+      type: formData.type,
+      category: formData.category,
+      location: formData.location.trim() || "Sin ubicación",
+      additionalInfo: formData.additionalInfo,
+      tags: tagArray,
+      headerImage: formData.headerImage,
+      imageUrl: formData.headerImage,
+      images: formData.headerImage ? [formData.headerImage] : [],
+      status: formData.status,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      if (onUpdate) {
+        await onUpdate(updatedListing);
+      } else {
+        const { id: _, ...dataToUpdate } = updatedListing;
+        const cleanedData = cleanUndefinedData(dataToUpdate);
+        await setDoc(doc(db, "listings", id), cleanedData, { merge: true });
+      }
+      navigate(`/perfil/${createSlug(listing?.author?.name || "usuario")}/${createSlug(listing?.title || "")}`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Error al actualizar el anuncio");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (error || !listing) {
+    return (
+      <div className="max-w-2xl mx-auto p-8 text-center space-y-4">
+        <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />
+        <h2 className="text-xl font-bold text-on-surface">{error || "Anuncio no encontrado"}</h2>
+        <button
+          onClick={() => navigate(-1)}
+          className="px-6 py-2 bg-primary text-white font-bold rounded-full text-sm"
+        >
+          Volver
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <div className="flex items-center gap-4 mb-8">
+        <button
+          onClick={() => navigate(-1)}
+          className="p-2 rounded-full hover:bg-surface-container-high transition-colors"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-display font-black text-on-surface tracking-tight">
+            Editar Anuncio
+          </h1>
+          <p className="text-sm text-on-surface-variant/60">
+            Modifica los detalles de tu publicación
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-outline-variant/10">
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Título del Anuncio *
+          </label>
+          <input
+            type="text"
+            required
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            placeholder="Ej: Limpieza profesional de hogar u oficinas"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Categoría *
+            </label>
+            <select
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Tipo de Anuncio *
+            </label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value as ListingType })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            >
+              <option value="offer">Ofrezco servicio</option>
+              <option value="search">Busco profesional</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Precio (€) *
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              required
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+              placeholder="0.00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+              Unidad de Cobro *
+            </label>
+            <select
+              value={formData.unit}
+              onChange={(e) => setFormData({ ...formData, unit: e.target.value as JobListing["unit"] })}
+              className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            >
+              <option value="hour">Por hora</option>
+              <option value="job">Por trabajo / presupuesto cerrado</option>
+              <option value="day">Por día</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Ubicación / Zona de Trabajo *
+          </label>
+          <input
+            type="text"
+            required
+            value={formData.location}
+            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            placeholder="Ej: Madrid Centro, Barcelona, etc."
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Descripción Detallada *
+          </label>
+          <textarea
+            required
+            rows={5}
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium resize-none"
+            placeholder="Describe tu servicio con todo el detalle posible..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Imagen Principal del Anuncio *
+          </label>
+
+          {formData.headerImage ? (
+            <div className="relative rounded-3xl overflow-hidden border border-outline-variant/20 mb-3 group">
+              <img
+                src={formData.headerImage}
+                alt="Vista previa anuncio"
+                className="w-full h-56 object-cover"
+              />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleCameraCapture}
+                  className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold shadow-lg hover:bg-primary/90 flex items-center gap-2"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Cámara</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-white text-on-surface rounded-xl text-xs font-bold shadow-lg hover:bg-surface-container-high flex items-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Subir Local</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, headerImage: "" })}
+                  className="p-2 bg-red-600 text-white rounded-xl text-xs font-bold shadow-lg hover:bg-red-700"
+                  title="Quitar imagen"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <button
+                type="button"
+                onClick={handleCameraCapture}
+                disabled={isProcessingImage}
+                className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 transition-all text-primary font-bold text-xs group active:scale-95"
+              >
+                <Camera className="w-8 h-8 group-hover:scale-110 transition-transform" />
+                <span>Hacer Foto con Cámara</span>
+                <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                  (Cámara Móvil / Web)
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessingImage}
+                className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-outline-variant/30 hover:border-primary bg-surface-container-low/50 hover:bg-surface-container-high transition-all text-on-surface font-bold text-xs group active:scale-95"
+              >
+                <Upload className="w-8 h-8 text-on-surface-variant group-hover:scale-110 transition-transform" />
+                <span>Subir de Galería / Archivo Local</span>
+                <span className="text-[10px] text-on-surface-variant/50 font-normal">
+                  (Fotos del dispositivo)
+                </span>
+              </button>
+            </div>
+          )}
+
+          {user?.gallery && user.gallery.length > 0 && (
+            <div className="mt-3 p-4 bg-surface-container-low/30 rounded-2xl border border-outline-variant/10 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-on-surface-variant/60 block">
+                O elige una foto de tu Galería de Perfil:
+              </span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {user.gallery.map((gPhoto: any, idx: number) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, headerImage: gPhoto.url })}
+                    className={cn(
+                      "relative w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all",
+                      formData.headerImage === gPhoto.url
+                        ? "border-primary ring-2 ring-primary/20 scale-105"
+                        : "border-transparent hover:opacity-80"
+                    )}
+                  >
+                    <img
+                      src={gPhoto.url}
+                      alt={`Galería ${idx}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3">
+            <input
+              type="url"
+              value={formData.headerImage}
+              onChange={(e) => setFormData({ ...formData, headerImage: e.target.value })}
+              className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/20 focus:border-primary focus:outline-none text-xs font-medium bg-surface-container-lowest"
+              placeholder="O pega una URL de imagen (https://...)"
+            />
+          </div>
+
+          <input
+            type="file"
+            ref={cameraInputRef}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleLocalFileSelect}
+          />
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/*"
+            className="hidden"
+            onChange={handleLocalFileSelect}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Etiquetas / Palabras Clave (separadas por comas)
+          </label>
+          <input
+            type="text"
+            value={formData.tags}
+            onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+            placeholder="ej: limpieza, hogar, urgencias"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-black uppercase tracking-wider text-on-surface-variant/60 mb-2">
+            Estado del Anuncio
+          </label>
+          <select
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value as ListingStatus })}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/20 focus:border-primary focus:outline-none text-sm font-medium"
+          >
+            <option value="active">Activo (Visible para todos)</option>
+            <option value="inactive">Pausado / Inactivo</option>
+          </select>
+        </div>
+
+        {error && (
+          <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold">
+            {error}
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 pt-4">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex-1 py-4 bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold rounded-2xl text-xs uppercase tracking-widest transition-all"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex-1 py-4 bg-primary hover:bg-primary/90 text-white font-bold rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
+          >
+            {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 };
 
 function App() {
@@ -20857,8 +26548,10 @@ function App() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const { config } = useDynamicAppConfig();
 
   const [reportTarget, setReportTarget] = useState<{
     userId: string;
@@ -20892,7 +26585,7 @@ function App() {
 
   const [user, setUser] = useState<UserProfile | null>(() => {
     try {
-      const saved = localStorage.getItem("jobpop_user");
+      const saved = localStorage.getItem("GigeJob_user");
       if (!saved) return null;
       const parsed = JSON.parse(saved);
       if (
@@ -20904,11 +26597,11 @@ function App() {
         return parsed;
       }
       // If data is invalid, clear it to prevent further crashes
-      localStorage.removeItem("jobpop_user");
+      localStorage.removeItem("GigeJob_user");
       return null;
     } catch (e) {
       console.error("Error loading user from localStorage:", e);
-      localStorage.removeItem("jobpop_user");
+      localStorage.removeItem("GigeJob_user");
       return null;
     }
   });
@@ -20923,10 +26616,31 @@ function App() {
     }
   }, [user]);
 
-  const [settingsModal, setSettingsModal] = useState<{
-    isOpen: boolean;
-    type: string;
-  }>({ isOpen: false, type: "" });
+  const [isSearchProfessionalsEnabled, setIsSearchProfessionalsEnabled] = useState<boolean>(() => {
+    try {
+      const cached = localStorage.getItem("app_search_enabled");
+      return cached ? JSON.parse(cached) : ENABLE_SEARCH_PROFESSIONALS;
+    } catch {
+      return ENABLE_SEARCH_PROFESSIONALS;
+    }
+  });
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "services"), (snap) => {
+      if (snap.exists() && snap.data().enableSearchProfessionals !== undefined) {
+        const val = snap.data().enableSearchProfessionals;
+        setIsSearchProfessionalsEnabled(val);
+        localStorage.setItem("app_search_enabled", JSON.stringify(val));
+      }
+    });
+    return () => unsub();
+  }, []);
+
+
+
+
+
+
+  const { pendingBooking, setPendingBooking } = useReviewPrompt(user);
 
   // Global seed for testing requested user
   useEffect(() => {
@@ -21004,6 +26718,60 @@ function App() {
     }
   }, [user, searchParams, setSearchParams]);
 
+  // Handle redirect result for native platforms
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          const user = result.user;
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (!userDoc.exists()) {
+             const finalUserData: UserProfile = {
+                id: user.uid,
+                username:
+                  user.displayName ||
+                  user.email?.split("@")[0] ||
+                  `user_${user.uid.slice(0, 5)}`,
+                email: user.email || "",
+                role: "user",
+                firstName: user.displayName?.split(" ")[0] || "Usuario",
+                lastName1: user.displayName?.split(" ").slice(1).join(" ") || "",
+                lastName2: "",
+                documentId: "",
+                phoneNumber: user.phoneNumber || "",
+                address: {
+                  streetType: "Calle",
+                  streetName: "",
+                  number: "",
+                  postalCode: "",
+                  locality: "",
+                  province: "",
+                },
+                photoUrl:
+                  user.photoURL ||
+                  "/default-avatar.svg",
+                settings: {
+                  smartSuggestions: true,
+                  locationRadius: 15,
+                  notifications: { email: true, push: true, sms: false },
+                },
+                createdAt: serverTimestamp() as any,
+              };
+             sessionStorage.setItem("is_first_login_session", "true");
+             await setDoc(doc(db, "users", user.uid), finalUserData, { merge: true });
+             setUser(finalUserData);
+          }
+        }
+      } catch (error) {
+        console.error("Firebase Redirect Login error:", error);
+      }
+    };
+    if (Capacitor.isNativePlatform()) {
+      handleRedirectResult();
+    }
+  }, []);
+
   // Ensure Firebase Auth is initialized and sync with user state
   useEffect(() => {
     let unsubsDoc: (() => void) | undefined;
@@ -21018,7 +26786,13 @@ function App() {
 
         unsubsDoc = onSnapshot(doc(db, "users", firebaseUser.uid), (docSnap) => {
           if (docSnap.exists()) {
-            const remoteUser = { id: firebaseUser.uid, email: firebaseUser.email || undefined, ...docSnap.data() } as UserProfile;
+            const data = docSnap.data();
+            if (firebaseUser.emailVerified && data.emailVerified !== true) {
+              import("firebase/firestore").then(({ updateDoc }) => {
+                updateDoc(doc(db, "users", firebaseUser.uid), { emailVerified: true }).catch(console.error);
+              });
+            }
+            const remoteUser = { id: firebaseUser.uid, email: firebaseUser.email || undefined, ...data } as UserProfile;
              // Update the global state so admin edits reflect immediately 
              // without the user needing to refresh
             setUser(prev => {
@@ -21049,8 +26823,8 @@ function App() {
   // Presence tracking in real-time
   useEffect(() => {
     let activeInterval: NodeJS.Timeout;
-    if (user?.id && auth.currentUser) {
-      const updatePresence = async () => {
+    const updatePresence = async () => {
+      if (user?.id && auth.currentUser) {
         try {
           await setDoc(doc(db, "users", user.id), {
             lastActive: serverTimestamp()
@@ -21058,45 +26832,120 @@ function App() {
         } catch (e) {
           // Ignore failed presence updates
         }
-      };
-      updatePresence();
-      activeInterval = setInterval(updatePresence, 30000);
-    }
+      }
+    };
+    updatePresence();
+    activeInterval = setInterval(updatePresence, 5000);
     return () => {
       if (activeInterval) clearInterval(activeInterval);
     };
   }, [user?.id]);
 
-  const [listings, setListings] = useState<JobListing[]>(() => {
-    try {
-      const saved = localStorage.getItem("jobpop_listings");
-      if (saved === null) return INITIAL_LISTINGS;
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        // Filter out malformed listings instead of resetting everything
-        const validListings = parsed.filter(
-          (l) =>
-            l &&
-            typeof l === "object" &&
-            typeof l.id === "string" &&
-            typeof l.title === "string" &&
-            l.author &&
-            typeof l.author === "object" &&
-            typeof l.author.name === "string" &&
-            l.author.name.trim() !== "",
-        );
-        return validListings.length > 0 ? validListings : INITIAL_LISTINGS;
+  const [listings, setListings] = useState<JobListing[]>([]);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        setIsKeyboardVisible(true);
       }
-      return INITIAL_LISTINGS;
-    } catch (e) {
-      console.error("Error loading listings from localStorage:", e);
-      return INITIAL_LISTINGS;
+    };
+
+    const handleFocusOut = () => {
+      setTimeout(() => {
+        const active = document.activeElement as HTMLElement;
+        if (
+          !active ||
+          (active.tagName !== "INPUT" &&
+            active.tagName !== "TEXTAREA" &&
+            !active.isContentEditable)
+        ) {
+          setIsKeyboardVisible(false);
+        }
+      }, 100);
+    };
+
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const diff = window.innerHeight - window.visualViewport.height;
+        if (diff > 150) {
+          setIsKeyboardVisible(true);
+        } else if (diff < 50) {
+          const active = document.activeElement as HTMLElement;
+          if (
+            !active ||
+            (active.tagName !== "INPUT" &&
+              active.tagName !== "TEXTAREA" &&
+              !active.isContentEditable)
+          ) {
+            setIsKeyboardVisible(false);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("focusin", handleFocusIn);
+    window.addEventListener("focusout", handleFocusOut);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", handleViewportResize);
     }
-  });
+
+    return () => {
+      window.removeEventListener("focusin", handleFocusIn);
+      window.removeEventListener("focusout", handleFocusOut);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", handleViewportResize);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("app_listings_cache");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setListings(parsed);
+        }
+      }
+    } catch (e) {}
+
+    const unsubListings = onSnapshot(
+      collection(db, "listings"),
+      (snapshot) => {
+        const fbListings = snapshot.docs.map(
+          (doc) => ({ id: doc.id, ...doc.data() } as JobListing)
+        );
+        if (fbListings.length > 0) {
+          const uniqueMap = new Map<string, JobListing>();
+          fbListings.forEach((l) => {
+            if (l && l.id) {
+              uniqueMap.set(l.id, l);
+            }
+          });
+          const list = Array.from(uniqueMap.values());
+          setListings(list);
+          try {
+            localStorage.setItem("app_listings_cache", JSON.stringify(list));
+          } catch (e) {}
+        }
+      },
+      (err) => {
+        console.error("Error syncing listings:", err);
+      }
+    );
+    return () => unsubListings();
+  }, []);
 
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("jobpop_favorites");
+      const saved = localStorage.getItem("GigeJob_favorites");
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
@@ -21105,26 +26954,27 @@ function App() {
 
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
-  const [footerConfig, setFooterConfig] = useState<FooterConfig>(
-    DEFAULT_FOOTER_CONFIG,
-  );
+  const [footerConfig, setFooterConfig] = useState<FooterConfig>(() => {
+    try {
+      const cached = localStorage.getItem("app_footerConfig");
+      return cached ? JSON.parse(cached) : DEFAULT_FOOTER_CONFIG;
+    } catch {
+      return DEFAULT_FOOTER_CONFIG;
+    }
+  });
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, "settings", "footer"), async (docSnap) => {
+    const handleOpenInfo = () => setIsInfoModalOpen(true);
+    document.addEventListener("openInfoModal", handleOpenInfo);
+    return () => document.removeEventListener("openInfoModal", handleOpenInfo);
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "footer"), (docSnap) => {
       if (docSnap.exists() && docSnap.data().columns) {
-        let config = docSnap.data() as FooterConfig;
-
-        // Auto-migrate to add Blog if missing
-        const hasBlog = config.columns.some((c) =>
-          c.links.some((l) => l.url === "/blog"),
-        );
-        if (!hasBlog && config.columns[0]) {
-          config.columns[0].links.push({ label: "Blog", url: "/blog" });
-        }
-
+        const config = docSnap.data() as FooterConfig;
         setFooterConfig(config);
-      } else {
-        setFooterConfig(DEFAULT_FOOTER_CONFIG);
+        localStorage.setItem("app_footerConfig", JSON.stringify(config));
       }
     });
     return () => unsub();
@@ -21161,8 +27011,39 @@ function App() {
       }
     };
     window.addEventListener("admin-updated-user", handleAdminUserUpdate);
-    return () =>
-      window.removeEventListener("admin-updated-user", handleAdminUserUpdate);
+  }, [user]);
+
+  const [categoriesState, setCategoriesState] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem("app_categories");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          CATEGORIES.length = 0;
+          CATEGORIES.push(...parsed);
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [...CATEGORIES];
+  });
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "settings", "categories"), (docSnap) => {
+      if (docSnap.exists() && Array.isArray(docSnap.data().list) && docSnap.data().list.length > 0) {
+        const list = docSnap.data().list as string[];
+        CATEGORIES.length = 0;
+        CATEGORIES.push(...list);
+        setCategoriesState([...list]);
+        localStorage.setItem("app_categories", JSON.stringify(list));
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const userRef = useRef<UserProfile | null>(user);
+  useEffect(() => {
+    userRef.current = user;
   }, [user]);
 
   useEffect(() => {
@@ -21178,27 +27059,133 @@ function App() {
         return;
       }
 
+      initNotifications();
+
       const q = query(
         collection(db, "conversations"),
         where("participants", "array-contains", firebaseUser.uid),
       );
 
+      let isInitialSnapshot = true;
+
       unsubscribe = onSnapshot(
         q,
         (snapshot) => {
           let count = 0;
+          const currentUser = userRef.current;
+
           snapshot.docs.forEach((doc) => {
             const data = doc.data();
+
+            // Filter out conversations with blocked users
+            const blockedList = Array.isArray(currentUser?.blockedUsers) ? currentUser.blockedUsers : [];
+            if (blockedList.length > 0) {
+              const otherId = Array.isArray(data?.participants)
+                ? data.participants.find((p: string) => p !== firebaseUser.uid)
+                : null;
+              if (otherId && blockedList.includes(otherId)) {
+                return;
+              }
+            }
+
             if (data.unreadCount && data.unreadCount[firebaseUser.uid]) {
               count += data.unreadCount[firebaseUser.uid];
             }
           });
+
           setUnreadMessagesCount(count);
+          setAppBadgeCount(count);
+
+          if (!isInitialSnapshot) {
+            snapshot.docChanges().forEach((change) => {
+              if (change.type === "added" || change.type === "modified") {
+                const data = change.doc.data();
+                if (
+                  data.lastMessageSenderId &&
+                  data.lastMessageSenderId !== firebaseUser.uid &&
+                  data.unreadCount &&
+                  data.unreadCount[firebaseUser.uid] > 0
+                ) {
+                  const senderDetails = data.participantDetails?.[data.lastMessageSenderId];
+                  const senderName = senderDetails?.name || "Un usuario";
+                  triggerNotificationBanner({
+                    title: `Nuevo mensaje de ${senderName}`,
+                    body: data.lastMessage || "Tienes un nuevo mensaje en el buzón",
+                    badgeCount: count,
+                    data: { conversationId: change.doc.id },
+                  });
+                }
+              }
+            });
+          }
+          isInitialSnapshot = false;
         },
         (error) => {
           console.error("Navbar [conversations unread]: Error:", error);
         },
       );
+
+      // Listener for Bookings (Requests)
+      const qBookingsPro = query(
+        collection(db, "bookings"),
+        where("professionalId", "==", firebaseUser.uid)
+      );
+      const qBookingsClient = query(
+        collection(db, "bookings"),
+        where("clientId", "==", firebaseUser.uid)
+      );
+
+      let isInitialBookingsPro = true;
+      const unsubBookingsPro = onSnapshot(qBookingsPro, (snapshot) => {
+        if (!isInitialBookingsPro) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+              const data = change.doc.data();
+              if (data.status === "pending") {
+                triggerNotificationBanner({
+                  title: "Nueva Solicitud de Servicio 📅",
+                  body: `¡Has recibido una nueva solicitud para el ${data.date} a las ${data.time}!`,
+                  data: { bookingId: change.doc.id },
+                });
+              }
+            }
+          });
+        }
+        isInitialBookingsPro = false;
+      });
+
+      let isInitialBookingsClient = true;
+      const unsubBookingsClient = onSnapshot(qBookingsClient, (snapshot) => {
+        if (!isInitialBookingsClient) {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "modified") {
+              const data = change.doc.data();
+              if (data.status === "accepted") {
+                triggerNotificationBanner({
+                  title: "Solicitud Aceptada ✅",
+                  body: `¡Tu solicitud de servicio para "${data.listingTitle || "Servicio"}" ha sido aceptada!`,
+                  data: { bookingId: change.doc.id },
+                });
+              } else if (data.status === "rejected") {
+                triggerNotificationBanner({
+                  title: "Solicitud Rechazada ❌",
+                  body: `Tu solicitud de servicio para "${data.listingTitle || "Servicio"}" ha sido rechazada.`,
+                  data: { bookingId: change.doc.id },
+                });
+              }
+            }
+          });
+        }
+        isInitialBookingsClient = false;
+      });
+
+      // Cleanup sub-listeners on auth change
+      const originalUnsub = unsubscribe;
+      unsubscribe = () => {
+        if (originalUnsub) originalUnsub();
+        unsubBookingsPro();
+        unsubBookingsClient();
+      };
     });
 
     return () => {
@@ -21237,20 +27224,56 @@ function App() {
     type: "message" | "alert";
   } | null>(null);
 
-  const [globalPopupsConfig, setGlobalPopupsConfig] = useState<Record<string, any>>({});
+  const [globalPopupsConfig, setGlobalPopupsConfig] = useState<Record<string, any>>(() => {
+    try {
+      const cached = localStorage.getItem("app_popups");
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
   
-  const getActivePopupConfig = () => {
+  const getActivePopupConfig = (): any => {
     if (!globalPopupsConfig) return null;
     
+    const popups = Object.values(globalPopupsConfig).filter((p: any) => p && p.active);
+    if (popups.length === 0) return null;
+
+    const dismissedPopupsStr = typeof window !== 'undefined' ? localStorage.getItem("dismissed_popups") : null;
+    let dismissedPopups: string[] = [];
+    if (dismissedPopupsStr) {
+      try { dismissedPopups = JSON.parse(dismissedPopupsStr); } catch {}
+    }
+
+    const isNative = Capacitor.isNativePlatform();
+    
+    const platformPopups = popups.filter((p: any) => {
+      if (dismissedPopups.includes(p.id)) return false;
+      if (isNative && p.showInApp) return true;
+      if (!isNative && p.showInWeb) return true;
+      if (p.showInApp === undefined && p.showInWeb === undefined) return true;
+      return false;
+    });
+
+    if (platformPopups.length === 0) return null;
+
     if (user && sessionStorage.getItem("is_first_login_session") === "true") {
-      if (globalPopupsConfig.first_login?.active) return globalPopupsConfig.first_login;
+      const firstLogin = platformPopups.find((p: any) => p.targetAudience === "first_login");
+      if (firstLogin) return firstLogin;
+    }
+    if (user && sessionStorage.getItem("is_first_login_session") !== "true") {
+      const returning = platformPopups.find((p: any) => p.targetAudience === "registered_returning");
+      if (returning) return returning;
     }
     if (!user) {
-      if (globalPopupsConfig.guests?.active) return globalPopupsConfig.guests;
+      const guests = platformPopups.find((p: any) => p.targetAudience === "guests");
+      if (guests) return guests;
     }
-    if (globalPopupsConfig.all?.active) return globalPopupsConfig.all;
     
-    return null;
+    const all = platformPopups.find((p: any) => p.targetAudience === "all" || !p.targetAudience);
+    if (all) return all;
+    
+    return platformPopups[0];
   };
 
   const globalPopupConfig = getActivePopupConfig();
@@ -21287,7 +27310,9 @@ function App() {
       }
     }
 
-    if (globalPopupConfig?.redirectGuestsToRegister && !user) {
+    if (globalPopupConfig?.buttonRedirectToRegister) {
+      navigate("/registro", { state: { fromPopup: true } });
+    } else if (globalPopupConfig?.redirectGuestsToRegister && !user) {
       navigate("/registro");
     } else if (globalPopupConfig?.buttonUrl) {
       window.open(globalPopupConfig.buttonUrl, "_blank");
@@ -21298,12 +27323,16 @@ function App() {
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "settings", "popups"), (docSnap) => {
       if (docSnap.exists()) {
-        setGlobalPopupsConfig(docSnap.data());
+        const data = docSnap.data();
+        setGlobalPopupsConfig(data);
+        localStorage.setItem("app_popups", JSON.stringify(data));
       } else {
         getDocFromServer(doc(db, "settings", "popup")).then((oldSnap) => {
           if (oldSnap.exists()) {
             const data = oldSnap.data();
-            setGlobalPopupsConfig({ [data.targetAudience || "all"]: data });
+            const newData = { [data.targetAudience || "all"]: { id: data.targetAudience || "all", showInWeb: true, showInApp: true, ...data } };
+            setGlobalPopupsConfig(newData);
+            localStorage.setItem("app_popups", JSON.stringify(newData));
           } else {
             setIsPopupOpen(false);
           }
@@ -21438,17 +27467,16 @@ function App() {
   }, [activeToast]);
 
   useEffect(() => {
-    localStorage.setItem("jobpop_listings", JSON.stringify(listings));
     console.log("Current listings count:", listings.length);
   }, [listings]);
 
   useEffect(() => {
-    localStorage.setItem("jobpop_favorites", JSON.stringify(favorites));
+    localStorage.setItem("GigeJob_favorites", JSON.stringify(favorites));
   }, [favorites]);
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem("jobpop_user", JSON.stringify(user));
+      localStorage.setItem("GigeJob_user", JSON.stringify(user));
 
       // Sync user data with their listings
       setListings((prev) => {
@@ -21485,10 +27513,14 @@ function App() {
                 ...l.author,
                 id: user.id,
                 name: displayName,
-                photoUrl: user.photoUrl,
+                username: user.username,
+                photoUrl: user.photoUrl || l.author?.photoUrl || "",
                 isVerified: user.isVerified === true,
-                certifications: user.certifications,
-                gallery: user.gallery,
+                certifications: user.certifications || l.author?.certifications || {
+                  serviceGuarantee: false,
+                  professionalInsurance: false,
+                },
+                gallery: user.gallery || l.author?.gallery || [],
               },
             };
           }
@@ -21496,74 +27528,235 @@ function App() {
         });
       });
     } else {
-      localStorage.removeItem("jobpop_user");
+      localStorage.removeItem("GigeJob_user");
     }
   }, [user]);
 
   const toggleFavorite = (id: string) => {
+    if (!user) {
+      alert("Debes iniciar sesión para añadir a favoritos.");
+      return;
+    }
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((favId) => favId !== id) : [...prev, id],
     );
   };
 
-  const addListing = (newListing: JobListing) => {
+  const createListing = async (newListing: JobListing) => {
     try {
       if (!newListing || !newListing.id || !newListing.author) {
         throw new Error("Anuncio malformado: faltan campos obligatorios.");
       }
 
-      // Ensure coordinates are valid if present
       if (
         newListing.coordinates &&
         (isNaN(newListing.coordinates.lat) || isNaN(newListing.coordinates.lng))
       ) {
-        console.warn(
-          "Invalid coordinates detected, removing them to prevent map crashes",
-        );
         delete newListing.coordinates;
       }
 
-      console.log("Adding new listing to state:", newListing);
+      const imgToCompress = newListing.headerImage || newListing.imageUrl;
+      if (imgToCompress && imgToCompress.startsWith("data:image")) {
+        try {
+          const compressed = await compressImage(imgToCompress, 800, 600, 0.6);
+          newListing.headerImage = compressed;
+          newListing.imageUrl = compressed;
+          newListing.images = [compressed];
+        } catch (e) {}
+      }
+
+      const cleanedListing = cleanUndefinedData(newListing);
+      await setDoc(doc(db, "listings", newListing.id), cleanedListing, { merge: true });
+
       setListings((prev) => {
-        if (!Array.isArray(prev)) return [newListing];
-        return [newListing, ...prev];
+        const list = !Array.isArray(prev)
+          ? [newListing]
+          : prev.some((l) => l.id === newListing.id)
+            ? prev.map((l) => (l.id === newListing.id ? newListing : l))
+            : [newListing, ...prev];
+        try {
+          localStorage.setItem("app_listings_cache", JSON.stringify(list));
+        } catch (e) {}
+        return list;
       });
     } catch (e) {
       console.error("Error adding listing:", e);
-      // We don't have a global setError in App, so we re-throw to be caught by CreateListing
       throw e;
     }
   };
 
-  const reactivateListing = (id: string) => {
-    setListings((prev) =>
-      prev.map((l) => {
+  const addListing = createListing;
+
+  const reactivateListing = async (id: string) => {
+    const listingToReactivate = listings.find(l => l.id === id);
+    const authorId = listingToReactivate?.author?.id;
+    const authorEmail = listingToReactivate?.author?.email;
+
+    if (user && (authorId === user.id || (authorEmail && user.email && authorEmail === user.email))) {
+      const userPlan = getUserPlan(user);
+      const limit = Number(userPlan?.limits?.maxListingsPerAccount ?? 1);
+      const activeListingsCount = listings.filter(l => {
+        const isUserAuthor = (l.author?.id && l.author.id === user.id) || (l.author?.email && user.email && l.author.email === user.email);
+        if (!isUserAuthor || l.type !== 'offer' || l.id === id) return false;
+        const isExpired = checkIsListingExpired(l, user);
+        const isInactive = l.status === "inactive" || l.status === "disabled" || l.status === "deleted" || l.status === "expired" || isExpired;
+        return !isInactive;
+      }).length;
+
+      if (activeListingsCount >= limit) {
+        setActiveToast({
+          message: `No puedes reactivar este servicio. Tu plan actual permite un máximo de ${limit} servicio(s) activo(s).`,
+          type: "alert",
+        });
+        return;
+      }
+    }
+
+    const creationDate = new Date();
+    const activeDays = getListingActiveDays(user);
+    const expirationDate = new Date(
+      creationDate.getTime() + activeDays * 24 * 60 * 60 * 1000,
+    );
+
+    try {
+      await setDoc(
+        doc(db, "listings", id),
+        {
+          status: "active",
+          reactivatedAt: creationDate.toISOString(),
+          expiresAt: expirationDate.toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("Error reactivating listing in Firebase", e);
+    }
+
+    setListings((prev) => {
+      const next = prev.map((l) => {
         if (l.id === id) {
-          const creationDate = new Date();
-          const expirationDate = new Date(
-            creationDate.getTime() + 30 * 24 * 60 * 60 * 1000,
-          ); // 30 days
           return {
             ...l,
             status: "active",
+            reactivatedAt: creationDate.toISOString(),
             expiresAt: expirationDate.toISOString(),
           };
         }
         return l;
-      }),
-    );
+      });
+      try {
+        localStorage.setItem("app_listings_cache", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
     setActiveToast({
-      message: "Anuncio reactivado por 30 días.",
+      message: `Anuncio reactivado por ${activeDays} días.`,
+      type: "success",
+    });
+  };
+
+  const deleteListing = async (id: string) => {
+    const listingToDelete = listings.find((l) => l.id === id);
+    if (!listingToDelete) return;
+    const authorId = listingToDelete.author?.id;
+    const authorEmail = listingToDelete.author?.email;
+
+    const isAuthor =
+      user &&
+      (authorId === user.id ||
+        (authorEmail && user.email && authorEmail === user.email));
+    if (!isAuthor && user?.role !== "admin") {
+      setActiveToast({
+        message: "Solo el propietario puede borrar su propio anuncio.",
+        type: "alert",
+      });
+      return;
+    }
+
+    if (!window.confirm("¿Estás seguro de que deseas borrar este anuncio definitivamente?")) {
+      return;
+    }
+
+    try {
+      await setDoc(
+        doc(db, "listings", id),
+        { status: "owner_deleted" },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("Error deleting listing in Firebase", e);
+    }
+
+    setListings((prev) => {
+      const next = prev.map((l) =>
+        l.id === id ? { ...l, status: "owner_deleted" } : l
+      );
+      try {
+        localStorage.setItem("app_listings_cache", JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    setActiveToast({
+      message: "Anuncio borrado correctamente.",
       type: "message",
     });
   };
+
+  const editListing = (listing: JobListing) => {
+    if (listing && listing.id) {
+      navigate(`/editar-anuncio/${listing.id}`);
+    }
+  };
+
+  const updateListing = async (updated: JobListing) => {
+    try {
+      const { id, ...dataToUpdate } = updated;
+
+      const imgToCompress = dataToUpdate.headerImage || dataToUpdate.imageUrl;
+      if (imgToCompress && imgToCompress.startsWith("data:image")) {
+        try {
+          const compressed = await compressImage(imgToCompress, 800, 600, 0.6);
+          dataToUpdate.headerImage = compressed;
+          dataToUpdate.imageUrl = compressed;
+          dataToUpdate.images = [compressed];
+        } catch (e) {}
+      }
+
+      const cleanedData = cleanUndefinedData(dataToUpdate);
+      await setDoc(doc(db, "listings", id), cleanedData as any, { merge: true });
+
+      setListings((prev) => {
+        const next = prev.map((l) =>
+          l.id === updated.id ? { ...l, ...updated, ...dataToUpdate } : l
+        );
+        try {
+          localStorage.setItem("app_listings_cache", JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      setActiveToast({
+        message: "Anuncio actualizado correctamente.",
+        type: "message",
+      });
+    } catch (e: any) {
+      console.error("Error updating listing in Firebase", e);
+      setActiveToast({
+        message: "Error al guardar el anuncio en la base de datos.",
+        type: "alert",
+      });
+      throw e;
+    }
+  };
+
 
   const simulateNotification = (type: "message" | "alert") => {
     if (type === "message") {
       socketRef.current?.emit("send_message", {
         to: user?.email,
-        from: "system@jobpop.com",
-        senderName: "Sistema JobPop",
+        from: "system@gigejob.com",
+        senderName: "Sistema GigeJob",
         text: "¡Bienvenido! Tu cuenta ha sido configurada correctamente.",
       });
     } else {
@@ -21583,40 +27776,165 @@ function App() {
     location.pathname.startsWith("/monederos") ||
     location.pathname.startsWith("/configuracion");
 
+  const isEmailVerified = user && auth.currentUser ? auth.currentUser.emailVerified || user.role === "admin" : true;
+
   return (
     <ReportContext.Provider
       value={{
-        openReportModal: (userId, listingId, conversationId) =>
-          setReportTarget({ userId, listingId, conversationId }),
+        openReportModal: (userId, listingId, conversationId) => {
+          if (!user) {
+            alert("Debes iniciar sesión para reportar a un usuario o anuncio.");
+            return;
+          }
+          setReportTarget({ userId, listingId, conversationId });
+        },
       }}
     >
+      {user && auth.currentUser && !isEmailVerified && (
+        <EmailVerificationScreen user={user} auth={auth} isModal={true} setUser={setUser} />
+      )}
       <div
         className={cn(
           "font-sans text-gray-900 antialiased selection:bg-blue-100 selection:text-blue-900",
-          isDashboard && "h-screen overflow-hidden flex flex-col",
+          "h-[100dvh] w-full overflow-hidden flex flex-col",
         )}
       >
         <ScrollToTop />
-        <SettingsModal
-          isOpen={settingsModal.isOpen}
-          onClose={() => setSettingsModal({ ...settingsModal, isOpen: false })}
-          type={settingsModal.type}
-          user={user}
-          setUser={setUser}
-          onSimulateNotification={simulateNotification}
-        />
+        {pendingBooking && user && (
+          <ReviewModal 
+            booking={pendingBooking} 
+            user={user} 
+            onComplete={() => setPendingBooking(null)} 
+          />
+        )}
+
         <ReportModal
           isOpen={!!reportTarget}
           onClose={() => setReportTarget(null)}
           onSubmit={handleReportUserAction}
         />
+        <AnimatePresence>
+          {isInfoModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-surface-container-lowest rounded-[2rem] p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl space-y-8"
+              >
+                <div className="flex justify-between items-center sticky top-0 bg-surface-container-lowest py-2 z-10 border-b border-outline-variant/10">
+                  <h3 className="font-display font-black text-on-surface text-xl">
+                    Información
+                  </h3>
+                  <button
+                    onClick={() => setIsInfoModalOpen(false)}
+                    className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="flex flex-col gap-8">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center gap-3">
+                      <img src="/logo.png?v=3" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                      <span className="text-xl font-display font-bold tracking-tight text-on-surface">
+                        {config.logoText1}<span className="text-primary">{config.logoText2}</span>
+                      </span>
+                    </div>
+                    <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed">
+                      {footerConfig.copyrightText}
+                    </p>
+                    {footerConfig.socialLinks && footerConfig.socialLinks.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3 mt-4">
+                        {footerConfig.socialLinks.map((social, idx) => {
+                          const Icon =
+                            social.platform === "facebook" ? Facebook :
+                            social.platform === "twitter" ? Twitter :
+                            social.platform === "instagram" ? Instagram :
+                            social.platform === "linkedin" ? Linkedin :
+                            social.platform === "youtube" ? Youtube :
+                            social.platform === "github" ? Github : Globe;
+                          const href = social.url.startsWith("http") ? social.url : `https://${social.url}`;
+                          return (
+                            <a
+                              key={idx}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 bg-surface-container rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                            >
+                              <Icon className="w-5 h-5" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
+                    {footerConfig.columns.map((col, idx) => (
+                      <div key={idx} className="flex flex-col gap-4">
+                        <h4 className="font-bold text-on-surface">{col.title}</h4>
+                        <div className="flex flex-col gap-3 text-sm font-medium text-on-surface-variant/70">
+                          {col.links.map((link, lidx) => {
+                            const url = link.url || "";
+                            const isExternal =
+                              url.startsWith("http") || url.startsWith("mailto:") || url.startsWith("tel:") ||
+                              (url.includes(".") && !url.startsWith("/") && !url.startsWith("#page-"));
+                            if (isExternal) {
+                              const href =
+                                url.startsWith("http") || url.startsWith("mailto:") || url.startsWith("tel:")
+                                  ? url
+                                  : `https://${url}`;
+                              return (
+                                <a key={lidx} href={href} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
+                                  {link.label}
+                                </a>
+                              );
+                            }
+                            if (url.startsWith("/") && !url.startsWith("/pagina/")) {
+                              return (
+                                <Link key={lidx} to={url} onClick={() => setIsInfoModalOpen(false)} className="hover:text-primary transition-colors text-left">
+                                  {link.label}
+                                </Link>
+                              );
+                            }
+                            const normalizedUrl = url.startsWith("#page-")
+                              ? url : url.startsWith("/pagina/")
+                              ? `#page-${url.replace("/pagina/", "")}` : `#page-${url}`;
+                            const slug = normalizedUrl.replace("#page-", "").replace("/pagina/", "");
+                            return (
+                              <Link key={lidx} to={`/pagina/${encodeURIComponent(slug)}`} onClick={() => setIsInfoModalOpen(false)} className="hover:text-primary transition-colors text-left">
+                                {link.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {/* Límite/Frontera superior para la barra de estado en iOS/Android */}
+        <div className="fixed top-0 inset-x-0 h-[env(safe-area-inset-top)] bg-surface-container-lowest z-[9999] block lg:hidden" />
+        
+
         <Navbar
           user={user}
           setUser={setUser}
           favoritesCount={favorites.length}
           notifications={notifications}
           setNotifications={setNotifications}
-          onOpenSettings={(type) => setSettingsModal({ isOpen: true, type })}
+          onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
           unreadMessagesCount={unreadMessagesCount}
           isMenuOpen={isMenuOpen}
           setIsMenuOpen={setIsMenuOpen}
@@ -21624,6 +27942,570 @@ function App() {
           setSearch={setSearch}
           onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
         />
+        <main
+          id="main-scroll-container"
+          className={cn(
+            "flex flex-col flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth",
+            isDashboard
+              ? location.pathname.startsWith("/mensajes")
+                ? "pt-[env(safe-area-inset-top)] md:pt-16 pb-16 lg:pb-0"
+                : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-16 lg:pb-0"
+              : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-16 lg:pb-0"
+          )}
+        >
+          {!isDashboard && location.pathname !== "/admin" && <CategoriesBar />}
+          {(() => {
+            const activeListings = listings.filter(
+              (l) =>
+                l &&
+                (!l.status || l.status === "active") &&
+                !checkIsListingExpired(l, l.author) &&
+                (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
+            );
+            return (
+              <div className="flex-1 shrink-0 flex flex-col">
+                <PullToRefresh
+                  onRefresh={async () => {
+                    window.location.reload();
+                  }}
+                  pullingContent={
+                    <div className="flex justify-center items-center py-4">
+                      <CustomLoader className="w-8 h-8" />
+                    </div>
+                  }
+                  refreshingContent={
+                    <div className="flex justify-center items-center py-4">
+                      <CustomLoader className="w-8 h-8" />
+                    </div>
+                  }
+                >
+                  <Routes>
+                <Route
+                  path="/pagina/:slug"
+                  element={
+                    <StaticPageView
+                      footerConfig={footerConfig}
+                      user={user}
+                      onSaveConfig={async (newConfig: FooterConfig) => {
+                        try {
+                          await setDoc(
+                            doc(db, "settings", "footer"),
+                            newConfig,
+                          );
+                        } catch (e) {
+                          console.error(e);
+                          alert("Error al guardar en Firebase");
+                        }
+                      }}
+                    />
+                  }
+                />
+                <Route path="/blog" element={<BlogListPage />} />
+                <Route path="/blog/:id" element={<BlogPostPage />} />
+                <Route
+                  path="/"
+                  element={
+                    <>
+                      <SeoHead
+                        title="GigeJob - Encuentra profesionales cerca de ti"
+                        description="Plataforma líder para encontrar profesionales de confianza: electricistas, fontaneros, reformas, limpieza y más cerca de ti."
+                      />
+                      <HomePage
+                        listings={activeListings}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                        onEdit={editListing}
+                        user={user}
+                        search={search}
+                        setSearch={setSearch}
+                      />
+                    </>
+                  }
+                />
+                {/* Dynamic SEO Friendly Routes */}
+                <Route
+                  path="/:category"
+                  element={
+                    <SeoCategoryRoute
+                      HomePageComponent={HomePage}
+                      homePageProps={{
+                        listings: activeListings,
+                        favorites: favorites,
+                        onToggleFavorite: toggleFavorite,
+                        onEdit: editListing,
+                        user: user,
+                        search: search,
+                        setSearch: setSearch,
+                      }}
+                    />
+                  }
+                />
+                <Route
+                  path="/:category/:city"
+                  element={
+                    <SeoCategoryRoute
+                      HomePageComponent={HomePage}
+                      homePageProps={{
+                        listings: activeListings,
+                        favorites: favorites,
+                        onToggleFavorite: toggleFavorite,
+                        onEdit: editListing,
+                        user: user,
+                        search: search,
+                        setSearch: setSearch,
+                      }}
+                    />
+                  }
+                />
+                <Route
+                  path="/servicios/:category/:city?"
+                  element={
+                    <SeoCategoryRoute
+                      HomePageComponent={HomePage}
+                      homePageProps={{
+                        listings: activeListings,
+                        favorites: favorites,
+                        onToggleFavorite: toggleFavorite,
+                        onEdit: editListing,
+                        user: user,
+                        search: search,
+                        setSearch: setSearch,
+                      }}
+                    />
+                  }
+                />
+                <Route
+                  path="/explorar"
+                  element={
+                    <ExplorePage
+                      listings={activeListings}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                      onEdit={editListing}
+                      user={user}
+                    />
+                  }
+                />
+                <Route
+                  path="/admin/*"
+                  element={
+                    (user?.role === "admin" || user?.email === "daviidjg1991@gmail.com") ? (
+                      <AdminPage
+                        user={user}
+                        listings={listings}
+                        setListings={setListings}
+                        favorites={favorites}
+                        toggleFavorite={toggleFavorite}
+                        unreadMessagesCount={unreadMessagesCount}
+                      />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/login"
+                  element={<AuthPage mode="login" setUser={setUser} />}
+                />
+                <Route
+                  path="/registro"
+                  element={<AuthPage mode="register" setUser={setUser} />}
+                />
+
+                {/* Dashboard Routes */}
+                <Route
+                  path="/tu"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/mensajes"
+                  element={
+                    <DashboardLayout
+                      unreadMessagesCount={unreadMessagesCount}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
+                    >
+                      <MessagesPage user={user} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/mis-anuncios"
+                  element={
+                    <DashboardLayout
+                      unreadMessagesCount={unreadMessagesCount}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
+                    >
+                      <HomePage
+                        listings={(listings || []).filter(
+                          (l) =>
+                            l &&
+                            l.author &&
+                            ((l.author.id && user?.id && l.author.id === user.id) ||
+                              (l.author.email && user?.email && l.author.email === user.email)) &&
+                            l.status !== "deleted" &&
+                            l.status !== "owner_deleted",
+                        )}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                        onReactivate={reactivateListing}
+                        onDelete={deleteListing}
+                        onEdit={editListing}
+                        user={user}
+                        search={search}
+                        setSearch={setSearch}
+                      />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/favoritos"
+                  element={
+                    <DashboardLayout
+                      unreadMessagesCount={unreadMessagesCount}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
+                    >
+                      <FavoritesPage
+                        listings={activeListings.filter((l) =>
+                          favorites.includes(l.id),
+                        )}
+                        favorites={favorites}
+                        onToggleFavorite={toggleFavorite}
+                        onEdit={editListing}
+                        user={user}
+                      />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/estadisticas"
+                  element={
+                    <DashboardLayout
+                      unreadMessagesCount={unreadMessagesCount}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
+                    >
+                      <StatsPage user={user} listings={listings} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/monederos"
+                  element={
+                    <DashboardLayout
+                      unreadMessagesCount={unreadMessagesCount}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}
+                    >
+                      <WalletManager isDashboard={true} />
+                    </DashboardLayout>
+                  }
+                />
+
+                {/* Configuración Sub-routes */}
+                <Route
+                  path="/configuracion"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/personal"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/profesional"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/disponibilidad"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/facturacion"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/seguridad"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/configuracion/notificaciones"
+                  element={
+                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
+                      <SettingsView user={user} setUser={setUser} />
+                    </DashboardLayout>
+                  }
+                />
+
+                <Route
+                  path="/perfil/:username/:serviceTitle"
+                  element={
+                    <ListingDetail
+                      listings={listings}
+                      setListings={setListings}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                      onDelete={deleteListing}
+                      onEdit={editListing}
+                      user={user}
+                    />
+                  }
+                />
+                <Route
+                  path="/anuncio/:id"
+                  element={
+                    <ListingDetail
+                      listings={listings}
+                      setListings={setListings}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                      onDelete={deleteListing}
+                      onEdit={editListing}
+                      user={user}
+                    />
+                  }
+                />
+                <Route
+                  path="/publicar"
+                  element={
+                    <CreateListing
+                      user={user}
+                      setUser={setUser}
+                      onAdd={addListing}
+                      listings={listings}
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
+                      isSearchProfessionalsEnabled={isSearchProfessionalsEnabled}
+                    />
+                  }
+                />
+                <Route
+                  path="/editar-anuncio/:id"
+                  element={
+                    <EditListingPage
+                      user={user}
+                      listings={listings}
+                      onUpdate={updateListing}
+                    />
+                  }
+                />
+                <Route
+                  path="/perfil/:id?"
+                  element={
+                    <ProfilePage
+                      user={user}
+                      setUser={setUser}
+                      listings={listings}
+                      favorites={favorites}
+                      onToggleFavorite={toggleFavorite}
+                      onReactivate={reactivateListing}
+                      onDelete={deleteListing}
+                      onEdit={editListing}
+                      onOpenSettings={(type) => navigate(`/tu?tab=${type}`)}
+                    />
+                  }
+                />
+                {/* Catch-all route */}
+                <Route path="*" element={<NotFoundPage />} />
+
+              </Routes>
+            </PullToRefresh>
+              </div>
+            );
+          })()}
+
+          {/* Footer - Hidden on Dashboard, Publish page, and on Mobile/Tablet web view (hidden lg:block) */}
+          {!isDashboard && !location.pathname.startsWith("/publicar") && (
+            <footer className="hidden lg:block bg-surface-container-lowest py-16 border-t border-outline-variant shrink-0 mt-auto relative z-10">
+              <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
+                <div className="flex flex-col gap-4 md:w-1/4">
+                  <Link to="/" className="flex items-center gap-3">
+                    <img src="/logo.png?v=3" alt="App Logo" className="h-8 md:h-10 w-auto object-contain rounded-xl" />
+                    <span className="text-xl sm:text-2xl font-display font-bold tracking-tight text-on-surface">
+                      {config.logoText1}<span className="text-primary">{config.logoText2}</span>
+                    </span>
+                  </Link>
+                  <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">
+                    {footerConfig.copyrightText}
+                  </p>
+
+                  {footerConfig.socialLinks &&
+                    footerConfig.socialLinks.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-3 mt-4">
+                        {footerConfig.socialLinks.map((social, idx) => {
+                          const Icon =
+                            social.platform === "facebook"
+                              ? Facebook
+                              : social.platform === "twitter"
+                                ? Twitter
+                                : social.platform === "instagram"
+                                  ? Instagram
+                                  : social.platform === "linkedin"
+                                    ? Linkedin
+                                    : social.platform === "youtube"
+                                      ? Youtube
+                                      : social.platform === "github"
+                                        ? Github
+                                        : Globe;
+
+                          const href = social.url.startsWith("http")
+                            ? social.url
+                            : `https://${social.url}`;
+                          return (
+                            <a
+                              key={idx}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 bg-surface-container rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
+                            >
+                              <Icon className="w-5 h-5" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  
+                  {footerConfig.appDownloads && (footerConfig.appDownloads.ios || footerConfig.appDownloads.android || footerConfig.appDownloads.huawei) && (
+                    <div className="flex flex-col gap-4 mt-4">
+                      <div className="flex flex-row items-center gap-4 -ml-8">
+                        {footerConfig.appDownloads.ios && (
+                          <a
+                            href={footerConfig.appDownloads.ios}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-52 h-[70px] sm:w-60 sm:h-20 shrink-0"
+                          >
+                            <img src="/app-store-badge.png" alt="Apple Store" className="w-full h-full object-cover rounded-xl" />
+                          </a>
+                        )}
+                        {footerConfig.appDownloads.android && (
+                          <a
+                            href={footerConfig.appDownloads.android}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-52 h-[70px] sm:w-60 sm:h-20 shrink-0"
+                          >
+                            <img src="/google-play-badge.png" alt="Google Play" className="w-full h-full object-cover rounded-xl" />
+                          </a>
+                        )}
+                        {footerConfig.appDownloads.huawei && (
+                          <a
+                            href={footerConfig.appDownloads.huawei}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:opacity-80 transition-opacity hover:-translate-y-0.5 duration-200 block w-52 h-[70px] sm:w-60 sm:h-20 shrink-0"
+                          >
+                            <img src="/appgallery-badge.png" alt="AppGallery" className="w-full h-full object-cover rounded-xl" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 md:flex-1 gap-8">
+                  {footerConfig.columns.map((col, idx) => (
+                    <div key={idx} className="flex flex-col gap-6">
+                      <h4 className="font-bold text-on-surface">{col.title}</h4>
+                      <div className="flex flex-col gap-4 text-sm font-medium text-on-surface-variant/70">
+                        {col.links.map((link, lidx) => {
+                          const url = link.url || "";
+                          const isExternal =
+                            url.startsWith("http") ||
+                            url.startsWith("mailto:") ||
+                            url.startsWith("tel:") ||
+                            (url.includes(".") &&
+                              !url.startsWith("/") &&
+                              !url.startsWith("#page-"));
+
+                          if (isExternal) {
+                            const href =
+                              url.startsWith("http") ||
+                              url.startsWith("mailto:") ||
+                              url.startsWith("tel:")
+                                ? url
+                                : `https://${url}`;
+                            return (
+                              <a
+                                key={lidx}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-primary transition-colors"
+                              >
+                                {link.label}
+                              </a>
+                            );
+                          }
+
+                          // Internal full routes (like /explorar)
+                          if (
+                            url.startsWith("/") &&
+                            !url.startsWith("/pagina/")
+                          ) {
+                            return (
+                              <Link
+                                key={lidx}
+                                to={url}
+                                className="hover:text-primary transition-colors text-left"
+                              >
+                                {link.label}
+                              </Link>
+                            );
+                          }
+
+                          // Static Pages
+                          const normalizedUrl = url.startsWith("#page-")
+                            ? url
+                            : url.startsWith("/pagina/")
+                              ? `#page-${url.replace("/pagina/", "")}`
+                              : `#page-${url}`;
+                          const slug = normalizedUrl
+                            .replace("#page-", "")
+                            .replace("/pagina/", "");
+
+                          return (
+                            <Link
+                              key={lidx}
+                              to={`/pagina/${encodeURIComponent(slug)}`}
+                              className="hover:text-primary transition-colors text-left"
+                            >
+                              {link.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </footer>
+          )}
+        </main>
         <AnimatePresence>
           {isMenuOpen && (
             <motion.div
@@ -21634,18 +28516,7 @@ function App() {
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="fixed top-0 left-0 right-0 bottom-16 z-[50] bg-white flex flex-col shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between px-6 h-16 border-b border-outline-variant shrink-0">
-                <span className="font-display font-black text-on-surface uppercase tracking-widest text-xs">
-                  Área personal
-                </span>
-                <button
-                  onClick={() => setIsMenuOpen(false)}
-                  className="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface-variant"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="overflow-y-auto no-scrollbar px-6 py-8 space-y-8 pb-12 flex-1">
+              <div className="overflow-y-auto no-scrollbar px-6 py-8 space-y-8 pb-12 flex-1 pt-6">
                 {/* General Navigation */}
                 <div className="space-y-4">
                   <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
@@ -21665,9 +28536,7 @@ function App() {
                         referrerPolicy="no-referrer"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-full primary-gradient flex items-center justify-center text-white font-bold text-xl shadow-sm">
-                        {(user.username || user.firstName || "?").charAt(0)}
-                      </div>
+                      <img src="/default-avatar.svg" alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="font-display font-black text-on-surface truncate">
@@ -21799,26 +28668,7 @@ function App() {
                           <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
                         </Link>
 
-                        {user?.email === "daviidjg1991@gmail.com" && (
-                          <Link
-                            to="/admin"
-                            onClick={() => setIsMenuOpen(false)}
-                            className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                          >
-                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                              <ShieldCheck className="w-5 h-5 text-primary" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="font-black uppercase tracking-widest text-[10px]">
-                                Admin
-                              </p>
-                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                                Panel de administración
-                              </p>
-                            </div>
-                            <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                          </Link>
-                        )}
+
 
                         <button
                           onClick={() => {
@@ -21844,11 +28694,36 @@ function App() {
                           </div>
                           <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
                         </button>
+
+                        <button
+                          onClick={() => {
+                            document.dispatchEvent(
+                              new Event("openInfoModal"),
+                            );
+                            setIsMenuOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group mt-2"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
+                              <Info className="w-5 h-5 text-primary" />
+                            </div>
+                            <div className="flex-1 text-left">
+                              <p className="font-black uppercase tracking-widest text-[10px]">
+                                Información
+                              </p>
+                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
+                                Más sobre nosotros, legal y enlaces
+                              </p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
+                        </button>
                       </div>
 
                       <button
                         onClick={() => {
-                          setSettingsModal({ isOpen: true, type: "" });
+                          navigate("/configuracion");
                           setIsMenuOpen(false);
                         }}
                         className="w-full flex items-center justify-between px-6 py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 mt-4"
@@ -21885,286 +28760,13 @@ function App() {
             </motion.div>
           )}
         </AnimatePresence>
-        <main
-          className={cn(
-            isDashboard ? "h-screen pt-16" : "min-h-screen pt-16 pb-16 lg:pb-0",
-            isDashboard && "flex flex-1 overflow-hidden",
-          )}
-        >
-          {(() => {
-            const activeListings = listings.filter(
-              (l) =>
-                l &&
-                (!l.status || l.status === "active") &&
-                (!l.expiresAt || new Date(l.expiresAt) > new Date()),
-            );
-            return (
-              <Routes>
-                <Route
-                  path="/pagina/:slug"
-                  element={
-                    <StaticPageView
-                      footerConfig={footerConfig}
-                      user={user}
-                      onSaveConfig={async (newConfig: FooterConfig) => {
-                        try {
-                          await setDoc(
-                            doc(db, "settings", "footer"),
-                            newConfig,
-                          );
-                        } catch (e) {
-                          console.error(e);
-                          alert("Error al guardar en Firebase");
-                        }
-                      }}
-                    />
-                  }
-                />
-                <Route path="/blog" element={<BlogListPage />} />
-                <Route path="/blog/:id" element={<BlogPostPage />} />
-                <Route
-                  path="/"
-                  element={
-                    <HomePage
-                      listings={activeListings}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                      search={search}
-                      setSearch={setSearch}
-                    />
-                  }
-                />
-                <Route
-                  path="/explorar"
-                  element={
-                    <ExplorePage
-                      listings={activeListings}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                    />
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    user?.email === "daviidjg1991@gmail.com" ? (
-                      <AdminPage
-                        user={user}
-                        listings={listings}
-                        setListings={setListings}
-                        favorites={favorites}
-                        toggleFavorite={toggleFavorite}
-                        unreadMessagesCount={unreadMessagesCount}
-                      />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
-                <Route
-                  path="/login"
-                  element={<AuthPage mode="login" setUser={setUser} />}
-                />
-                <Route
-                  path="/registro"
-                  element={<AuthPage mode="register" setUser={setUser} />}
-                />
-
-                {/* Dashboard Routes */}
-                <Route
-                  path="/mensajes"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <MessagesPage user={user} />
-                    </DashboardLayout>
-                  }
-                />
-                <Route
-                  path="/mis-anuncios"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <HomePage
-                        listings={(listings || []).filter(
-                          (l) =>
-                            l &&
-                            l.author &&
-                            l.author.email &&
-                            l.author.email ===
-                              (user?.email || "guest@example.com") &&
-                            l.status !== "deleted",
-                        )}
-                        favorites={favorites}
-                        onToggleFavorite={toggleFavorite}
-                        onReactivate={reactivateListing}
-                        search={search}
-                        setSearch={setSearch}
-                      />
-                    </DashboardLayout>
-                  }
-                />
-                <Route
-                  path="/favoritos"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <FavoritesPage
-                        listings={activeListings.filter((l) =>
-                          favorites.includes(l.id),
-                        )}
-                        favorites={favorites}
-                        onToggleFavorite={toggleFavorite}
-                      />
-                    </DashboardLayout>
-                  }
-                />
-                <Route
-                  path="/estadisticas"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <StatsPage user={user} listings={listings} />
-                    </DashboardLayout>
-                  }
-                />
-                <Route
-                  path="/monederos"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <WalletManager isDashboard={true} />
-                    </DashboardLayout>
-                  }
-                />
-
-                {/* Configuración Sub-routes */}
-                <Route
-                  path="/configuracion/sugerencias"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <SettingsSubPage
-                        title="Sugerencias Inteligentes"
-                        description="Optimiza tu perfil con IA."
-                      />
-                    </DashboardLayout>
-                  }
-                />
-                <Route
-                  path="/configuracion/seguridad"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <SettingsSubPage
-                        title="Verificaciones y Seguridad"
-                        description="Protege tu cuenta."
-                      />
-                    </DashboardLayout>
-                  }
-                />
-                <Route
-                  path="/configuracion/notificaciones"
-                  element={
-                    <DashboardLayout
-                      unreadMessagesCount={unreadMessagesCount}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    >
-                      <SettingsSubPage
-                        title="Notificaciones"
-                        description="Gestiona tus alertas."
-                      />
-                    </DashboardLayout>
-                  }
-                />
-
-                <Route
-                  path="/anuncio/:id"
-                  element={
-                    <ListingDetail
-                      listings={listings}
-                      setListings={setListings}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                      user={user}
-                    />
-                  }
-                />
-                <Route
-                  path="/publicar"
-                  element={
-                    <CreateListing
-                      user={user}
-                      setUser={setUser}
-                      onAdd={addListing}
-                      listings={listings}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    />
-                  }
-                />
-                <Route
-                  path="/perfil/:id?"
-                  element={
-                    <ProfilePage
-                      user={user}
-                      setUser={setUser}
-                      listings={listings}
-                      favorites={favorites}
-                      onToggleFavorite={toggleFavorite}
-                      onReactivate={reactivateListing}
-                      onOpenSettings={(type) =>
-                        setSettingsModal({ isOpen: true, type })
-                      }
-                    />
-                  }
-                />
-
-                {/* Catch-all route */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            );
-          })()}
-        </main>
 
         {/* Modals */}
         <AnimatePresence></AnimatePresence>
 
-        {/* Mobile Bottom Navigation - Hidden in chats */}
-        {location.pathname.includes("/mensajes") &&
-        searchParams.has("chatId") ? null : (
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[100] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
+        {/* Mobile Bottom Navigation - Visible on mobile viewports (lg:hidden) */}
+        {isKeyboardVisible || (location.pathname.includes("/mensajes") && searchParams.has("chatId")) ? null : (
+          <div id="mobile-bottom-nav" className="mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[40] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0 touch-action-manipulation select-none">
             {[
               { label: "Inicio", icon: Home, path: "/" },
               { label: "Favoritos", icon: Heart, path: "/favoritos" },
@@ -22183,17 +28785,19 @@ function App() {
               {
                 label: "Tú",
                 icon: User,
-                onClick: () => setIsMenuOpen(!isMenuOpen),
-                isActive: isMenuOpen,
+                onClick: () => {
+                  setIsMenuOpen(!isMenuOpen);
+                },
+                isActive: isMenuOpen || location.pathname === "/tu",
               },
             ].map((item) => {
               const content = (
                 <div
                   className={cn(
-                    "flex flex-col items-center gap-1 transition-all",
+                    "flex flex-col items-center gap-1 transition-all active:scale-95 py-1 px-2 touch-action-manipulation",
                     (item.path && location.pathname === item.path) ||
                       item.isActive
-                      ? "text-primary"
+                      ? "text-primary font-bold"
                       : "text-on-surface-variant/40",
                   )}
                 >
@@ -22227,6 +28831,7 @@ function App() {
                   <Link
                     key={item.label}
                     to={item.path}
+                    className="touch-action-manipulation py-1 px-1 flex flex-col items-center justify-center min-w-[56px] min-h-[48px]"
                     onClick={(e) => {
                       if (item.label === "Inicio") {
                         e.preventDefault();
@@ -22240,144 +28845,16 @@ function App() {
               }
 
               return (
-                <button key={item.label} onClick={item.onClick}>
+                <button
+                  key={item.label}
+                  onClick={item.onClick}
+                  className="touch-action-manipulation py-1 px-1 flex flex-col items-center justify-center min-w-[56px] min-h-[48px]"
+                >
                   {content}
                 </button>
               );
             })}
           </div>
-        )}
-
-        {/* Footer - Hidden on Dashboard */}
-        {!isDashboard && (
-          <footer className="bg-surface-container-lowest py-16 mt-32 border-t border-outline-variant">
-            <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
-              <div className="flex flex-col gap-4 md:w-1/4">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-8 h-8 text-primary" />
-                  <span className="text-2xl font-bold tracking-tight text-primary">
-                    JobPop
-                  </span>
-                </div>
-                <p className="text-on-surface-variant/60 text-xs font-medium mt-2 leading-relaxed max-w-[200px]">
-                  {footerConfig.copyrightText}
-                </p>
-
-                {footerConfig.socialLinks &&
-                  footerConfig.socialLinks.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-3 mt-4">
-                      {footerConfig.socialLinks.map((social, idx) => {
-                        const Icon =
-                          social.platform === "facebook"
-                            ? Facebook
-                            : social.platform === "twitter"
-                              ? Twitter
-                              : social.platform === "instagram"
-                                ? Instagram
-                                : social.platform === "linkedin"
-                                  ? Linkedin
-                                  : social.platform === "youtube"
-                                    ? Youtube
-                                    : social.platform === "github"
-                                      ? Github
-                                      : Globe;
-
-                        const href = social.url.startsWith("http")
-                          ? social.url
-                          : `https://${social.url}`;
-                        return (
-                          <a
-                            key={idx}
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 bg-surface-container rounded-full text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors"
-                          >
-                            <Icon className="w-5 h-5" />
-                          </a>
-                        );
-                      })}
-                    </div>
-                  )}
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 md:flex-1 gap-8">
-                {footerConfig.columns.map((col, idx) => (
-                  <div key={idx} className="flex flex-col gap-6">
-                    <h4 className="font-bold text-on-surface">{col.title}</h4>
-                    <div className="flex flex-col gap-4 text-sm font-medium text-on-surface-variant/70">
-                      {col.links.map((link, lidx) => {
-                        const url = link.url || "";
-                        const isExternal =
-                          url.startsWith("http") ||
-                          url.startsWith("mailto:") ||
-                          url.startsWith("tel:") ||
-                          (url.includes(".") &&
-                            !url.startsWith("/") &&
-                            !url.startsWith("#page-"));
-
-                        if (isExternal) {
-                          const href =
-                            url.startsWith("http") ||
-                            url.startsWith("mailto:") ||
-                            url.startsWith("tel:")
-                              ? url
-                              : `https://${url}`;
-                          return (
-                            <a
-                              key={lidx}
-                              href={href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:text-primary transition-colors"
-                            >
-                              {link.label}
-                            </a>
-                          );
-                        }
-
-                        // Internal full routes (like /explorar)
-                        if (
-                          url.startsWith("/") &&
-                          !url.startsWith("/pagina/")
-                        ) {
-                          return (
-                            <Link
-                              key={lidx}
-                              to={url}
-                              className="hover:text-primary transition-colors text-left"
-                            >
-                              {link.label}
-                            </Link>
-                          );
-                        }
-
-                        // Static Pages
-                        const normalizedUrl = url.startsWith("#page-")
-                          ? url
-                          : url.startsWith("/pagina/")
-                            ? `#page-${url.replace("/pagina/", "")}`
-                            : `#page-${url}`;
-                        const slug = normalizedUrl
-                          .replace("#page-", "")
-                          .replace("/pagina/", "");
-
-                        return (
-                          <Link
-                            key={lidx}
-                            to={`/pagina/${encodeURIComponent(slug)}`}
-                            className="hover:text-primary transition-colors text-left"
-                          >
-                            {link.label}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </footer>
         )}
         <AnimatePresence>
           {activeToast && (
@@ -22446,14 +28923,18 @@ function App() {
                     )}
                   >
                     {globalPopupConfig.title && (
-                      <h3 className="text-3xl font-black font-display tracking-tight text-on-surface">
-                        {globalPopupConfig.title}
-                      </h3>
+                      <div
+                        className="font-black font-display tracking-tight text-on-surface [&_br]:block [&_br]:content-[''] [&_br]:my-1"
+                        style={{ fontSize: "1.875rem" }}
+                        dangerouslySetInnerHTML={{ __html: globalPopupConfig.title }}
+                      />
                     )}
                     {globalPopupConfig.description && (
-                      <p className="text-on-surface-variant text-base font-medium leading-relaxed">
-                        {globalPopupConfig.description}
-                      </p>
+                      <div
+                        className="text-on-surface-variant font-medium leading-relaxed"
+                        style={{ fontSize: "1rem" }}
+                        dangerouslySetInnerHTML={{ __html: globalPopupConfig.description }}
+                      />
                     )}
 
                     {globalPopupConfig.showEmailInput && (
@@ -22467,15 +28948,59 @@ function App() {
                     )}
 
                     {globalPopupConfig.buttonText && (
-                      <button
-                        onClick={handlePopupSubmit}
-                        disabled={isSubmittingPopup}
-                        className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all mt-4 text-sm disabled:opacity-50"
-                      >
-                        {isSubmittingPopup
-                          ? "Enviando..."
-                          : globalPopupConfig.buttonText}
-                      </button>
+                      <div className="w-full flex flex-col items-center mt-4">
+                        <button
+                          onClick={handlePopupSubmit}
+                          disabled={isSubmittingPopup}
+                          className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-primary/20 hover:shadow-2xl hover:-translate-y-1 transition-all text-sm disabled:opacity-50 mb-1.5"
+                        >
+                          {isSubmittingPopup
+                            ? "Enviando..."
+                            : globalPopupConfig.buttonText}
+                        </button>
+                      </div>
+                    )}
+                    
+                    {globalPopupConfig.showRecommendationLink && user && (
+                      <div className="w-full mt-4 p-4 bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col items-center">
+                        <span className="text-xs font-bold text-on-surface-variant mb-2">Tu Enlace de Recomendación</span>
+                        <div className="flex items-center gap-2 w-full">
+                          <input 
+                            disabled 
+                            value={`${window.location.origin}/perfil/${user.username || user.id}`} 
+                            className="flex-1 text-xs px-3 py-2 bg-white rounded border border-outline-variant/30 truncate" 
+                          />
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(`${window.location.origin}/perfil/${user.username || user.id}`);
+                              alert("¡Enlace copiado!");
+                            }}
+                            className="bg-primary text-white p-2 rounded hover:bg-primary/90 transition-colors"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {globalPopupConfig.showDontShowAgain && (
+                      <div className="w-full flex justify-center mt-3">
+                        <button
+                          onClick={() => {
+                            const dismissedStr = localStorage.getItem("dismissed_popups");
+                            let dismissed: string[] = [];
+                            if (dismissedStr) {
+                              try { dismissed = JSON.parse(dismissedStr); } catch {}
+                            }
+                            dismissed.push(globalPopupConfig.id);
+                            localStorage.setItem("dismissed_popups", JSON.stringify(dismissed));
+                            setIsPopupOpen(false);
+                          }}
+                          className="text-[11px] leading-none text-on-surface-variant/80 hover:text-on-surface-variant transition-colors font-medium underline-offset-2 hover:underline"
+                        >
+                          No mostrar más
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -22489,10 +29014,231 @@ function App() {
           onClose={() => setIsCalendarModalOpen(false)} 
           user={user} 
         />
+        <CookieBanner />
       </div>
     </ReportContext.Provider>
   );
 }
+
+
+const NotFoundPage = () => {
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (search.trim()) {
+      navigate(`/explorar?q=${encodeURIComponent(search.trim())}`);
+    }
+  };
+
+  return (
+    <div className="min-h-[80vh] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center max-w-lg w-full"
+      >
+        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-8">
+          <Search className="w-12 h-12 text-primary" />
+        </div>
+        <h1 className="text-5xl font-black text-on-surface mb-4">404</h1>
+        <h2 className="text-2xl font-bold text-on-surface mb-4">Página no encontrada</h2>
+        <p className="text-on-surface-variant mb-8">
+          Lo sentimos, no pudimos encontrar la página que estás buscando. 
+          Quizás fue eliminada, cambió de nombre o está temporalmente inaccesible.
+        </p>
+
+        <form onSubmit={handleSearch} className="mb-8">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
+            <input
+              type="text"
+              placeholder="Buscar anuncios, servicios, profesionales..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-4 rounded-2xl bg-surface border-2 border-outline-variant focus:border-primary focus:outline-none transition-all"
+            />
+            <button
+              type="submit"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-primary text-white rounded-xl font-bold text-sm hover:opacity-90 transition-opacity"
+            >
+              Buscar
+            </button>
+          </div>
+        </form>
+
+        <button
+          onClick={() => navigate("/")}
+          className="px-8 py-4 bg-surface-container border-2 border-outline-variant rounded-2xl font-black uppercase tracking-widest text-xs hover:border-primary hover:text-primary transition-all"
+        >
+          Volver al inicio
+        </button>
+      </motion.div>
+    </div>
+  );
+};
+
+const usernameCache: Record<string, string> = {};
+
+const UsernameDisplay = ({ author, prefix = "" }: { author: any, prefix?: string }) => {
+  const [username, setUsername] = useState<string | null>(author?.username || null);
+
+  useEffect(() => {
+    if (!username && author?.id) {
+      if (usernameCache[author.id]) {
+        setUsername(usernameCache[author.id]);
+        return;
+      }
+      const fetchUsername = async () => {
+        try {
+          const docRef = doc(db, "users", author.id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists() && docSnap.data().username) {
+            usernameCache[author.id] = docSnap.data().username;
+            setUsername(docSnap.data().username);
+          } else {
+             usernameCache[author.id] = "NOT_FOUND";
+          }
+        } catch (error) {
+          console.error("Error fetching username:", error);
+        }
+      };
+      fetchUsername();
+    }
+  }, [author?.id, username]);
+
+  if (username && username !== "NOT_FOUND") {
+    const displayUsername = username.startsWith("@") ? username : "@" + username;
+    return <>{prefix}{displayUsername}</>;
+  }
+  return <>{prefix}{author?.name || "Anónimo"}</>;
+};
+
+const avatarCache: Record<string, string> = {};
+
+const AvatarDisplay = ({ author, className, referrerPolicy }: { author: any, className?: string, referrerPolicy?: React.HTMLAttributeReferrerPolicy }) => {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(avatarCache[author?.id] || author?.photoUrl || null);
+  const [imgError, setImgError] = useState(false);
+  const [isLoading, setIsLoading] = useState(!avatarCache[author?.id] && !author?.photoUrl);
+
+  // Sincronizar si la prop externa cambia (ej: el usuario sube una foto nueva)
+  useEffect(() => {
+    if (author?.photoUrl && author.photoUrl !== photoUrl) {
+      if (author?.id) avatarCache[author.id] = author.photoUrl;
+      setPhotoUrl(author.photoUrl);
+    }
+  }, [author?.photoUrl]);
+
+  useEffect(() => {
+    if (author?.id) {
+      const fetchAvatar = async () => {
+        let currentUrl = avatarCache[author.id] || author?.photoUrl || "";
+        const docRef = doc(db, "users", author.id);
+        
+        try {
+          // 1. Intentar desde caché local para evitar el parpadeo de "imagen antigua"
+          const cachedSnap = await getDocFromCache(docRef);
+          if (cachedSnap.exists()) {
+            const data = cachedSnap.data();
+            const url = data.photoUrl || data.photoURL || data.profileImage || "";
+            if (url && url !== currentUrl) {
+              avatarCache[author.id] = url;
+              setPhotoUrl(url);
+              currentUrl = url;
+            }
+          }
+        } catch (e) {
+          // Cache miss, ignorar y proceder al servidor
+        }
+
+        try {
+          // 2. Buscar en el servidor para garantizar que tengamos la versión más reciente
+          const docSnapServer = await getDoc(docRef);
+          if (docSnapServer.exists()) {
+            const data = docSnapServer.data();
+            const serverUrl = data.photoUrl || data.photoURL || data.profileImage || "";
+            if (serverUrl && serverUrl !== currentUrl) {
+               avatarCache[author.id] = serverUrl;
+               setPhotoUrl(serverUrl);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching avatar:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchAvatar();
+    } else {
+      setIsLoading(false);
+    }
+  }, [author?.id]);
+
+  if (isLoading) {
+    return <div className={`animate-pulse bg-surface-container-high ${className}`}></div>;
+  }
+
+  const finalUrl = imgError ? "" : (photoUrl || author?.photoUrl);
+
+  if (finalUrl) {
+    return (
+      <img
+        src={finalUrl}
+        alt={author?.name || author?.username || "Autor"}
+        className={className}
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          setImgError(true);
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    );
+  }
+
+  return (
+    <img src="/default-avatar.svg" alt="Avatar" className={`object-cover ${className}`} />
+  );
+};
+
+const BlockedUserItem = ({ blockedId, date, onUnblock, isDark = false }: { blockedId: string; date?: string; onUnblock: () => void; isDark?: boolean; key?: string; }) => {
+  const [userName, setUserName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const userDoc = await getDoc(doc(db, "users", blockedId));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setUserName(data.name || "Usuario sin nombre");
+        } else {
+          setUserName("Usuario no encontrado");
+        }
+      } catch (error) {
+        console.error("Error fetching blocked user:", error);
+        setUserName("Error al cargar");
+      }
+    };
+    fetchUser();
+  }, [blockedId]);
+
+  return (
+    <div className={`flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-4 rounded-xl border border-outline-variant/10 shadow-sm ${isDark ? 'bg-surface-container' : 'bg-white'}`}>
+      <div>
+        <p className="font-bold text-sm text-on-surface">ID: {userName ? `"${userName}"` : `Cargando...`}</p>
+        <p className="text-xs text-on-surface-variant">
+          Bloqueado el: {date ? new Date(date).toLocaleString() : "Fecha no disponible"}
+        </p>
+      </div>
+      <button
+        className="px-4 py-2 bg-error text-white rounded-xl text-xs font-bold shadow-sm hover:scale-105 transition-transform"
+        onClick={onUnblock}
+      >
+        Desbloquear
+      </button>
+    </div>
+  );
+};
 
 export default function Root() {
   return (

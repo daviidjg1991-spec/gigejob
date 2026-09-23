@@ -27,12 +27,39 @@
   
   --color-warning: #f59e0b;
   --color-error: #dc2626;
-  --color-error-container: #fee2e2;
 }
 
+:root {
+  /* Variables de la barra emergente de cookies (personalizables) */
+  --cookie-banner-bg: #ffffff;
+  --cookie-banner-text: #2c2f30;
+  --cookie-btn-primary-bg: #00675b;
+  --cookie-btn-primary-text: #ffffff;
+  --cookie-btn-secondary-bg: #e5e9e9;
+  --cookie-btn-secondary-text: #2c2f30;
+  --cookie-banner-font: "Inter", sans-serif;
+}
+
+
 @layer base {
+  html, body, #root {
+    overscroll-behavior-y: none;
+    overscroll-behavior-x: none;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
   body {
     @apply font-sans text-on-surface bg-surface antialiased;
+  }
+  
+  button, a, input, select, textarea, label, [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -93,4 +120,85 @@ body {
 }
 .skiptranslate.goog-te-gadget {
     display: none !important;
+}
+
+@keyframes pulse-heartbeat {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  14% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  28% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  42% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+.animate-heartbeat {
+  animation: pulse-heartbeat 1.4s ease-in-out infinite;
+}
+
+
+/* Fix Jodit images in prose */
+.prose img {
+  display: inline-block;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Make Jodit Editor content area match public blog prose exactly */
+.jodit-wysiwyg {
+  @apply prose prose-lg md:prose-xl prose-p:leading-relaxed prose-headings:font-display prose-headings:font-black prose-headings:tracking-tight max-w-none prose-a:text-primary hover:prose-a:text-primary/80 prose-img:rounded-3xl prose-img:shadow-xl;
+  max-width: 56rem !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding: 2rem !important;
+}
+
+@keyframes custom-loader-anim {
+  0% { transform: scale(1) rotate(0deg); }
+  10% { transform: scale(1.15) rotate(0deg); }
+  20% { transform: scale(1) rotate(0deg); }
+  30% { transform: scale(1.15) rotate(0deg); }
+  40% { transform: scale(1) rotate(0deg); }
+  100% { transform: scale(1) rotate(-360deg); }
+}
+
+.custom-loader-icon {
+  animation: custom-loader-anim 2s infinite ease-in-out;
+  transform-origin: center center;
+}
+
+
+/* Hide bottom nav when chat is open */
+body:has(.messages-page-active) #mobile-bottom-nav { display: none !important; }
+
+/* Prevent background from scrolling and causing layout shifts on iOS when chat is open */
+body.messages-page-active {
+  overflow: hidden !important;
+}
+body.messages-page-active #root {
+  overflow: hidden !important;
+}
+
+/* Fix react-simple-pull-to-refresh stacking context bug which breaks fixed layout */
+body.messages-page-active .ptr,
+body.messages-page-active .ptr__children {
+  transform: none !important;
+  transition: none !important;
 }

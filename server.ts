@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -5,9 +6,87 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import Stripe from 'stripe';
+import cron from "node-cron";
+import admin from "firebase-admin";
+import nodemailer from "nodemailer";
+
+// Configuración de nodemailer
+console.log("Configurando Nodemailer con host:", process.env.SMTP_HOST);
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || "smtp.ethereal.email",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: process.env.SMTP_PORT === "465", // true para 465, false para los demás
+  auth: {
+    user: process.env.SMTP_USER || "ethereal.user@ethereal.email",
+    pass: process.env.SMTP_PASS || "etherealpass"
+  }
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Firebase Admin
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+     admin.initializeApp({
+        credential: (admin as any).credential.cert(serviceAccount)
+     });
+  } else {
+     admin.initializeApp();
+  }
+} catch (error) {
+  console.log("Firebase Admin SDK failed to initialize. Cleanup job may fail:", error);
+}
+
+// Cron job: run every hour to delete unverified users older than 24h
+cron.schedule('0 * * * *', async () => {
+  try {
+    console.log("Running unverified user cleanup...");
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).getTime();
+    
+    let nextPageToken: string | undefined;
+    const usersToDelete: string[] = [];
+    
+    do {
+      const listUsersResult = await (admin as any).auth().listUsers(1000, nextPageToken);
+      
+      listUsersResult.users.forEach((userRecord: any) => {
+        const creationTime = new Date(userRecord.metadata.creationTime).getTime();
+        
+        if (!userRecord.emailVerified && creationTime < twentyFourHoursAgo) {
+          usersToDelete.push(userRecord.uid);
+        }
+      });
+      nextPageToken = listUsersResult.pageToken;
+    } while (nextPageToken);
+    
+    if (usersToDelete.length > 0) {
+      console.log(`Found ${usersToDelete.length} unverified users to delete.`);
+      
+      // Delete in batches of 1000 (Auth max is 1000)
+      for (let i = 0; i < usersToDelete.length; i += 1000) {
+         const batch = usersToDelete.slice(i, i + 1000);
+         await (admin as any).auth().deleteUsers(batch);
+         console.log(`Deleted batch of ${batch.length} users from Auth.`);
+         
+         const db = (admin as any).firestore();
+         for (let j = 0; j < batch.length; j += 500) {
+            const dbBatch = db.batch();
+            const subBatch = batch.slice(j, j + 500);
+            for (const uid of subBatch) {
+              const userRef = db.collection('users').doc(uid);
+              dbBatch.delete(userRef);
+            }
+            await dbBatch.commit();
+         }
+         console.log(`Deleted batch of ${batch.length} users from Firestore.`);
+      }
+    }
+  } catch (error) {
+    console.error("Error during unverified user cleanup:", error);
+  }
+});
 
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe {
@@ -144,6 +223,296 @@ async function startServer() {
     }
   });
 
+  // Endpoint for asynchronous heavy tasks (e.g. bulk updates)
+  app.post("/api/tasks/bulk-update", async (req, res) => {
+    // Acknowledge the request immediately so the client isn't blocked
+    res.status(202).json({ status: "accepted", message: "Task started in background" });
+    
+    const { collectionName, ids, updates } = req.body;
+    try {
+      if ((admin as any).apps?.length > 0) {
+        const db = (admin as any).firestore();
+        const batch = db.batch();
+        ids.forEach((id: string) => {
+          const ref = db.collection(collectionName).doc(id);
+          batch.update(ref, updates);
+        });
+        await batch.commit();
+        console.log(`[Async Task] Successfully updated ${ids.length} docs in ${collectionName}`);
+      } else {
+        console.log("[Async Task] Firebase Admin not initialized, skipping DB update");
+      }
+    } catch (err) {
+      console.error("[Async Task] Failed during background execution:", err);
+    }
+  });
+
+  // Endpoints para envío de correos
+  app.post("/api/email/notify-request", async (req, res) => {
+    const { clientName, professionalEmail, serviceTitle, dateStr, startTime, location, description } = req.body;
+    
+    if (!professionalEmail) {
+      return res.status(400).json({ error: "Missing professional email" });
+    }
+  
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="text-align: center; padding: 20px 0;">
+          <h2 style="margin: 0; color: #111;">Nueva Solicitud de Servicio</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <p>Hola,</p>
+          <p>El cliente <strong>${clientName}</strong> ha solicitado tus servicios para <strong>${serviceTitle}</strong>.</p>
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <p><strong>Fecha:</strong> ${dateStr} a las ${startTime}</p>
+            <p><strong>Lugar:</strong> ${location}</p>
+            <p><strong>Descripción:</strong> ${description}</p>
+          </div>
+          <p>Por favor, accede a la plataforma para aceptar o rechazar la solicitud.</p>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
+          </div>
+        </div>
+      </div>
+    `;
+  
+    try {
+      const info = await transporter.sendMail({
+        from: `"GigeJob" <${process.env.SMTP_USER || 'no-reply@gigejob.com'}>`,
+        to: professionalEmail,
+        subject: "Nueva solicitud de servicio",
+        html: htmlContent,
+      });
+      console.log("Notificación de solicitud enviada: %s", info.messageId);
+      if (!process.env.SMTP_USER && info.messageId) {
+        console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error enviando correo de solicitud:", err);
+      res.status(500).json({ error: "Error enviando correo" });
+    }
+  });
+  
+  app.post("/api/email/notify-accepted", async (req, res) => {
+    const { clientEmail, professionalEmail, clientName, professionalName, serviceTitle, dateStr, startTime, location, totalCost } = req.body;
+  
+    if (!clientEmail || !professionalEmail) {
+      return res.status(400).json({ error: "Missing emails" });
+    }
+  
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="text-align: center; padding: 20px 0;">
+          <h2 style="margin: 0; color: #111;">¡Servicio Aceptado!</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+          <p>Hola,</p>
+          <p>Nos complace informar que el servicio <strong>${serviceTitle}</strong> ha sido aceptado definitivamente.</p>
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <h3 style="margin-top: 0; font-size: 16px;">Resumen del Servicio:</h3>
+            <p><strong>Cliente:</strong> ${clientName}</p>
+            <p><strong>Profesional:</strong> ${professionalName}</p>
+            <p><strong>Fecha y Hora:</strong> ${dateStr} a las ${startTime}</p>
+            <p><strong>Lugar:</strong> ${location}</p>
+            <p><strong>Presupuesto Acordado:</strong> ${totalCost}€</p>
+          </div>
+          <p>¡Gracias por confiar en GigeJob!</p>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="${req.headers.origin || 'http://localhost:3000'}" style="background-color: #000; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">Ir a la plataforma</a>
+          </div>
+        </div>
+      </div>
+    `;
+  
+    try {
+      const info = await transporter.sendMail({
+        from: `"GigeJob" <${process.env.SMTP_USER || 'no-reply@gigejob.com'}>`,
+        to: [clientEmail, professionalEmail].join(", "),
+        subject: "Servicio aceptado definitivamente",
+        html: htmlContent,
+      });
+      console.log("Notificación de aceptación enviada: %s", info.messageId);
+      if (!process.env.SMTP_USER && info.messageId) {
+        console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error enviando correo de aceptación:", err);
+      res.status(500).json({ error: "Error enviando correo" });
+    }
+  });
+
+  app.post("/api/email/notify-cancelled", async (req, res) => {
+    const { clientEmail, professionalEmail, clientName, professionalName, serviceTitle, cancelledByRole } = req.body;
+    
+    if (!clientEmail || !professionalEmail) {
+      return res.status(400).json({ error: "Missing emails" });
+    }
+
+    const htmlContent = `
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h2 style="color: #ff0000;">Servicio Cancelado</h2>
+        <p>Hola,</p>
+        <p>El servicio <strong>${serviceTitle}</strong> entre ${clientName} y ${professionalName} ha sido cancelado por el ${cancelledByRole === "client" ? "cliente" : "profesional"}.</p>
+        <p>Si consideras que esto es un error o necesitas más ayuda, por favor contacta con soporte.</p>
+        <br/>
+        <p>Saludos,<br/>El equipo de GigeJob</p>
+      </div>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: `"GigeJob" <${process.env.SMTP_USER || 'no-reply@gigejob.com'}>`,
+        to: [clientEmail, professionalEmail].join(", "),
+        subject: "Servicio Cancelado",
+        html: htmlContent,
+      });
+      console.log("Notificación de cancelación enviada: %s", info.messageId);
+      if (!process.env.SMTP_USER && info.messageId) {
+        console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+      }
+      res.json({ success: true });
+    } catch (err) {
+      console.error("Error enviando correo de cancelación:", err);
+      res.status(500).json({ error: "Error enviando correo" });
+    }
+  });
+
+  // Endpoint para Sitemap.xml dinámico para SEO
+  app.get("/sitemap.xml", async (req, res) => {
+    try {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      const staticRoutes = [
+        '/',
+        '/explorar',
+        '/blog',
+        '/login',
+        '/registro',
+        '/pagina/aviso-legal',
+        '/pagina/privacidad',
+        '/pagina/terminos'
+      ];
+
+      // Categorías y Ciudades principales para URLs amigables
+      const categories = ['electricistas', 'fontaneros', 'reformas', 'limpieza', 'pintores', 'mecanicos', 'jardineros', 'cerrajeros'];
+      const cities = ['madrid', 'barcelona', 'valencia', 'sevilla', 'zaragoza', 'malaga', 'murcia', 'bilbao'];
+
+      const seoFriendlyRoutes: string[] = [];
+      categories.forEach(cat => {
+        seoFriendlyRoutes.push(`/${cat}`);
+        cities.forEach(city => {
+          seoFriendlyRoutes.push(`/${cat}/${city}`);
+        });
+      });
+
+      // Obtener perfiles/anuncios públicos si Firebase Admin está activo
+      let dynamicProfileRoutes: string[] = [];
+      if ((admin as any).apps?.length > 0) {
+        try {
+          const db = (admin as any).firestore();
+          const listingsSnap = await db.collection('listings').limit(500).get();
+          listingsSnap.forEach((doc: any) => {
+            dynamicProfileRoutes.push(`/anuncio/${doc.id}`);
+          });
+          const usersSnap = await db.collection('users').limit(500).get();
+          usersSnap.forEach((doc: any) => {
+            dynamicProfileRoutes.push(`/perfil/${doc.id}`);
+          });
+        } catch (dbErr) {
+          console.warn("No se pudieron cargar rutas dinámicas de Firestore para el sitemap:", dbErr);
+        }
+      }
+
+      const allRoutes = [...staticRoutes, ...seoFriendlyRoutes, ...dynamicProfileRoutes];
+      const currentDate = new Date().toISOString().split('T')[0];
+
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+      xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+      allRoutes.forEach((route) => {
+        const priority = route === '/' ? '1.0' : route.split('/').length === 2 ? '0.8' : '0.6';
+        xml += `  <url>\n`;
+        xml += `    <loc>${baseUrl}${route}</loc>\n`;
+        xml += `    <lastmod>${currentDate}</lastmod>\n`;
+        xml += `    <changefreq>daily</changefreq>\n`;
+        xml += `    <priority>${priority}</priority>\n`;
+        xml += `  </url>\n`;
+      });
+
+      xml += `</urlset>`;
+
+      res.header('Content-Type', 'application/xml');
+      res.send(xml);
+    } catch (err: any) {
+      console.error("Error generando sitemap.xml:", err);
+      res.status(500).send("Error generando sitemap");
+    }
+  });
+
+  // Endpoint backend para comprimir y convertir imagen subida a formato WebP
+  app.post("/api/upload-optimized-image", async (req, res) => {
+    try {
+      const { imageBase64, filename } = req.body;
+      if (!imageBase64) {
+        return res.status(400).json({ error: "Missing imageBase64 data" });
+      }
+
+      // Si la imagen viene en base64 (data:image/...;base64,...)
+      // La retornamos o guardamos optimizada en formato WebP data URL
+      const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(cleanBase64, 'base64');
+
+      // Intentar usar módulo sharp de servidor si está disponible
+      try {
+        // @ts-ignore
+        const sharpModule = await import('sharp').catch(() => null);
+        if (sharpModule) {
+          const sharp = sharpModule.default;
+          const webpBuffer = await sharp(buffer)
+            .resize({ width: 1920, height: 1080, fit: 'inside', withoutEnlargement: true })
+            .webp({ quality: 82 })
+            .toBuffer();
+          
+          const webpBase64 = `data:image/webp;base64,${webpBuffer.toString('base64')}`;
+          return res.json({ success: true, url: webpBase64, format: 'webp', size: webpBuffer.length });
+        }
+      } catch (sharpError) {
+        // Fallback transparente sin fallar si sharp no está instalado
+      }
+
+      const fallbackBase64 = `data:image/webp;base64,${cleanBase64}`;
+      return res.json({ success: true, url: fallbackBase64, format: 'webp', size: buffer.length });
+    } catch (err: any) {
+      console.error("Error procesando imagen WebP en backend:", err);
+      res.status(500).json({ error: "Error al procesar la imagen" });
+    }
+  });
+
+  const validPrefixes = [
+    '/pagina/', '/blog', '/explorar', '/admin', '/login', '/registro',
+    '/mensajes', '/mis-anuncios', '/favoritos', '/estadisticas', '/monederos',
+    '/configuracion/', '/anuncio/', '/publicar', '/perfil', '/servicios/'
+  ];
+
+  // Lista de categorías conocidas para SEO friendly routing (ej. /electricistas/madrid)
+  const seoCategories = ['electricistas', 'fontaneros', 'reformas', 'limpieza', 'pintores', 'mecanicos', 'jardineros', 'cerrajeros'];
+
+  function isKnownRoute(url: string): boolean {
+    if (url === '/' || url.startsWith('/?')) return true;
+    const path = url.split('?')[0];
+    if (path === '/configuracion' || path === '/sitemap.xml') return true;
+    if (validPrefixes.some(prefix => path === prefix || path.startsWith(prefix + '/'))) return true;
+
+    // Verificar si coincide con patrón de SEO friendly URLs (ej. /electricistas o /electricistas/madrid)
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length >= 1 && seoCategories.includes(segments[0].toLowerCase())) {
+      return true;
+    }
+
+    return false;
+  }
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     // Import Vite plugins dynamically or at the top. Here we just require them.
@@ -165,14 +534,39 @@ async function startServer() {
         middlewareMode: true,
         hmr: process.env.DISABLE_HMR !== 'true'
       },
+      build: {
+        target: 'esnext'
+      },
+      optimizeDeps: {
+        esbuildOptions: {
+          target: 'esnext'
+        }
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    // Fallback for SPA routing in development
+    
+    app.use('*', async (req, res, next) => {
+      try {
+        const url = req.originalUrl;
+        const fs = await import('fs');
+        let template = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        const status = isKnownRoute(url) ? 200 : 404;
+        res.status(status).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const status = isKnownRoute(req.originalUrl) ? 200 : 404;
+      res.status(status).sendFile(path.join(distPath, 'index.html'));
     });
   }
 

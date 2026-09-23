@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "87954641082",
+    "project_id": "gigejob01",
+    "storage_bucket": "gigejob01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:87954641082:android:b9b23bf74b4c3afe483283",
+        "android_client_info": {
+          "package_name": "com.gigejob.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "87954641082-jrj8mij6b0g4dlo139hkkoheujhkms03.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.gigejob.app",
+            "certificate_hash": "f730b01eccf33f5af7e763a3da7357581a298603"
+          }
+        },
+        {
+          "client_id": "87954641082-cfu0nsa9oisu3iqkv6704c0fbn8d2oc4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYKKj6KgHM2U17nynJOhJO3DO3nPwBL_o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "87954641082-cfu0nsa9oisu3iqkv6704c0fbn8d2oc4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "87954641082-v4elb98j7kd8fq6ddl1mk39g5d8jblrf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gigejob.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

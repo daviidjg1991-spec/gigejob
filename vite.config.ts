@@ -14,5 +14,13 @@ export default defineConfig(({ mode }) => {
         '@': process.cwd(),
       },
     },
+    server: {
+      proxy: {
+        '/api': 'http://localhost:3000'
+      }
+    },
+    build: {
+      target: 'es2022'
+    }
   };
 });

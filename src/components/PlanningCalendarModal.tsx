@@ -41,6 +41,27 @@ interface PlanningCalendarModalProps {
 
 type ViewMode = "day" | "week" | "month";
 
+const parseSpanishDate = (dateStr: string): Date | null => {
+  if (!dateStr) return null;
+  const months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  const parts = dateStr.toLowerCase().split(" ");
+  if (parts.length >= 3) {
+    const day = parseInt(parts[0]);
+    const monthStr = parts[2];
+    const month = months.indexOf(monthStr);
+    const year = parts[4] ? parseInt(parts[4]) : new Date().getFullYear();
+    
+    if (!isNaN(day) && month !== -1) {
+      return new Date(year, month, day);
+    }
+  }
+  
+  const isoParsed = parseISO(dateStr);
+  if (!isNaN(isoParsed.getTime())) return isoParsed;
+
+  return null;
+};
+
 export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
   isOpen,
   onClose,
@@ -76,12 +97,16 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
         ]);
 
         const fetchedBookings: Booking[] = [];
-        authSnap.forEach((doc) =>
-          fetchedBookings.push({ ...doc.data(), id: doc.id } as Booking)
-        );
+        authSnap.forEach((doc) => {
+          const data = doc.data() as Booking;
+          if (data.status === "accepted") {
+            fetchedBookings.push({ ...data, id: doc.id });
+          }
+        });
         clientSnap.forEach((doc) => {
-          if (!fetchedBookings.some((b) => b.id === doc.id)) {
-            fetchedBookings.push({ ...doc.data(), id: doc.id } as Booking);
+          const data = doc.data() as Booking;
+          if (data.status === "accepted" && !fetchedBookings.some((b) => b.id === doc.id)) {
+            fetchedBookings.push({ ...data, id: doc.id });
           }
         });
 
@@ -94,7 +119,7 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
     };
 
     fetchBookings();
-  }, [isOpen, user]);
+  }, [isOpen, user?.id]);
 
   useEffect(() => {
     // Scroll container to top when view changes
@@ -115,16 +140,30 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
     else setBaseDate(addMonths(baseDate, 1));
   };
 
+  const getHeaderTitle = () => {
+    if (viewMode === "day") {
+      return format(baseDate, "d MMMM yyyy", { locale: es });
+    } else if (viewMode === "week") {
+      const start = subDays(baseDate, 1);
+      const end = addDays(baseDate, 5);
+      if (isSameMonth(start, end)) {
+        return `${format(start, "d")} - ${format(end, "d MMMM yyyy", { locale: es })}`;
+      } else {
+        return `${format(start, "d MMM", { locale: es })} - ${format(end, "d MMM yyyy", { locale: es })}`;
+      }
+    } else {
+      return format(baseDate, "MMMM yyyy", { locale: es });
+    }
+  };
+
   if (!isOpen) return null;
 
   const renderDailySchedule = (dateStr: string, dateObj: Date) => {
     const dayBookings = bookings.filter((b) => {
       if (!b.date) return false;
-      try {
-        return isSameDay(parseISO(b.date), dateObj);
-      } catch {
-        return false;
-      }
+      const parsedDate = parseSpanishDate(b.date);
+      if (!parsedDate) return false;
+      return isSameDay(parsedDate, dateObj);
     });
 
     return (
@@ -173,9 +212,28 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
               <div className="font-bold text-[10px] sm:text-xs truncate leading-tight mb-1">
                 {b.listingTitle}
               </div>
-              <div className="text-[9px] font-medium opacity-80 truncate flex items-center gap-1">
-                <Clock className="w-2.5 h-2.5" />
-                {b.time}
+              <div className="text-[9px] font-medium opacity-80 flex flex-col gap-0.5">
+                <div className="flex items-center gap-1 truncate">
+                  <Clock className="w-2.5 h-2.5 shrink-0" />
+                  <span>{b.time}</span>
+                </div>
+                <div className="truncate">
+                  {b.duration || "1h"}
+                </div>
+                <div className="truncate">
+                  {b.date ? (parseSpanishDate(b.date) ? format(parseSpanishDate(b.date)!, "d MMMM", { locale: es }) : b.date) : ""}
+                </div>
+                {b.location && (
+                  <div className="flex items-center gap-1 truncate mt-0.5">
+                    <MapPin className="w-2.5 h-2.5 shrink-0" />
+                    <span>{b.location}</span>
+                  </div>
+                )}
+                {b.description && (
+                  <div className="truncate mt-0.5 opacity-80">
+                    {b.description}
+                  </div>
+                )}
               </div>
               <div className="text-[9px] font-black uppercase tracking-widest mt-1 opacity-70">
                 {isProfessional ? "Como Profesional" : "Como Cliente"}
@@ -206,11 +264,9 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
             {days.map((day) => {
               const dayBookings = bookings.filter((b) => {
                 if (!b.date) return false;
-                try {
-                  return isSameDay(parseISO(b.date), day);
-                } catch {
-                  return false;
-                }
+                const parsedDate = parseSpanishDate(b.date);
+                if (!parsedDate) return false;
+                return isSameDay(parsedDate, day);
               });
 
               return (
@@ -248,14 +304,18 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
                         <div
                           key={b.id}
                           className={cn(
-                            "text-[9px] px-1.5 py-1 rounded truncate font-medium",
+                            "text-[9px] px-1.5 py-1 rounded truncate font-medium flex flex-col gap-0.5",
                             isProfessional
                               ? "bg-primary/10 text-primary border border-primary/10"
                               : "bg-amber-500/10 text-amber-700 border border-amber-500/10"
                           )}
-                          title={`${b.listingTitle} - ${b.time}`}
+                          title={`${b.listingTitle} - Inicio: ${b.time} - Total: ${b.duration || "1h"}${b.location ? ` - Dir: ${b.location}` : ""}`}
                         >
-                          {b.time} {b.listingTitle}
+                          <div className="font-bold truncate">{b.listingTitle}</div>
+                          <div className="truncate">{b.time} | {b.duration || "1h"}</div>
+                          <div className="truncate">{b.date ? (parseSpanishDate(b.date) ? format(parseSpanishDate(b.date)!, "d MMMM", { locale: es }) : b.date) : ""}</div>
+                          {b.location && <div className="truncate opacity-80 mt-0.5"><MapPin className="inline w-2.5 h-2.5 mr-0.5"/>{b.location}</div>}
+                          {b.description && <div className="truncate opacity-70 mt-0.5">{b.description}</div>}
                         </div>
                       );
                     })}
@@ -385,8 +445,8 @@ export const PlanningCalendarModal: React.FC<PlanningCalendarModalProps> = ({
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <h2 className="text-sm md:text-base font-bold capitalize w-32 text-center text-on-surface">
-                    {format(baseDate, "MMMM yyyy", { locale: es })}
+                  <h2 className="text-sm md:text-base font-bold capitalize min-w-[140px] text-center text-on-surface">
+                    {getHeaderTitle()}
                   </h2>
                   <button
                     onClick={handleNext}

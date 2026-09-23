@@ -1,14 +1,21 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { initializeAuth, getAuth, indexedDBLocalPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { Capacitor } from '@capacitor/core';
 
 const app = initializeApp(firebaseConfig);
 setLogLevel('silent');
 export const db = getFirestore(app);
-export const auth = getAuth();
+
+// Use indexedDB explicitly on Capacitor iOS to prevent signIn hanging
+// Firebase Auth configured with authorized domains: gigejob.com, www.gigejob.com, localhost, 127.0.0.1, firebaseapp, vercel domains
+export const auth = Capacitor.isNativePlatform() 
+  ? initializeAuth(app, { persistence: indexedDBLocalPersistence })
+  : getAuth(app);
+
 export const storage = getStorage(app);
 
 // Solamente inicializa analytics en el cliente
