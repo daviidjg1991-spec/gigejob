@@ -266,6 +266,7 @@ import PullToRefresh from 'react-simple-pull-to-refresh';
 import { CookieBanner } from "./components/CookieBanner";
 import SeoHead from "./components/SeoHead";
 import SeoCategoryRoute from "./components/SeoCategoryRoute";
+import { AdminBuzonConfig } from "./components/admin/AdminBuzonConfig";
 import {
   AreaChart,
   Area,
@@ -7958,12 +7959,12 @@ const AdminPage = ({
       case "admins":
         return (
           <div className="space-y-6">
-            <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-4">
-              {["settings", "email", "footer", "info", "reviews"].map((tab) => (
+            <div className="flex items-center gap-2 border-b border-outline-variant/10 pb-4 overflow-x-auto no-scrollbar whitespace-nowrap">
+              {["settings", "email", "footer", "info", "reviews", "buzon"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setAdminSubTab(tab)}
-                  className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors ${adminSubTab === tab ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
+                  className={`px-4 py-2 font-bold uppercase tracking-widest text-[10px] rounded-full transition-colors flex-shrink-0 ${adminSubTab === tab ? "bg-primary text-white" : "bg-surface-container text-on-surface hover:bg-surface-container-high"}`}
                 >
                   {tab === "settings"
                     ? "Configuración"
@@ -7973,6 +7974,8 @@ const AdminPage = ({
                       ? "Configuración del footer"
                     : tab === "reviews"
                       ? "Reseñas"
+                    : tab === "buzon"
+                      ? "Buzón"
                       : "+Info / Legal"}
                 </button>
               ))}
@@ -8630,6 +8633,7 @@ const AdminPage = ({
               </div>
             )}
             {adminSubTab === "reviews" && <AdminReviewConfig />}
+            {adminSubTab === "buzon" && <AdminBuzonConfig />}
           </div>
         );
       case "popup":
