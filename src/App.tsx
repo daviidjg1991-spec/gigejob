@@ -27957,7 +27957,7 @@ function App() {
               : "pt-[env(safe-area-inset-top)] lg:pt-16 pb-16 lg:pb-0"
           )}
         >
-          {!isDashboard && location.pathname !== "/admin" && <CategoriesBar />}
+          {!isDashboard && !location.pathname.startsWith("/admin") && <CategoriesBar />}
           {(() => {
             const activeListings = listings.filter(
               (l) =>
