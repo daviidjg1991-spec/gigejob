@@ -15364,33 +15364,52 @@ const ConfirmServiceActionModal = ({
   onConfirm: () => void;
   onCancel: () => void;
 }) => {
-  const [text, setText] = useState("");
+  const [popupData, setPopupData] = useState<{
+    title: string;
+    description: string;
+    confirmButtonText: string;
+    cancelButtonText: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      getDoc(doc(db, "settings", "services")).then((snap) => {
+      getDoc(doc(db, "adminConfigs", "buzonTexts")).then((snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          if (actionType === "request")
-            setText(
-              data.requestText ||
-                "Por favor, confirma que deseas enviar la solicitud de reserva.",
-            );
-          if (actionType === "professionalEdit")
-            setText(
-              data.professionalEditText ||
-                "Por favor, confirma que deseas editar este servicio.",
-            );
-          if (actionType === "clientAccept")
-            setText(
-              data.clientAcceptText ||
-                "Por favor, confirma que deseas aceptar la propuesta final.",
-            );
-        } else {
-          setText("¿Estás seguro de continuar con esta acción?");
+          let key = "";
+          if (actionType === "request") key = "hiringRequest";
+          if (actionType === "professionalEdit") key = "modificationRequest";
+          if (actionType === "clientAccept") key = "acceptService";
+          
+          if (key && data[key]) {
+            setPopupData(data[key]);
+            setLoading(false);
+            return;
+          }
         }
+        
+        // Fallback defaults if not found
+        setPopupData({
+          title: "Confirmación requerida",
+          description: actionType === "request" 
+            ? "Por favor, confirma que deseas enviar la solicitud de reserva." 
+            : actionType === "professionalEdit"
+            ? "Por favor, confirma que deseas editar este servicio."
+            : "Por favor, confirma que deseas aceptar la propuesta final.",
+          confirmButtonText: "Aceptar y Continuar",
+          cancelButtonText: "Cancelar"
+        });
+        setLoading(false);
+      }).catch(err => {
+        console.error("Error loading buzon texts:", err);
+        setPopupData({
+          title: "Confirmación requerida",
+          description: "¿Estás seguro de continuar con esta acción?",
+          confirmButtonText: "Aceptar y Continuar",
+          cancelButtonText: "Cancelar"
+        });
         setLoading(false);
       });
     }
@@ -15402,7 +15421,7 @@ const ConfirmServiceActionModal = ({
     <div className="fixed inset-0 bg-black/60 z-[99999] flex items-center justify-center p-4">
       <div className="bg-surface-container-lowest w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl relative">
         <h3 className="text-xl font-bold font-display tracking-tight mb-4 text-on-surface">
-          Confirmación requerida
+          {popupData?.title || "Confirmación requerida"}
         </h3>
         {loading ? (
           <div className="animate-pulse flex space-x-4">
@@ -15413,7 +15432,7 @@ const ConfirmServiceActionModal = ({
           </div>
         ) : (
           <p className="text-on-surface-variant font-medium whitespace-pre-wrap">
-            {text}
+            {popupData?.description}
           </p>
         )}
         <div className="mt-8 flex justify-end gap-3">
@@ -15421,14 +15440,14 @@ const ConfirmServiceActionModal = ({
             onClick={onCancel}
             className="px-5 py-2.5 rounded-xl font-bold text-on-surface hover:bg-surface-container transition-colors"
           >
-            Cancelar
+            {popupData?.cancelButtonText || "Cancelar"}
           </button>
           <button
             onClick={onConfirm}
             disabled={loading}
             className="px-5 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            Aceptar y Continuar
+            {popupData?.confirmButtonText || "Aceptar y Continuar"}
           </button>
         </div>
       </div>
@@ -20221,25 +20240,19 @@ const EditBookingModal = ({
 }) => {
   const [dateStr, setDateStr] = useState(booking?.date || "");
   const [timeStr, setTimeStr] = useState(booking?.time || "");
-  const [durationStr, setDurationStr] = useState(booking?.duration || "1h");
   
-  // Try to extract numerical hours
-  const currentHours = parseInt(durationStr.replace(/[^0-9]/g, '')) || 1;
-  const originalCost = booking?.totalCost || 0;
-  const originalHours = parseInt((booking?.duration || "1h").replace(/[^0-9]/g, '')) || 1;
-  const hourlyRate = originalHours > 0 ? originalCost / originalHours : 0;
-  
-  const [durationNum, setDurationNum] = useState(currentHours);
-
-  const estimatedTotalCost = durationNum * hourlyRate;
+  const [durationNum, setDurationNum] = useState(() => {
+    return parseInt((booking?.duration || "1h").replace(/[^0-9]/g, '')) || 1;
+  });
+  const [totalCost, setTotalCost] = useState<number>(booking?.totalCost || 0);
 
   useEffect(() => {
     if (isOpen && booking) {
       setDateStr(booking.date);
       setTimeStr(booking.time);
       const h = parseInt((booking.duration || "1h").replace(/[^0-9]/g, '')) || 1;
-      setDurationStr(booking.duration || "1h");
       setDurationNum(h);
+      setTotalCost(booking.totalCost || 0);
     }
   }, [isOpen, booking]);
 
@@ -20296,10 +20309,14 @@ const EditBookingModal = ({
               >
                 -
               </button>
-              <div className="flex-1 h-10 bg-surface-container-low/50 rounded-xl flex items-center justify-center border border-outline-variant/10">
-                <span className="text-sm font-black text-on-surface">
-                  {durationNum}h
-                </span>
+              <div className="flex-1">
+                <input
+                  type="number"
+                  min="1"
+                  value={durationNum}
+                  onChange={(e) => setDurationNum(parseInt(e.target.value) || 1)}
+                  className="w-full h-10 bg-surface-container-low/50 rounded-xl text-center text-sm font-black text-on-surface border border-outline-variant/10 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
               </div>
               <button
                 onClick={() => setDurationNum(durationNum + 1)}
@@ -20312,15 +20329,18 @@ const EditBookingModal = ({
 
           <div className="pt-4 border-t border-outline-variant/10 mt-4">
             <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] pl-1">
-              NUEVO COSTE TOTAL ESTIMADO
+              NUEVO COSTE TOTAL EST. (€)
             </label>
-            <div className="h-10 bg-[#005a54]/5 rounded-xl flex items-center justify-center border border-[#005a54]/10 mt-2">
-              <span className="text-lg font-display font-black text-[#005a54]">
-                {estimatedTotalCost.toFixed(2)}€
-              </span>
-            </div>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={totalCost}
+              onChange={(e) => setTotalCost(parseFloat(e.target.value) || 0)}
+              className="w-full mt-2 h-10 bg-[#005a54]/5 rounded-xl text-center text-lg font-display font-black text-[#005a54] border border-[#005a54]/10 focus:outline-none focus:ring-2 focus:ring-[#005a54]/30"
+            />
             <p className="text-[9px] text-center text-on-surface-variant/40 font-bold mt-2 uppercase">
-              El coste se ha recalculado automáticamente.
+              Introduce el precio total final acordado
             </p>
           </div>
         </div>
@@ -20333,7 +20353,7 @@ const EditBookingModal = ({
             Cancelar
           </button>
           <button
-            onClick={() => onSave(dateStr, timeStr, `${durationNum}h`, estimatedTotalCost)}
+            onClick={() => onSave(dateStr, timeStr, `${durationNum}h`, totalCost)}
             className="px-5 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors"
           >
             Siguiente
