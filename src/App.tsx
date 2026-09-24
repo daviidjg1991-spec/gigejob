@@ -16697,6 +16697,29 @@ const JobRequestModal = ({
                     className="w-full pl-12 pr-6 py-4 bg-surface-container-low/40 rounded-2xl font-bold border-none outline-none focus:ring-1 focus:ring-[#005a54]/20 text-sm placeholder:text-on-surface-variant/30"
                   />
                 </div>
+                {user?.address && (
+                  <button
+                    onClick={() => {
+                      const fullAddress = [
+                        user.address?.streetType,
+                        user.address?.streetName,
+                        user.address?.number,
+                        user.address?.block ? `Blq. ${user.address?.block}` : "",
+                        user.address?.floor ? `Pl. ${user.address?.floor}` : "",
+                        user.address?.door ? `Pta. ${user.address?.door}` : "",
+                        user.address?.locality,
+                        user.address?.province,
+                        user.address?.postalCode,
+                      ]
+                        .filter(Boolean)
+                        .join(", ");
+                      if (fullAddress) setLocation(fullAddress);
+                    }}
+                    className="text-xs text-on-surface-variant/40 hover:text-on-surface-variant transition-colors ml-1 mt-1 block"
+                  >
+                    Añadir automaticamente "direccion del perfil"
+                  </button>
+                )}
               </div>
             </div>
 
