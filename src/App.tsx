@@ -20241,10 +20241,16 @@ const EditBookingModal = ({
   const [dateStr, setDateStr] = useState(booking?.date || "");
   const [timeStr, setTimeStr] = useState(booking?.time || "");
   
+  // Calculate hourly rate
+  const originalCost = booking?.totalCost || 0;
+  const originalHours = parseInt((booking?.duration || "1h").replace(/[^0-9]/g, '')) || 1;
+  const hourlyRate = originalHours > 0 ? originalCost / originalHours : 0;
+
   const [durationNum, setDurationNum] = useState(() => {
     return parseInt((booking?.duration || "1h").replace(/[^0-9]/g, '')) || 1;
   });
-  const [totalCost, setTotalCost] = useState<number>(booking?.totalCost || 0);
+
+  const estimatedTotalCost = durationNum * hourlyRate;
 
   useEffect(() => {
     if (isOpen && booking) {
@@ -20252,7 +20258,6 @@ const EditBookingModal = ({
       setTimeStr(booking.time);
       const h = parseInt((booking.duration || "1h").replace(/[^0-9]/g, '')) || 1;
       setDurationNum(h);
-      setTotalCost(booking.totalCost || 0);
     }
   }, [isOpen, booking]);
 
@@ -20331,16 +20336,13 @@ const EditBookingModal = ({
             <label className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.2em] pl-1">
               NUEVO COSTE TOTAL EST. (€)
             </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={totalCost}
-              onChange={(e) => setTotalCost(parseFloat(e.target.value) || 0)}
-              className="w-full mt-2 h-10 bg-[#005a54]/5 rounded-xl text-center text-lg font-display font-black text-[#005a54] border border-[#005a54]/10 focus:outline-none focus:ring-2 focus:ring-[#005a54]/30"
-            />
+            <div className="h-10 bg-[#005a54]/5 rounded-xl flex items-center justify-center border border-[#005a54]/10 mt-2">
+              <span className="text-lg font-display font-black text-[#005a54]">
+                {estimatedTotalCost.toFixed(2)}€
+              </span>
+            </div>
             <p className="text-[9px] text-center text-on-surface-variant/40 font-bold mt-2 uppercase">
-              Introduce el precio total final acordado
+              El coste se ha recalculado automáticamente.
             </p>
           </div>
         </div>
@@ -20353,7 +20355,7 @@ const EditBookingModal = ({
             Cancelar
           </button>
           <button
-            onClick={() => onSave(dateStr, timeStr, `${durationNum}h`, totalCost)}
+            onClick={() => onSave(dateStr, timeStr, `${durationNum}h`, estimatedTotalCost)}
             className="px-5 py-2.5 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 transition-colors"
           >
             Siguiente
