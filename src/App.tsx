@@ -20701,37 +20701,61 @@ const MessagesPage = ({ user }: { user: UserProfile | null }) => {
 
   // Fetch bookings summary for pinned header and modal
   useEffect(() => {
-    if (!selectedChatId || !myActualId || !otherParticipantId) return;
+    if (!selectedChatId || !myActualId || !otherParticipantId || !currentChat) return;
 
-    console.log(
-      "MessagesPage [bookings]: Fetching history with:",
-      otherParticipantId,
-    );
-    const q = query(
-      collection(db, "bookings"),
-      where("clientId", "in", [myActualId, otherParticipantId]),
-      where("professionalId", "in", [myActualId, otherParticipantId]),
-      orderBy("createdAt", "desc"),
-    );
+    if (currentChat.bookingId) {
+      console.log(
+        "MessagesPage [bookings]: Fetching specific booking:",
+        currentChat.bookingId,
+      );
+      const unsubscribe = onSnapshot(
+        doc(db, "bookings", currentChat.bookingId),
+        (docSnap) => {
+          if (docSnap.exists()) {
+            setBookings([{ id: docSnap.id, ...docSnap.data() }]);
+          } else {
+            setBookings([]);
+          }
+        },
+        (error) => {
+          console.error(
+            "MessagesPage [bookings]: Error fetching booking:",
+            error,
+          );
+          handleFirestoreError(error, OperationType.GET, "bookings");
+        },
+      );
+      return unsubscribe;
+    } else {
+      console.log(
+        "MessagesPage [bookings]: Fetching history with:",
+        otherParticipantId,
+      );
+      const q = query(
+        collection(db, "bookings"),
+        where("clientId", "in", [myActualId, otherParticipantId]),
+        where("professionalId", "in", [myActualId, otherParticipantId]),
+        orderBy("createdAt", "desc"),
+      );
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        setBookings(
-          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-        );
-      },
-      (error) => {
-        console.error(
-          "MessagesPage [bookings]: Error fetching history:",
-          error,
-        );
-        handleFirestoreError(error, OperationType.LIST, "bookings");
-      },
-    );
-
-    return unsubscribe;
-  }, [selectedChatId, myActualId, otherParticipantId]);
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          setBookings(
+            snapshot.docs.map((docItem) => ({ id: docItem.id, ...docItem.data() })),
+          );
+        },
+        (error) => {
+          console.error(
+            "MessagesPage [bookings]: Error fetching history:",
+            error,
+          );
+          handleFirestoreError(error, OperationType.LIST, "bookings");
+        },
+      );
+      return unsubscribe;
+    }
+  }, [selectedChatId, myActualId, otherParticipantId, currentChat?.bookingId]);
 
   const activeBooking = bookings[0]; // The latest one
 

@@ -1,11 +1,31 @@
-import React, { useState } from "react";
-import { Save, AlertCircle, MessageSquare } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Save, AlertCircle, MessageSquare, CheckCircle2 } from "lucide-react";
 import { DEFAULT_BUZON_TEXTS, BuzonPopupText } from "../../constants/buzonTexts";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 
 export const AdminBuzonConfig: React.FC = () => {
   const [texts, setTexts] = useState<Record<string, BuzonPopupText>>(DEFAULT_BUZON_TEXTS);
   const [isSaving, setIsSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTexts = async () => {
+      try {
+        const docRef = doc(db, "adminConfigs", "buzonTexts");
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setTexts(docSnap.data() as Record<string, BuzonPopupText>);
+        }
+      } catch (error) {
+        console.error("Error fetching buzon texts:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTexts();
+  }, []);
 
   const handleChange = (key: string, field: keyof BuzonPopupText, value: string) => {
     setTexts(prev => ({
@@ -17,14 +37,18 @@ export const AdminBuzonConfig: React.FC = () => {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    // Simulate save, since rule says we should not persist these dynamically in DB
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      const docRef = doc(db, "adminConfigs", "buzonTexts");
+      await setDoc(docRef, texts);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
-    }, 1000);
+    } catch (error) {
+      console.error("Error saving buzon texts:", error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const popups = [
@@ -32,6 +56,10 @@ export const AdminBuzonConfig: React.FC = () => {
     { key: "modificationRequest", label: "Modificación de Propuesta" },
     { key: "acceptService", label: "Aceptación de Servicio" }
   ];
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-on-surface-variant font-bold">Cargando configuración...</div>;
+  }
 
   return (
     <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10 shadow-[0_12px_32px_-4px_rgba(44,47,48,0.06)]">
@@ -55,10 +83,10 @@ export const AdminBuzonConfig: React.FC = () => {
         </button>
       </div>
 
-      <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 flex gap-3 mb-8">
-        <AlertCircle className="w-5 h-5 text-primary flex-shrink-0" />
+      <div className="bg-success/5 border border-success/10 rounded-xl p-4 flex gap-3 mb-8">
+        <CheckCircle2 className="w-5 h-5 text-success flex-shrink-0" />
         <p className="text-sm text-on-surface-variant">
-          Nota: Según las políticas del sistema, los textos del área de administración se gestionan de forma nativa. Las modificaciones realizadas aquí son para previsualización o cambios locales temporales.
+          Los cambios realizados aquí se guardarán de forma nativa en la base de datos y se aplicarán en tiempo real para todos los usuarios.
         </p>
       </div>
 
@@ -126,8 +154,8 @@ export const AdminBuzonConfig: React.FC = () => {
 
       {showToast && (
         <div className="fixed bottom-6 right-6 bg-success text-white px-6 py-3 rounded-xl shadow-lg font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4">
-          <AlertCircle className="w-5 h-5" />
-          Cambios simulados guardados
+          <CheckCircle2 className="w-5 h-5" />
+          Cambios guardados exitosamente
         </div>
       )}
     </div>
