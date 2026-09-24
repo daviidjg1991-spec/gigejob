@@ -13,7 +13,7 @@ export const AdminBuzonConfig: React.FC = () => {
   useEffect(() => {
     const fetchTexts = async () => {
       try {
-        const docRef = doc(db, "adminConfigs", "buzonTexts");
+        const docRef = doc(db, "settings", "buzonTexts");
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setTexts(docSnap.data() as Record<string, BuzonPopupText>);
@@ -40,7 +40,7 @@ export const AdminBuzonConfig: React.FC = () => {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const docRef = doc(db, "adminConfigs", "buzonTexts");
+      const docRef = doc(db, "settings", "buzonTexts");
       await setDoc(docRef, texts);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);

@@ -15375,7 +15375,7 @@ const ConfirmServiceActionModal = ({
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      getDoc(doc(db, "adminConfigs", "buzonTexts")).then((snap) => {
+      getDoc(doc(db, "settings", "buzonTexts")).then((snap) => {
         if (snap.exists()) {
           const data = snap.data();
           let key = "";
