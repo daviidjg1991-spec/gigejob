@@ -20,13 +20,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { planId, planName, price, cycle, userId } = req.body || {};
+    const { planId, planName, price, cycle, userId, discountCode } = req.body || {};
     if (!planId || !price) {
       return res.status(400).json({ error: 'Faltan datos requeridos del plan' });
     }
 
     const stripe = getStripe();
     const origin = req.headers.origin || `https://${req.headers.host}`;
+    const productName = discountCode ? `${planName || 'Plan Pro'} (Promo: ${discountCode})` : (planName || 'Plan Pro');
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -35,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           price_data: {
             currency: 'eur',
             product_data: {
-              name: planName || 'Plan Pro',
+              name: productName,
             },
             unit_amount: Math.round(price * 100),
             recurring: {
@@ -47,13 +48,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       ],
       mode: 'subscription',
-      success_url: `${origin}?checkout=success&plan_id=${planId}`,
+      success_url: `${origin}?checkout=success&plan_id=${planId}&cycle=${cycle}`,
       cancel_url: `${origin}?checkout=canceled`,
       client_reference_id: userId,
       metadata: {
         planId,
         cycle,
-        userId
+        userId,
+        discountCode: discountCode || '',
       }
     });
 

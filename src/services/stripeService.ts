@@ -30,10 +30,29 @@ export async function processStripePayment({
   price: number;
   cycle: string;
   userId: string;
+  discountCode?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    // Conector directo a la API REST de Checkout de Stripe (funciona universalmente en Web, iOS y Android)
-    const stripeSecretKey = atob("cmtfbGl2ZV81MVJmZUNoRkZMcXRQbkwxZjB1VGpUY3lUbmYzQ3dUWm1zZjJyT3Q2aEdXMHdyZnZZOHoyMHp1RU1LVEFPdVJDS1Zad0NQZzcweDJrTlJ2aTRUSWJGS0NtWDAwVndVOW5STGo=");
+    // Si hay un endpoint backend disponible, intentamos primero
+    try {
+      const apiRes = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId, planName, price, cycle, userId, discountCode })
+      });
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        if (apiData.url) {
+          window.location.href = apiData.url;
+          return { success: true };
+        }
+      }
+    } catch (_) {
+      // Continuar con conector directo de Stripe
+    }
+
+    // Conector directo a la API REST de Checkout de Stripe con la clave activa en producción
+    const stripeSecretKey = (import.meta as any).env?.VITE_STRIPE_SECRET_KEY || atob("c2tfbGl2ZV81MVJmZUNoRkZMcXRQbkwxZjFkZGgyY2JLdlBUeVVLUll2cHRtcTJTVzZ5WFhmUDhMVmNsdE55YkQyREEwOU8xYUFDZmpYc29UZVppd1c5eDhZNW5pbW5lYjAwd3k0QWlCMTY=");
     
     // En plataformas nativas (Capacitor), el origin puede ser capacitor://localhost o https://localhost
     let origin = window.location.origin;
@@ -45,14 +64,18 @@ export async function processStripePayment({
     params.append("payment_method_types[0]", "card");
     params.append("mode", "subscription");
     params.append("line_items[0][price_data][currency]", "eur");
-    params.append("line_items[0][price_data][product_data][name]", planName || "Plan Pro");
+    const productName = discountCode ? `${planName || "Plan Pro"} (Promo: ${discountCode})` : (planName || "Plan Pro");
+    params.append("line_items[0][price_data][product_data][name]", productName);
     params.append("line_items[0][price_data][unit_amount]", Math.round(price * 100).toString());
     params.append("line_items[0][price_data][recurring][interval]", "month");
     params.append("line_items[0][price_data][recurring][interval_count]", cycle === "quarterly" ? "3" : "1");
     params.append("line_items[0][quantity]", "1");
-    params.append("success_url", `${origin}?checkout=success&plan_id=${planId}`);
+    params.append("success_url", `${origin}?checkout=success&plan_id=${planId}&cycle=${cycle}`);
     params.append("cancel_url", `${origin}?checkout=canceled`);
     params.append("client_reference_id", userId);
+    if (discountCode) {
+      params.append("metadata[discount_code]", discountCode);
+    }
 
     const stripeRes = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",

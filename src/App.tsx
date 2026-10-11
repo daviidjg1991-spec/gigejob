@@ -99,6 +99,9 @@ import {
   Globe,
   Edit3,
   Copy,
+  Tag,
+  Percent,
+  Ticket,
   Type,
   Heading2,
   Loader2,
@@ -461,8 +464,11 @@ import {
   Review,
   DEFAULT_REVIEW_MODAL_CONFIG,
   ENABLE_SEARCH_PROFESSIONALS,
-  createSlug
+  createSlug,
+  DiscountPromotion,
+  DEFAULT_PROMOTIONS
 } from "./types";
+import { PlanCheckoutModal } from "./components/PlanCheckoutModal";
 
 export type DynamicAppConfig = {
   logoText1: string;
@@ -624,17 +630,7 @@ const useProPlansConfig = () => {
 
 const usePromotionsConfig = () => {
   const [config, setConfig] = useState<{ promotions: any[] }>({
-    promotions: [
-      {
-        id: "default",
-        name: "Promoción Inicial",
-        isActive: false,
-        userRangeStart: 1,
-        userRangeEnd: 100,
-        planDurationMonths: 12,
-        planType: "Premium Pro",
-      }
-    ]
+    promotions: DEFAULT_PROMOTIONS
   });
 
   useEffect(() => {
@@ -642,15 +638,36 @@ const usePromotionsConfig = () => {
     const unsub = onSnapshot(promoRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setConfig({ promotions: data.promotions || [] });
+        let loadedPromos = data.promotions || [];
+        if (!Array.isArray(loadedPromos) || loadedPromos.length === 0) {
+          loadedPromos = DEFAULT_PROMOTIONS;
+        } else {
+          // Asegurar que exista la promoción con código "WEB" requerida si no está
+          const hasWebCode = loadedPromos.some(
+            (p: any) => (p.code || "").trim().toUpperCase() === "WEB"
+          );
+          if (!hasWebCode) {
+            loadedPromos = [...DEFAULT_PROMOTIONS, ...loadedPromos];
+          }
+        }
+        setConfig({ promotions: loadedPromos });
+      } else {
+        setConfig({ promotions: DEFAULT_PROMOTIONS });
       }
+    }, (err) => {
+      console.warn("Error leyendo promociones desde Firestore:", err);
+      setConfig({ promotions: DEFAULT_PROMOTIONS });
     });
     return unsub;
   }, []);
 
   const updateConfig = async (newConfig: { promotions: any[] }) => {
-    const promoRef = doc(db, "settings", "promotions_config");
-    await setDoc(promoRef, newConfig, { merge: true });
+    try {
+      const promoRef = doc(db, "settings", "promotions_config");
+      await setDoc(promoRef, newConfig, { merge: true });
+    } catch (err) {
+      console.warn("No se pudo persistir promociones en Firestore:", err);
+    }
     setConfig(newConfig);
   };
 
@@ -4857,19 +4874,66 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
   const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const handleToggleActive = async (promo: any) => {
+    try {
+      const updatedPromos = config.promotions.map((p: any) =>
+        p.id === promo.id ? { ...p, isActive: !p.isActive } : p
+      );
+      await updateConfig({ promotions: updatedPromos });
+    } catch (err) {
+      console.error("Error al cambiar estado de la promoción:", err);
+    }
+  };
 
   const handleSave = async () => {
+    if (!formData.name?.trim()) {
+      alert("Por favor, introduce un nombre para la promoción.");
+      return;
+    }
+    if (!formData.code?.trim()) {
+      alert("Por favor, introduce el código de descuento (ej. WEB).");
+      return;
+    }
+    if (!formData.discountPercent || formData.discountPercent < 1 || formData.discountPercent > 100) {
+      alert("Introduce un porcentaje de descuento válido entre 1% y 100%.");
+      return;
+    }
+
     setIsSaving(true);
     try {
+      const cleanCode = formData.code.trim().toUpperCase().replace(/\s+/g, "");
+      const promoToSave = {
+        ...formData,
+        code: cleanCode,
+        discountPercent: Number(formData.discountPercent),
+        applicableCycle: formData.applicableCycle || "both",
+        isActive: !!formData.isActive,
+        timesUsed: formData.timesUsed || 0,
+        updatedAt: new Date().toISOString(),
+      };
+
       let newPromotions = [...config.promotions];
       if (editingPromoId === "new") {
-        newPromotions.push({ ...formData, id: Date.now().toString() });
+        newPromotions.push({
+          ...promoToSave,
+          id: `promo_${Date.now()}`,
+          createdAt: new Date().toISOString(),
+        });
       } else {
-        newPromotions = newPromotions.map((p) => p.id === editingPromoId ? formData : p);
+        newPromotions = newPromotions.map((p) => (p.id === editingPromoId ? promoToSave : p));
       }
+
       await updateConfig({ promotions: newPromotions });
       setEditingPromoId(null);
-      alert("Promoción guardada exitosamente");
+      alert("Promoción guardada exitosamente.");
     } catch (error) {
       console.error(error);
       alert("Error al guardar promoción");
@@ -4891,33 +4955,31 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
   };
 
   return (
-    <div className="bg-surface-container-lowest p-8 rounded-[2rem] border border-outline-variant/10">
-      <div className="flex items-center justify-between mb-8">
+    <div className="bg-surface-container-lowest p-6 sm:p-8 rounded-[2rem] border border-outline-variant/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-2xl font-black flex items-center gap-2">
+          <h2 className="text-2xl font-black flex items-center gap-2 text-on-surface">
             <Zap className="w-6 h-6 text-primary" />
-            Promociones y Ofertas
+            Promociones y Códigos de Descuento
           </h2>
-          <p className="text-on-surface-variant mt-1">
-            Configura incentivos para los nuevos usuarios.
+          <p className="text-on-surface-variant text-sm mt-1">
+            Crea promociones con códigos de descuento (ej. <strong>WEB</strong>) aplicables al pagar los planes mensuales, trimestrales o ambos.
           </p>
         </div>
         {!editingPromoId && (
           <button
             onClick={() => {
               setFormData({
-                name: "Nueva Promoción",
-                isActive: false,
-                userRangeStart: 1,
-                userRangeEnd: 100,
-                planDurationMonths: 12,
-                planType: "Premium Pro",
-                targetAudience: "professional",
-                minRecommendations: 0
+                name: "Nueva Promoción con Código",
+                code: "",
+                discountPercent: 50,
+                applicableCycle: "both",
+                isActive: true,
+                timesUsed: 0,
               });
               setEditingPromoId("new");
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-colors"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-primary/90 transition-all shadow-md shadow-primary/20 shrink-0"
           >
             <Plus className="w-4 h-4" />
             Crear Promoción
@@ -4926,189 +4988,283 @@ const AdminPromotionsTab = ({ users }: { users: any[] }) => {
       </div>
 
       {!editingPromoId ? (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {config.promotions.map((promo: any) => {
-            const claimedUsersCount = users.filter((u: any) => u.hasClaimedPromotion && (u.claimedPromotionId === promo.id || promo.id === "default")).length;
+            const isCoupon = !!promo.code;
+            const cycleText =
+              promo.applicableCycle === "monthly"
+                ? "Solo Planes Mensuales"
+                : promo.applicableCycle === "quarterly"
+                ? "Solo Planes Trimestrales"
+                : "Ambos (Mensual y Trimestral)";
+
             return (
-              <div key={promo.id} className="bg-surface-container p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${promo.isActive ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'}`}>
-                    <Zap className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-lg">{promo.name || "Promoción"}</h3>
-                    <p className="text-sm text-on-surface-variant flex flex-wrap items-center gap-2 mt-1">
-                      <Users className="w-4 h-4" /> {claimedUsersCount} / {promo.userRangeEnd - promo.userRangeStart + 1} usuarios (Rango: {promo.userRangeStart} - {promo.userRangeEnd})
-                      <span className="mx-1">•</span>
-                      <Crown className="w-4 h-4" /> {promo.planType} ({promo.planDurationMonths} meses)
-                      {promo.minRecommendations > 0 && (
-                        <>
-                          <span className="mx-1">•</span>
-                          <span className="inline-flex items-center gap-1 font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full text-xs">
-                            <Share2 className="w-3.5 h-3.5" /> Mín. {promo.minRecommendations} recomendaciones
-                          </span>
-                        </>
+              <div
+                key={promo.id}
+                className={cn(
+                  "bg-surface-container p-5 rounded-2xl border flex flex-col justify-between gap-4 transition-all relative overflow-hidden",
+                  promo.isActive
+                    ? "border-primary/20 hover:border-primary/40 shadow-sm"
+                    : "border-outline-variant/10 opacity-75"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold",
+                        promo.isActive
+                          ? "bg-green-500/15 text-green-700"
+                          : "bg-surface-variant text-on-surface-variant"
                       )}
+                    >
+                      <span
+                        className={cn(
+                          "w-2 h-2 rounded-full",
+                          promo.isActive ? "bg-green-500" : "bg-on-surface-variant/40"
+                        )}
+                      />
+                      {promo.isActive ? "Activa" : "Pausada"}
+                    </span>
+
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-primary/10 text-primary">
+                      {isCoupon ? `-${promo.discountPercent || 50}% DTO` : "Gratis"}
+                    </span>
+                  </div>
+
+                  {/* Código de descuento destacado */}
+                  {isCoupon && (
+                    <div className="mb-3 p-3 bg-surface rounded-xl border border-outline-variant/15 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-primary" />
+                        <span className="font-mono font-black text-lg text-on-surface tracking-wider">
+                          {promo.code}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleCopyCode(promo.code)}
+                        className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors"
+                        title="Copiar código"
+                      >
+                        {copiedCode === promo.code ? (
+                          <Check className="w-4 h-4 text-green-600" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  <h3 className="font-bold text-base text-on-surface mb-1">
+                    {promo.name || "Promoción"}
+                  </h3>
+
+                  <div className="space-y-1.5 text-xs text-on-surface-variant mt-2">
+                    <p className="flex items-center gap-1.5 font-medium">
+                      <span className="font-semibold text-on-surface">Aplica a:</span>
+                      <span className="px-2 py-0.5 rounded-md bg-surface-container-high text-on-surface font-semibold text-[11px]">
+                        {cycleText}
+                      </span>
+                    </p>
+                    <p className="flex items-center gap-1.5 text-on-surface-variant/70">
+                      <span>Usos registrados:</span>
+                      <span className="font-bold text-on-surface">{promo.timesUsed || 0}</span>
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+
+                <div className="flex items-center justify-between pt-3 border-t border-outline-variant/10">
                   <button
-                    onClick={() => {
-                      setFormData({ ...promo });
-                      setEditingPromoId(promo.id);
-                    }}
-                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                    onClick={() => handleToggleActive(promo)}
+                    className={cn(
+                      "text-xs font-bold px-3 py-1.5 rounded-lg transition-colors",
+                      promo.isActive
+                        ? "text-on-surface-variant hover:bg-surface-container-high"
+                        : "text-green-700 bg-green-500/10 hover:bg-green-500/20"
+                    )}
                   >
-                    <Edit3 className="w-5 h-5" />
+                    {promo.isActive ? "Pausar" : "Activar"}
                   </button>
-                  <button
-                    onClick={() => handleDelete(promo.id)}
-                    className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        setFormData({
+                          ...promo,
+                          applicableCycle: promo.applicableCycle || "both",
+                          discountPercent: promo.discountPercent || 50,
+                        });
+                        setEditingPromoId(promo.id);
+                      }}
+                      className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                      title="Editar"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(promo.id)}
+                      className="p-2 text-error hover:bg-error/10 rounded-lg transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
+
           {config.promotions.length === 0 && (
-            <div className="text-center py-12 text-on-surface-variant">
-              No hay promociones configuradas.
+            <div className="col-span-full text-center py-12 text-on-surface-variant bg-surface-container/50 rounded-2xl border border-dashed border-outline-variant/20">
+              <Tag className="w-8 h-8 text-on-surface-variant/40 mx-auto mb-2" />
+              <p className="font-bold">No hay promociones configuradas</p>
+              <p className="text-xs text-on-surface-variant/70 mt-1">
+                Crea tu primer código de descuento para empezar a ofrecer ofertas a tus usuarios.
+              </p>
             </div>
           )}
         </div>
       ) : (
-        <div className="bg-surface-container p-6 rounded-2xl space-y-4">
-          <h3 className="font-bold text-lg mb-4">
-            {editingPromoId === "new" ? "Nueva Promoción" : "Editar Promoción"}
-          </h3>
-          
-          <div className="grid grid-cols-1 gap-4 mb-4">
+        <div className="bg-surface-container p-6 sm:p-8 rounded-2xl space-y-6 border border-outline-variant/20 max-w-2xl">
+          <div className="flex items-center justify-between pb-4 border-b border-outline-variant/10">
+            <h3 className="font-bold text-xl text-on-surface flex items-center gap-2">
+              <Tag className="w-5 h-5 text-primary" />
+              {editingPromoId === "new" ? "Nueva Promoción con Código" : "Editar Promoción"}
+            </h3>
+            <button
+              onClick={() => setEditingPromoId(null)}
+              className="p-1.5 text-on-surface-variant hover:bg-surface-container-high rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5">
+            {/* Nombre */}
             <div>
-              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                Nombre de la Promoción
+              <label className="block text-xs font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider">
+                Nombre Descriptivo de la Promoción
               </label>
               <input
                 type="text"
                 value={formData.name || ""}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                placeholder="Ej. Promo Lanzamiento"
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm font-medium"
+                placeholder="Ej. Promoción Lanzamiento 50%"
               />
             </div>
-          </div>
 
-          <div className="flex items-center gap-2 mb-4">
-            <input 
-              type="checkbox" 
-              id="isActive"
-              checked={formData.isActive}
-              onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
-              className="w-4 h-4 text-primary rounded border-outline"
-            />
-            <label htmlFor="isActive" className="font-medium text-sm">Promoción Activa</label>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                  Usuario Inicial
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Código */}
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider">
+                  Código de Descuento (Cupón)
                 </label>
                 <input
-                  type="number"
-                  value={formData.userRangeStart || 1}
-                  onChange={(e) => setFormData({...formData, userRangeStart: parseInt(e.target.value) || 1})}
-                  className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
+                  type="text"
+                  value={formData.code || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      code: e.target.value.toUpperCase().replace(/\s+/g, ""),
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all font-mono font-bold tracking-wider uppercase text-sm"
+                  placeholder="Ej. WEB"
                 />
+                <p className="text-[11px] text-on-surface-variant/70 mt-1">
+                  Código que los usuarios introducirán en la pantalla de pago.
+                </p>
               </div>
-              <div className="flex-1">
-                <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                  Usuario Final
+
+              {/* Porcentaje de descuento */}
+              <div>
+                <label className="block text-xs font-bold text-on-surface-variant mb-1.5 uppercase tracking-wider">
+                  Porcentaje de Descuento (%)
                 </label>
-                <input
-                  type="number"
-                  value={formData.userRangeEnd || 100}
-                  onChange={(e) => setFormData({...formData, userRangeEnd: parseInt(e.target.value) || 0})}
-                  className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-                />
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={formData.discountPercent ?? 50}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discountPercent: Math.min(100, Math.max(1, parseInt(e.target.value) || 0)),
+                      })
+                    }
+                    className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm font-black pr-10"
+                    placeholder="50"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-on-surface-variant">
+                    %
+                  </span>
+                </div>
+                <p className="text-[11px] text-on-surface-variant/70 mt-1">
+                  Descuento directo al precio final del plan elegido.
+                </p>
               </div>
             </div>
+
+            {/* Ciclo aplicable (Mensual, Trimestral o Ambos) */}
             <div>
-              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                Duración del Plan (Meses)
+              <label className="block text-xs font-bold text-on-surface-variant mb-2 uppercase tracking-wider">
+                ¿A qué planes se aplica este código?
               </label>
-              <input
-                type="number"
-                value={formData.planDurationMonths}
-                onChange={(e) => setFormData({...formData, planDurationMonths: parseInt(e.target.value) || 0})}
-                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {[
+                  { id: "both", label: "Ambos", desc: "Mensual y Trimestral" },
+                  { id: "monthly", label: "Solo Mensual", desc: "Planes por mes" },
+                  { id: "quarterly", label: "Solo Trimestral", desc: "Planes por 3 meses" },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, applicableCycle: opt.id })}
+                    className={cn(
+                      "p-3 rounded-xl border text-left transition-all",
+                      (formData.applicableCycle || "both") === opt.id
+                        ? "border-primary bg-primary/10 text-primary font-bold shadow-sm ring-1 ring-primary"
+                        : "border-outline-variant/20 bg-surface hover:bg-surface-container-high text-on-surface"
+                    )}
+                  >
+                    <div className="text-xs font-bold">{opt.label}</div>
+                    <div className="text-[10px] opacity-75 mt-0.5">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                Público Objetivo
-              </label>
-              <select
-                value={formData.targetAudience || "professional"}
-                onChange={(e) => setFormData({...formData, targetAudience: e.target.value})}
-                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mb-4"
-              >
-                <option value="professional">Solo Profesionales</option>
-                <option value="user">Solo Particulares</option>
-                <option value="both">Ambos (Profesionales y Particulares)</option>
-              </select>
 
-              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                Recomendaciones Mínimas Requeridas
-              </label>
+            {/* Estado Activo */}
+            <div className="flex items-center gap-3 p-3 bg-surface rounded-xl border border-outline-variant/15">
               <input
-                type="number"
-                min="0"
-                value={formData.minRecommendations || 0}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    minRecommendations: Math.max(0, parseInt(e.target.value) || 0),
-                  })
-                }
-                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all mb-1"
-                placeholder="0 (Sin mínimo)"
+                type="checkbox"
+                id="promoIsActive"
+                checked={formData.isActive ?? true}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="w-4 h-4 text-primary rounded border-outline cursor-pointer"
               />
-              <p className="text-[10px] text-on-surface-variant/60 mb-4">
-                Número de usuarios registrados por recomendación (columna Recomendaciones) que debe alcanzar el usuario para desbloquear esta promoción.
-              </p>
-
-              <label className="block text-xs font-bold text-on-surface-variant mb-1 uppercase tracking-wider">
-                Tipo de Plan
+              <label htmlFor="promoIsActive" className="text-sm font-bold text-on-surface cursor-pointer">
+                Promoción activa para su uso
               </label>
-              <select
-                value={formData.planType}
-                onChange={(e) => setFormData({...formData, planType: e.target.value})}
-                className="w-full px-4 py-3 bg-surface rounded-xl border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-              >
-                <option value="Premium Pro">Premium Pro</option>
-                <option value="Pro">Pro</option>
-                <option value="Premium">Premium</option>
-              </select>
             </div>
           </div>
-          
-          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-outline-variant/20">
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant/10">
             <button
               onClick={() => setEditingPromoId(null)}
-              className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-container-highest rounded-xl transition-colors"
+              className="px-5 py-2.5 font-bold text-sm text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="px-6 py-2 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-colors flex items-center gap-2"
+              className="px-6 py-2.5 bg-primary text-white font-bold text-sm rounded-xl hover:bg-primary/90 transition-all flex items-center gap-2 shadow-md shadow-primary/20 disabled:opacity-50"
             >
-              {isSaving ? <CustomLoader className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              Guardar Cambios
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Guardar Promoción
             </button>
           </div>
         </div>
@@ -10256,9 +10412,10 @@ const SettingsView = ({
     const planIdParam = searchParams.get("plan_id");
     if (checkoutStatus === "success" && planIdParam && user?.id) {
       const updatePlanAfterCheckout = async () => {
+        const cycleParam = (searchParams.get("cycle") as 'monthly' | 'quarterly') || "monthly";
         const now = new Date();
         const endDate = new Date(now);
-        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setMonth(endDate.getMonth() + (cycleParam === "quarterly" ? 3 : 1));
 
         const currentPlan = user.professionalInfo?.plan;
         let newHistory = user.professionalInfo?.planHistory || [];
@@ -10278,6 +10435,7 @@ const SettingsView = ({
         const updatedProfInfo = {
           ...(user.professionalInfo || {}),
           plan: planIdParam,
+          planBillingCycle: cycleParam,
           planStartDate: now.toISOString().split("T")[0],
           planEndDate: endDate.toISOString().split("T")[0],
           planHistory: newHistory,
@@ -10330,6 +10488,11 @@ const SettingsView = ({
     "verify",
   );
   const { plans: proPlans, isEnabled: isProPlansEnabled } = useProPlansConfig();
+  const { config: promotionsConfig } = usePromotionsConfig();
+  const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<{
+    plan: any;
+    cycle: "monthly" | "quarterly";
+  } | null>(null);
   const [isQuarterlyView, setIsQuarterlyView] = useState(false);
   const [cancelingPlanId, setCancelingPlanId] = useState<string | null>(null);
 
@@ -13093,24 +13256,12 @@ const SettingsView = ({
                                     const cycle = plan.id === "basic" ? "monthly" : (isQuarterlyView ? "quarterly" : "monthly");
                                     
                                     if (plan.id !== "basic") {
-                                      const displayPrice = isQuarterlyView ? plan.priceQuarterly : plan.price;
-                                      try {
-                                        const res = await processStripePayment({
-                                          planId: plan.id,
-                                          planName: plan.name,
-                                          price: displayPrice,
-                                          cycle: cycle,
-                                          userId: user.id
-                                        });
-                                        if (!res.success) {
-                                          alert(res.error || "No se pudo iniciar el proceso de pago.");
-                                        }
-                                      } catch (e: any) {
-                                        alert("Error de pago: " + (e.message || e));
-                                      }
+                                      setSelectedCheckoutPlan({
+                                        plan,
+                                        cycle: isQuarterlyView ? "quarterly" : "monthly"
+                                      });
                                       return;
                                     }
-
 
                                     const endDate = new Date(now);
                                     endDate.setMonth(endDate.getMonth() + 1);
@@ -13150,7 +13301,7 @@ const SettingsView = ({
                                     } as UserProfile;
 
                                     setUser(updatedUser);
-                                    setGlobalUser(updatedUser);
+                                    if (setGlobalUser) setGlobalUser(updatedUser);
                                     try {
                                       const { id, ...dataToUpdate } = updatedUser;
                                       await updateDoc(doc(db, "users", updatedUser.id), { ...dataToUpdate });
@@ -13182,6 +13333,22 @@ const SettingsView = ({
                         );
                       })}
                     </div>
+
+                    {selectedCheckoutPlan && (
+                      <PlanCheckoutModal
+                        isOpen={!!selectedCheckoutPlan}
+                        onClose={() => setSelectedCheckoutPlan(null)}
+                        plan={selectedCheckoutPlan.plan}
+                        cycle={selectedCheckoutPlan.cycle}
+                        user={user}
+                        promotions={promotionsConfig.promotions}
+                        onPaymentSuccess={(updatedUser) => {
+                          setUser(updatedUser);
+                          if (setGlobalUser) setGlobalUser(updatedUser);
+                          setSelectedCheckoutPlan(null);
+                        }}
+                      />
+                    )}
                   </div>
                 )}
 
@@ -26742,9 +26909,9 @@ function App() {
         const updatePlanAsync = async () => {
           try {
             const now = new Date();
-            const cycle = "monthly";
+            const cycle = (searchParams.get("cycle") as 'monthly' | 'quarterly') || "monthly";
             const endDate = new Date(now);
-            endDate.setMonth(endDate.getMonth() + 1);
+            endDate.setMonth(endDate.getMonth() + (cycle === "quarterly" ? 3 : 1));
 
             const updatedUser = {
               ...user,
@@ -26773,6 +26940,7 @@ function App() {
              const params = new URLSearchParams(searchParams);
              params.delete("checkout");
              params.delete("plan_id");
+             params.delete("cycle");
              setSearchParams(params);
           }
         };
@@ -26781,12 +26949,14 @@ function App() {
          const params = new URLSearchParams(searchParams);
          params.delete("checkout");
          params.delete("plan_id");
+         params.delete("cycle");
          setSearchParams(params);
       }
     } else if (searchParams.get("checkout") === "canceled") {
       alert("El pago ha sido cancelado.");
       const params = new URLSearchParams(searchParams);
       params.delete("checkout");
+      params.delete("cycle");
       setSearchParams(params);
     }
   }, [user, searchParams, setSearchParams]);

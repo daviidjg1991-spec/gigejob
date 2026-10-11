@@ -450,3 +450,33 @@ export function createSlug(text: string): string {
     .replace(/[^\w\-]+/g, "")
     .replace(/\-\-+/g, "-");
 }
+
+export interface DiscountPromotion {
+  id: string;
+  name: string;
+  code: string;
+  discountPercent: number;
+  applicableCycle: 'monthly' | 'quarterly' | 'both';
+  isActive: boolean;
+  timesUsed?: number;
+  createdAt?: string;
+  userRangeStart?: number;
+  userRangeEnd?: number;
+  planDurationMonths?: number;
+  planType?: string;
+  targetAudience?: string;
+  minRecommendations?: number;
+}
+
+export const DEFAULT_PROMOTIONS: DiscountPromotion[] = [
+  {
+    id: "promo-web-50",
+    name: "Promoción Web 50%",
+    code: "WEB",
+    discountPercent: 50,
+    applicableCycle: "both",
+    isActive: true,
+    timesUsed: 0,
+    createdAt: "2026-01-01T00:00:00.000Z"
+  }
+];
