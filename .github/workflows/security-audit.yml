@@ -1,0 +1,46 @@
+name: Security Audit & Automated Fix
+
+on:
+  schedule:
+    # Ejecuta automáticamente cada lunes a las 03:00 UTC
+    - cron: '0 3 * * 1'
+  workflow_dispatch: # Permite ejecutar manualmente desde GitHub Actions
+
+permissions:
+  contents: write
+
+jobs:
+  audit-and-fix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Ejecutar auditoría y corrección automática de vulnerabilidades
+        run: |
+          echo "Ejecutando npm audit fix en raíz..."
+          npm audit fix --force || true
+          
+          echo "Ejecutando npm audit fix en functions..."
+          cd functions && npm audit fix --force || true
+          cd ..
+
+      - name: Verificar cambios y actualizar repositorio
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if [ -n "$(git status --porcelain package.json package-lock.json functions/package.json functions/package-lock.json)" ]; then
+            git add package.json package-lock.json functions/package.json functions/package-lock.json
+            git commit -m "chore(security): automated dependency security audit fix"
+            git push origin main
+          else
+            echo "No se encontraron vulnerabilidades pendientes que requieran actualización."
+          fi
