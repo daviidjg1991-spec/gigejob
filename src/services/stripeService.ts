@@ -23,7 +23,10 @@ export async function processStripePayment({
   planName,
   price,
   cycle,
-  userId
+  userId,
+  discountCode,
+  originalPrice,
+  discountPercent,
 }: {
   planId: string;
   planName: string;
@@ -31,6 +34,8 @@ export async function processStripePayment({
   cycle: string;
   userId: string;
   discountCode?: string;
+  originalPrice?: number;
+  discountPercent?: number;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     // Si hay un endpoint backend disponible, intentamos primero
@@ -38,7 +43,16 @@ export async function processStripePayment({
       const apiRes = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, planName, price, cycle, userId, discountCode })
+        body: JSON.stringify({
+          planId,
+          planName,
+          price,
+          cycle,
+          userId,
+          discountCode: discountCode || "",
+          originalPrice: originalPrice || price,
+          discountPercent: discountPercent || 0,
+        })
       });
       if (apiRes.ok) {
         const apiData = await apiRes.json();
@@ -60,13 +74,56 @@ export async function processStripePayment({
       origin = "https://gigejob.com";
     }
 
+    // El precio base recurrente del plan para renovaciones futuras (precio original completo)
+    const baseRecurringPrice = originalPrice && originalPrice > 0 ? originalPrice : price;
+
+    // Si hay un código y porcentaje de descuento, crear/usar un cupón de Stripe con duration="once"
+    // De este modo, Stripe descuenta solo el primer cobro y las renovaciones siguientes se cobran al precio original.
+    let appliedStripeCouponId: string | null = null;
+    if (discountCode && discountPercent && discountPercent > 0 && discountPercent < 100) {
+      try {
+        const cleanCode = discountCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+        const couponId = `PROMO_${cleanCode}_${discountPercent}_ONCE`;
+
+        const couponParams = new URLSearchParams();
+        couponParams.append("id", couponId);
+        couponParams.append("duration", "once"); // Solo válido para el primer pago de la suscripción
+        couponParams.append("percent_off", discountPercent.toString());
+        couponParams.append("name", `${discountCode.trim().toUpperCase()} (${discountPercent}% en primer pago)`);
+
+        const couponRes = await fetch("https://api.stripe.com/v1/coupons", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${stripeSecretKey}`,
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: couponParams.toString()
+        });
+
+        const couponData = await couponRes.json();
+        if (couponData.id || couponData.error?.code === "resource_already_exists") {
+          appliedStripeCouponId = couponId;
+        }
+      } catch (couponErr) {
+        console.warn("No se pudo registrar cupón dinámico en Stripe, aplicando fallback:", couponErr);
+      }
+    }
+
     const params = new URLSearchParams();
     params.append("payment_method_types[0]", "card");
     params.append("mode", "subscription");
     params.append("line_items[0][price_data][currency]", "eur");
-    const productName = discountCode ? `${planName || "Plan Pro"} (Promo: ${discountCode})` : (planName || "Plan Pro");
-    params.append("line_items[0][price_data][product_data][name]", productName);
-    params.append("line_items[0][price_data][unit_amount]", Math.round(price * 100).toString());
+    params.append("line_items[0][price_data][product_data][name]", planName || "Plan Pro");
+
+    // Si se pudo vincular el cupón con duration="once", fijamos el precio unitario base original para que la renovación sea al 100%
+    if (appliedStripeCouponId) {
+      params.append("line_items[0][price_data][unit_amount]", Math.round(baseRecurringPrice * 100).toString());
+      params.append("discounts[0][coupon]", appliedStripeCouponId);
+    } else {
+      // Fallback si no hay cupón Stripe: cobrar el precio con descuento en la sesión
+      params.append("line_items[0][price_data][unit_amount]", Math.round(price * 100).toString());
+    }
+
     params.append("line_items[0][price_data][recurring][interval]", "month");
     params.append("line_items[0][price_data][recurring][interval_count]", cycle === "quarterly" ? "3" : "1");
     params.append("line_items[0][quantity]", "1");

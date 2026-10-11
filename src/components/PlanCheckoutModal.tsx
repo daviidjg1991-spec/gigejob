@@ -171,6 +171,8 @@ export const PlanCheckoutModal: React.FC<PlanCheckoutModalProps> = ({
         planId: plan.id,
         planName: plan.name,
         price: finalPrice,
+        originalPrice: originalPrice,
+        discountPercent: discountPercent,
         cycle: cycle,
         userId: user.id,
         discountCode: appliedPromo?.code,
@@ -338,7 +340,7 @@ export const PlanCheckoutModal: React.FC<PlanCheckoutModalProps> = ({
 
             <div className="pt-3 border-t border-outline-variant/20 flex justify-between items-baseline">
               <div>
-                <span className="font-bold text-base text-on-surface">Total a pagar:</span>
+                <span className="font-bold text-base text-on-surface">Total a pagar hoy:</span>
                 <p className="text-[11px] text-on-surface-variant/70">Impuestos incluidos</p>
               </div>
               <div className="text-right">
@@ -346,10 +348,19 @@ export const PlanCheckoutModal: React.FC<PlanCheckoutModalProps> = ({
                   €{finalPrice.toFixed(2)}
                 </span>
                 <span className="text-xs text-on-surface-variant ml-1">
-                  {cycle === "quarterly" ? "/trimestre" : "/mes"}
+                  {cycle === "quarterly" ? "/primer trimestre" : "/primer mes"}
                 </span>
               </div>
             </div>
+
+            {appliedPromo && (
+              <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs text-on-surface flex items-start gap-2.5 mt-2">
+                <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  El descuento de <strong>{discountPercent}%</strong> se aplica al <strong>primer pago</strong> de la suscripción. A partir del siguiente periodo ({cycle === "quarterly" ? "cada 3 meses" : "cada mes"}), la cuota de renovación será el precio habitual de <strong>€{originalPrice.toFixed(2)}</strong>.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Error general de pago si ocurre */}

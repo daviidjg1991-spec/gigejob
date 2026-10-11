@@ -170,7 +170,7 @@ export const createCheckoutSession = functions.https.onRequest({ cors: true }, a
         return;
     }
     try {
-        const { planId, planName, price, cycle, userId } = req.body || {};
+        const { planId, planName, price, cycle, userId, discountCode, originalPrice, discountPercent } = req.body || {};
         if (!planId || !price) {
             res.status(400).json({ error: "Faltan datos requeridos del plan" });
             return;
@@ -178,6 +178,31 @@ export const createCheckoutSession = functions.https.onRequest({ cors: true }, a
         const stripeKey = process.env.STRIPE_SECRET_KEY || "";
         const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
         const origin = req.headers.origin || "https://gigejob.com";
+        const baseRecurringPrice = originalPrice && originalPrice > 0 ? originalPrice : price;
+        let appliedCouponId = null;
+        if (discountCode && discountPercent && discountPercent > 0 && discountPercent < 100) {
+            try {
+                const cleanCode = String(discountCode).trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+                const couponId = `PROMO_${cleanCode}_${discountPercent}_ONCE`;
+                try {
+                    await stripe.coupons.create({
+                        id: couponId,
+                        duration: "once",
+                        percent_off: Number(discountPercent),
+                        name: `${cleanCode} (${discountPercent}% en primer pago)`,
+                    });
+                    appliedCouponId = couponId;
+                }
+                catch (cErr) {
+                    if (cErr.code === "resource_already_exists") {
+                        appliedCouponId = couponId;
+                    }
+                }
+            }
+            catch (err) {
+                console.warn("Error creating coupon in Firebase function:", err);
+            }
+        }
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
             line_items: [
@@ -187,7 +212,7 @@ export const createCheckoutSession = functions.https.onRequest({ cors: true }, a
                         product_data: {
                             name: planName || "Plan Pro",
                         },
-                        unit_amount: Math.round(price * 100),
+                        unit_amount: Math.round((appliedCouponId ? baseRecurringPrice : price) * 100),
                         recurring: {
                             interval: "month",
                             interval_count: cycle === "quarterly" ? 3 : 1,
@@ -196,14 +221,16 @@ export const createCheckoutSession = functions.https.onRequest({ cors: true }, a
                     quantity: 1,
                 },
             ],
+            discounts: appliedCouponId ? [{ coupon: appliedCouponId }] : undefined,
             mode: "subscription",
-            success_url: `${origin}?checkout=success&plan_id=${planId}`,
+            success_url: `${origin}?checkout=success&plan_id=${planId}&cycle=${cycle}`,
             cancel_url: `${origin}?checkout=canceled`,
             client_reference_id: userId,
             metadata: {
                 planId,
                 cycle,
                 userId,
+                discountCode: discountCode || "",
             },
         });
         res.status(200).json({ url: session.url });
