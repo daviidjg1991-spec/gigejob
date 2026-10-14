@@ -48,4 +48,7 @@ echo "Instalando dependencias nativas (CocoaPods)..."
 cd ios/App
 pod install
 
+echo "Aplicando parche de compatibilidad para StripeCore en Xcode 16..."
+find Pods -name "Locale+StripeCore.swift" -exec chmod 644 {} + -exec sed -i '' 's/canImport(CompositorServices)/os(visionOS)/g' {} + || true
+
 echo "ci_post_clone finalizado con éxito."
