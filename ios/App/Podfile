@@ -1,6 +1,6 @@
 require_relative '../../node_modules/@capacitor/ios/scripts/pods_helpers'
 
-platform :ios, '15.0'
+platform :ios, '16.0'
 project 'App.xcodeproj'
 use_frameworks!
 
@@ -30,12 +30,23 @@ post_install do |installer|
   assertDeploymentTarget(installer)
   installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
-          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '16.0'
           if target.respond_to?(:product_type) and target.product_type == "com.apple.product-type.bundle"
               target.build_configurations.each do |config|
                   config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
               end
           end
       end
+  end
+
+  # Fix StripeCore visionOS compatibility issue on Xcode 16 / iOS
+  stripe_locale_file = File.join(__dir__, 'Pods/StripeCore/StripeCore/StripeCore/Source/Categories/Locale+StripeCore.swift')
+  if File.exist?(stripe_locale_file)
+    File.chmod(0644, stripe_locale_file)
+    content = File.read(stripe_locale_file)
+    if content.include?('#if canImport(CompositorServices)')
+      content.gsub!('#if canImport(CompositorServices)', '#if os(visionOS)')
+      File.write(stripe_locale_file, content)
+    end
   end
 end
