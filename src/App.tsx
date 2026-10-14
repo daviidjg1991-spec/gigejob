@@ -171,6 +171,7 @@ import {
   orderBy,
   serverTimestamp,
   getDocFromServer,
+  getDocFromCache,
   Timestamp,
   increment,
   collectionGroup,
@@ -9741,7 +9742,7 @@ const AdminPage = ({
                   </label>
                   <JoditEditor
                     value={currentBlogPost.content || ""}
-                    config={joditConfig}
+                    config={joditConfig as any}
                     onBlur={(newContent) =>
                       setCurrentBlogPost({
                         ...currentBlogPost,
@@ -10371,6 +10372,7 @@ const SettingsView = ({
   onSimulateNotification?: (type: "message" | "alert") => void;
 }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
   const pathSegment = location.pathname.startsWith("/configuracion/")
@@ -10428,12 +10430,13 @@ const SettingsView = ({
               planName: prevPlanName,
               startDate: user.professionalInfo?.planStartDate || now.toISOString().split("T")[0],
               endDate: now.toISOString().split("T")[0],
+              status: "expired" as const,
             }
           ];
         }
 
-        const updatedProfInfo = {
-          ...(user.professionalInfo || {}),
+        const updatedProfInfo: any = {
+          ...(user.professionalInfo || { billing: {} as any, availability: [], workLocation: "", workRadius: 10 }),
           plan: planIdParam,
           planBillingCycle: cycleParam,
           planStartDate: now.toISOString().split("T")[0],
@@ -10484,7 +10487,7 @@ const SettingsView = ({
   const [invoiceSubTab, setInvoiceSubTab] = useState<"services" | "months">(
     "services",
   );
-  const [securityTab, setSecurityTab] = useState<"verify" | "security" | "account">(
+  const [securityTab, setSecurityTab] = useState<"verify" | "security" | "blocked" | "account">(
     "verify",
   );
   const { plans: proPlans, isEnabled: isProPlansEnabled } = useProPlansConfig();
@@ -11043,37 +11046,11 @@ const SettingsView = ({
     }
   }, [user?.professionalInfo?.workLocation, generalTab]);
 
-  const touchStartXRef = useRef<number | null>(null);
-  const touchStartYRef = useRef<number | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX;
-    touchStartYRef.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
-    const diffX = e.changedTouches[0].clientX - touchStartXRef.current;
-    const diffY = Math.abs(e.changedTouches[0].clientY - touchStartYRef.current);
-    if (diffX > 70 && diffY < 50) {
-      if (generalTab) {
-        setGeneralTab(null);
-      } else if (activeType) {
-        setActiveType(null);
-      }
-    }
-    touchStartXRef.current = null;
-    touchStartYRef.current = null;
-  };
-
-
-
-
   const menuItems = [
-    { id: "general", label: "Área Personal", icon: Settings },
-    { id: "billing", label: "Facturación", icon: Wallet },
-    { id: "security", label: "Seguridad", icon: Lock },
-    { id: "notifications", label: "Notificaciones", icon: Bell },
+    { id: "general", label: "Área Personal", desc: "Datos personales, documentación y zona", icon: User },
+    { id: "billing", label: "Facturación", desc: "Tus transacciones y facturas emitidas", icon: Wallet },
+    { id: "security", label: "Seguridad y Verificación", desc: "Contraseña, ID Shield y bloqueos", icon: Lock },
+    { id: "notifications", label: "Notificaciones", desc: "Alertas por email, push y mensajes", icon: Bell },
   ];
 
   const renderContent = () => {
@@ -11099,17 +11076,25 @@ const SettingsView = ({
 
     if (!activeType) {
       return (
-        <div className="flex flex-col h-full pb-4 px-1">
-          <div className="mb-6 mt-4 px-4">
-            <h2 className="text-2xl font-display font-black text-on-surface tracking-tight uppercase italic">
-              Configuración de Cuenta
-            </h2>
-            <p className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-widest mt-1">
-              Gestiona tus preferencias personales y profesionales
-            </p>
+        <div className="flex flex-col h-full pb-4 px-2 sm:px-4">
+          <div className="flex items-center gap-4 mb-6 mt-2">
+            <Link
+              to="/tu"
+              className="p-2.5 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface border border-outline-variant/10 transition-all flex items-center justify-center shrink-0 shadow-sm active:scale-95"
+            >
+              <ArrowLeft className="w-5 h-5 text-primary" />
+            </Link>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-display font-black text-on-surface tracking-tight">
+                Configuración de Cuenta
+              </h2>
+              <p className="text-[10px] sm:text-xs font-black text-on-surface-variant/40 uppercase tracking-widest mt-0.5">
+                Gestiona tus preferencias personales y profesionales
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-2 flex-1 content-start overflow-y-auto no-scrollbar pb-10">
+          <div className="grid grid-cols-1 gap-3 flex-1 content-start pb-24">
             {menuItems.map((item, index) => (
               <motion.button
                 key={item.id}
@@ -11117,30 +11102,30 @@ const SettingsView = ({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => setActiveType(item.id as any)}
-                className="w-full group p-4 bg-surface-container-low hover:bg-white rounded-2xl border border-outline-variant/10 hover:border-primary/20 transition-all text-left flex items-center justify-between h-auto relative overflow-hidden shadow-sm"
+                className="w-full group p-4 bg-surface-container-low hover:bg-white rounded-2xl border border-outline-variant/10 hover:border-primary/20 transition-all text-left flex items-center justify-between shadow-sm active:scale-[0.99]"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl flex items-center justify-center text-on-surface-variant/30 group-hover:text-primary transition-all shadow-sm shrink-0">
+                  <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center text-primary transition-all shrink-0">
                     <item.icon className="w-5 h-5" />
                   </div>
 
-                  <div className="relative z-10 flex-1">
-                    <p className="font-display font-black text-on-surface text-sm lg:text-base leading-tight">
+                  <div className="relative z-10 flex-1 min-w-0">
+                    <p className="font-black uppercase tracking-widest text-[10px]">
                       {item.label}
                     </p>
-                    <p className="text-[9px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-0.5">
-                      Gestionar configuración
+                    <p className="text-[9px] text-on-surface-variant/40 font-bold truncate mt-0.5">
+                      {item.desc}
                     </p>
                   </div>
                 </div>
 
-                <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-on-surface-variant/10 group-hover:text-primary transition-all shadow-inner">
+                <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-on-surface-variant/20 group-hover:text-primary transition-all">
                   <ChevronRight className="w-4 h-4" />
                 </div>
               </motion.button>
             ))}
 
-            {/* Logout button moved here for mobile and added for consistency */}
+            {/* Logout button */}
             <motion.button
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -11149,28 +11134,29 @@ const SettingsView = ({
                 try {
                   await auth.signOut();
                   setGlobalUser(null);
+                  navigate("/tu");
                 } catch (e) {
                   console.error("Error signing out:", e);
                 }
               }}
-              className="w-full group p-4 bg-red-50 hover:bg-red-100 rounded-2xl border border-red-200/30 transition-all text-left flex items-center justify-between h-auto relative overflow-hidden shadow-sm mt-4"
+              className="w-full group p-4 bg-red-50 hover:bg-red-100 rounded-2xl border border-red-200/40 transition-all text-left flex items-center justify-between shadow-sm mt-3 active:scale-[0.99]"
             >
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-white group-hover:bg-red-500/10 rounded-xl flex items-center justify-center text-red-300 group-hover:text-red-500 transition-all shadow-sm shrink-0">
+                <div className="w-10 h-10 bg-white group-hover:bg-red-500/10 rounded-xl shadow-inner flex items-center justify-center text-red-500 transition-all shrink-0">
                   <LogOut className="w-5 h-5" />
                 </div>
 
-                <div className="relative z-10 flex-1">
-                  <p className="font-display font-black text-red-600 text-sm lg:text-base leading-tight">
+                <div className="relative z-10 flex-1 min-w-0">
+                  <p className="font-black uppercase tracking-widest text-[10px] text-red-600">
                     Cerrar Sesión
                   </p>
-                  <p className="text-[9px] text-red-400/60 font-bold uppercase tracking-widest mt-0.5">
+                  <p className="text-[9px] text-red-400 font-bold truncate mt-0.5">
                     Salir de tu cuenta
                   </p>
                 </div>
               </div>
 
-              <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-red-200 group-hover:text-red-500 transition-all shadow-inner">
+              <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-red-300 group-hover:text-red-500 transition-all">
                 <ChevronRight className="w-4 h-4" />
               </div>
             </motion.button>
@@ -11182,18 +11168,14 @@ const SettingsView = ({
     switch (activeType) {
       case "billing":
         return (
-          <div 
-            className="space-y-6 lg:space-y-8 h-full flex flex-col"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-          >
+          <div className="space-y-6 lg:space-y-8 flex flex-col">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setActiveType(null)}
-                  className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                  className="p-2.5 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface border border-outline-variant/10 transition-all flex items-center justify-center shrink-0 shadow-sm active:scale-95"
                 >
-                  <ArrowLeft className="w-5 h-5" />
+                  <ArrowLeft className="w-5 h-5 text-primary" />
                 </button>
                 <div className="space-y-1">
                   <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight whitespace-nowrap">
@@ -11522,18 +11504,14 @@ const SettingsView = ({
         );
       case "security":
         return (
-          <div 
-            className="space-y-6 lg:space-y-8 h-full flex flex-col animate-in fade-in slide-in-from-right-4 duration-300"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-          >
+          <div className="space-y-6 lg:space-y-8 flex flex-col animate-in fade-in slide-in-from-right-4 duration-300">
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setActiveType(null)}
-                  className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                  className="p-2.5 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface border border-outline-variant/10 transition-all flex items-center justify-center shrink-0 shadow-sm active:scale-95"
                 >
-                  <ArrowLeft className="w-5 h-5" />
+                  <ArrowLeft className="w-5 h-5 text-primary" />
                 </button>
                 <div className="space-y-1">
                   <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight truncate whitespace-nowrap">
@@ -11839,24 +11817,20 @@ const SettingsView = ({
         );
       case "notifications":
         return (
-          <div 
-            className="space-y-4"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-          >
+          <div className="space-y-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setActiveType(null)}
-                className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                className="p-2.5 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface border border-outline-variant/10 transition-all flex items-center justify-center shrink-0 shadow-sm active:scale-95"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-5 h-5 text-primary" />
               </button>
               <div className="space-y-1">
-                <h3 className="text-xl font-display font-black text-on-surface tracking-tight">
+                <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight">
                   Notificaciones
                 </h3>
-                <p className="text-[10px] text-on-surface-variant/60 font-medium">
-                  Gestiona tus preferencias.
+                <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
+                  Configura tus preferencias de avisos.
                 </p>
               </div>
             </div>
@@ -11949,42 +11923,38 @@ const SettingsView = ({
 
       case "general":
         return (
-          <div 
-            className="space-y-6"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-          >
+          <div className="space-y-6">
             {!generalTab ? (
               <>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setActiveType(null)}
-                    className="lg:hidden p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant"
+                    className="p-2.5 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface border border-outline-variant/10 transition-all flex items-center justify-center shrink-0 shadow-sm active:scale-95"
                   >
-                    <ArrowLeft className="w-5 h-5" />
+                    <ArrowLeft className="w-5 h-5 text-primary" />
                   </button>
                   <div className="space-y-1">
-                    <h3 className="text-2xl font-display font-black text-on-surface tracking-tight">
+                    <h3 className="text-xl lg:text-3xl font-display font-black text-on-surface tracking-tight">
                       Área Personal
                     </h3>
-                    <p className="text-sm text-on-surface-variant/60">
+                    <p className="text-[10px] lg:text-sm text-on-surface-variant/40">
                       Gestiona tu documentación y datos profesionales.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="grid grid-cols-1 gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
                   {[
                     {
                       id: "personal",
                       label: "Personal",
-                      description: "Datos DNI",
+                      description: "Datos DNI, teléfono y dirección",
                       icon: User,
                     },
                     {
                       id: "professional",
                       label: "Profesional",
-                      description: "Facturación",
+                      description: "Datos fiscales y facturación profesional",
                       icon: Briefcase,
                     },
                     ...(isProPlansEnabled
@@ -11992,55 +11962,56 @@ const SettingsView = ({
                           {
                             id: "plan-pro",
                             label: "Plan Pro",
-                            description: "Planes de pago",
+                            description: "Planes de suscripción y pagos",
                             icon: Crown,
                           },
                         ]
                       : []),
                     {
                       id: "availability",
-                      label: "Zona/Mapa",
-                      description: "Cobertura",
+                      label: "Zona y Cobertura",
+                      description: "Área de servicio y mapa",
                       icon: Clock,
                     },
                     {
                       id: "verification",
                       label: "ID Shield",
-                      description: "IA Verif.",
+                      description: "Verificación de identidad con IA",
                       icon: ShieldCheck,
                     },
                   ].map((item) => (
                     <button
                       key={item.id}
                       onClick={() => setGeneralTab(item.id as any)}
-                      className="w-full group p-4 bg-transparent hover:bg-surface-container-low rounded-2xl border border-outline-variant/10 hover:border-primary/20 transition-all text-left flex items-center justify-between h-auto relative overflow-hidden shadow-none"
+                      className="flex items-center gap-4 p-4 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group text-left shadow-sm active:scale-[0.99]"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                          <item.icon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-display font-black text-on-surface tracking-tight text-sm leading-tight">
-                            {item.label}
-                          </p>
-                          <p className="text-[9px] text-on-surface-variant/40 font-bold uppercase tracking-widest mt-0.5">
-                            {item.description}
-                          </p>
-                        </div>
+                      <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center text-primary transition-colors shrink-0">
+                        <item.icon className="w-5 h-5" />
                       </div>
-                      <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary transition-colors" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black uppercase tracking-widest text-[10px]">
+                          {item.label}
+                        </p>
+                        <p className="text-[9px] text-on-surface-variant/40 font-bold truncate mt-0.5">
+                          {item.description}
+                        </p>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-white/50 flex items-center justify-center text-on-surface-variant/20 group-hover:text-primary transition-all">
+                        <ChevronRight className="w-4 h-4" />
+                      </div>
                     </button>
                   ))}
                 </div>
               </>
             ) : (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-2 lg:pt-16 pb-4 lg:pb-0">
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 relative pt-2 lg:pt-4 pb-24">
                 {/* Back Button */}
                 <button
                   onClick={() => setGeneralTab(null)}
-                  className="flex items-center gap-2 mb-4 p-2 hover:bg-surface-container-low rounded-xl text-on-surface-variant text-xs font-bold transition-all"
+                  className="inline-flex items-center gap-2 mb-2 px-4 py-2.5 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface text-xs font-bold transition-all border border-outline-variant/10 shadow-sm active:scale-95"
                 >
-                  <ArrowLeft className="w-5 h-5" /> Volver a Área Personal
+                  <ArrowLeft className="w-4 h-4 text-primary" />
+                  <span>Volver a Área Personal</span>
                 </button>
                 {user && generalTab === "personal" && (
                   <div className="space-y-3 lg:space-y-4 w-full">
@@ -13721,43 +13692,42 @@ const SettingsView = ({
   };
 
   return (
-    <div className="w-full h-full bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative overflow-hidden flex flex-col">
-
-        {/* Content */}
-        <div className="flex-1 lg:p-16 p-0 overflow-y-auto no-scrollbar relative bg-transparent pb-24 lg:pb-16">
-          <div className="lg:hidden h-px w-full bg-outline-variant/10" />
-          <AnimatePresence>
-            {showSaveToast && (
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="fixed lg:absolute top-20 lg:top-10 left-1/2 -translate-x-1/2 flex items-center gap-3 px-6 lg:px-8 py-3 lg:py-4 bg-[#005a54] text-white rounded-full font-black uppercase tracking-widest text-[9px] lg:text-[10px] shadow-2xl z-[110] border border-white/20 whitespace-nowrap"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Guardado con éxito
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-              key={activeType || "menu"}
-              initial={{ opacity: 0, y: 10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.98 }}
-              transition={{
-                type: "spring",
-                stiffness: 400,
-                damping: 30,
-                opacity: { duration: 0.2 },
-              }}
-              className="h-full p-4 lg:p-0 pb-4 lg:pb-0"
+    <div className="w-full min-h-full bg-white lg:bg-surface-container-lowest lg:rounded-[3.5rem] relative flex flex-col">
+      {/* Content */}
+      <div className="flex-1 lg:p-12 p-2 sm:p-4 relative bg-transparent pb-32">
+        <div className="lg:hidden h-px w-full bg-outline-variant/10 mb-2" />
+        <AnimatePresence>
+          {showSaveToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed lg:absolute top-20 lg:top-10 left-1/2 -translate-x-1/2 flex items-center gap-3 px-6 lg:px-8 py-3 lg:py-4 bg-[#005a54] text-white rounded-full font-black uppercase tracking-widest text-[9px] lg:text-[10px] shadow-2xl z-[110] border border-white/20 whitespace-nowrap"
             >
-              {renderContent()}
+              <CheckCircle2 className="w-4 h-4" />
+              Guardado con éxito
             </motion.div>
-          </AnimatePresence>
-        </div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeType || "menu"}
+            initial={{ opacity: 0, y: 10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            transition={{
+              type: "spring",
+              stiffness: 400,
+              damping: 30,
+              opacity: { duration: 0.2 },
+            }}
+            className="w-full p-2 lg:p-0 pb-4 lg:pb-0"
+          >
+            {renderContent()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
@@ -13982,16 +13952,7 @@ const Navbar = ({
   useEffect(() => {
     setActiveDropdown(null);
     clearDropdownTimeout();
-    setIsMenuOpen(false);
   }, [location.pathname]);
-
-  useEffect(() => {
-    if (isMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-  }, [isMenuOpen]);
 
   return (
     <>
@@ -19066,6 +19027,312 @@ const DashboardSidebar = ({
   );
 };
 
+const TuHubPage = ({
+  user,
+  setUser,
+  favorites = [],
+  unreadMessagesCount = 0,
+  onOpenCalendarModal,
+  onOpenLanguageModal,
+  onOpenInfoModal,
+}: {
+  user: UserProfile | null;
+  setUser: (u: UserProfile | null) => void;
+  favorites: string[];
+  unreadMessagesCount: number;
+  onOpenCalendarModal: () => void;
+  onOpenLanguageModal: () => void;
+  onOpenInfoModal: () => void;
+}) => {
+  return (
+    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-4xl mx-auto w-full pb-32">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-display font-black text-on-surface tracking-tight mb-1">
+            Tú
+          </h1>
+          <p className="text-xs sm:text-sm text-on-surface-variant/60 font-medium">
+            Gestiona tu cuenta, actividad y servicios en GigeJob.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {/* Profile Card */}
+        {user ? (
+          <div className="bg-surface-container-low rounded-[2rem] p-5 sm:p-6 flex items-center gap-4 sm:gap-6 border border-outline-variant/10 shadow-sm">
+            {user.photoUrl ? (
+              <img
+                src={user.photoUrl}
+                alt={user.username || "Usuario"}
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <img
+                src="/default-avatar.svg"
+                alt="Avatar"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-white shadow-sm shrink-0"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-display font-black text-on-surface truncate text-lg sm:text-xl">
+                {user.username || user.firstName || "Usuario"}
+              </div>
+              <div className="text-[10px] sm:text-xs text-on-surface-variant/50 uppercase tracking-widest font-bold truncate">
+                {user.email}
+              </div>
+              <Link
+                to="/perfil"
+                className="inline-flex items-center gap-1 mt-2 text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
+              >
+                <span>Ver perfil público</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-surface-container-low rounded-[2rem] p-6 border border-outline-variant/10 shadow-sm space-y-4">
+            <div>
+              <h3 className="font-display font-black text-on-surface text-lg">
+                Bienvenido a GigeJob
+              </h3>
+              <p className="text-xs text-on-surface-variant/60 mt-1">
+                Inicia sesión o crea una cuenta para acceder a tu perfil y todas tus funciones.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <Link
+                to="/login"
+                className="flex items-center justify-center gap-3 px-6 py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-md shadow-primary/20 transition-all active:scale-95"
+              >
+                <User className="w-4 h-4" />
+                Iniciar Sesión
+              </Link>
+              <Link
+                to="/registro"
+                className="flex items-center justify-center gap-3 px-6 py-4 bg-white rounded-2xl text-on-surface font-black text-xs uppercase tracking-widest border border-outline-variant/10 shadow-sm transition-all active:scale-95"
+              >
+                <PlusCircle className="w-4 h-4 text-primary" />
+                Crear Cuenta
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Section: Tu Gestión */}
+        <div className="space-y-3">
+          <div className="text-[10px] font-black text-on-surface-variant/40 uppercase tracking-[0.25em] px-2 flex items-center gap-4">
+            <span>Tu Gestión</span>
+            <div className="h-[1px] flex-1 bg-outline-variant/10"></div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Link
+              to="/favoritos"
+              className="flex items-center gap-4 p-4 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center relative shrink-0 transition-colors">
+                <Heart className="w-5 h-5 text-primary" />
+                {favorites.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Favoritos
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Tus anuncios guardados
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </Link>
+
+            <Link
+              to="/mensajes"
+              className="flex items-center gap-4 p-4 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center relative shrink-0 transition-colors">
+                <MessageSquare className="w-5 h-5 text-primary" />
+                {unreadMessagesCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Mensajes
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Chat y conversaciones
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </Link>
+
+            <button
+              onClick={onOpenCalendarModal}
+              className="flex items-center gap-4 p-4 w-full bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group text-left shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-colors">
+                <Calendar className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Calendario
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Planificación de trabajo
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </button>
+
+            <Link
+              to="/mis-anuncios"
+              className="flex items-center gap-4 p-4 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-colors">
+                <Briefcase className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Mis Anuncios
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Gestionar tus publicaciones
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </Link>
+
+            <Link
+              to="/monederos"
+              className="flex items-center gap-4 p-4 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-colors">
+                <Wallet className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Monedero
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Pagos y saldo
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </Link>
+
+            <Link
+              to="/estadisticas"
+              className="flex items-center gap-4 p-4 bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-colors">
+                <BarChart3 className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Estadísticas
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Rendimiento y visitas
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </Link>
+
+            <button
+              onClick={onOpenLanguageModal}
+              className="flex items-center gap-4 p-4 w-full bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group text-left shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-colors">
+                <Globe className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Idioma
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Cambiar el idioma de la app
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </button>
+
+            <button
+              onClick={onOpenInfoModal}
+              className="flex items-center gap-4 p-4 w-full bg-surface-container-low hover:bg-white rounded-2xl text-on-surface transition-all border border-outline-variant/10 hover:border-primary/20 group text-left shadow-sm active:scale-[0.99]"
+            >
+              <div className="w-10 h-10 bg-white group-hover:bg-primary/10 rounded-xl shadow-inner flex items-center justify-center shrink-0 transition-colors">
+                <Info className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black uppercase tracking-widest text-[10px]">
+                  Información
+                </p>
+                <p className="text-[9px] text-on-surface-variant/40 font-bold truncate">
+                  Más sobre nosotros, legal y enlaces
+                </p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-on-surface-variant/20 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+            </button>
+          </div>
+
+          {/* Configuración de cuenta direct card */}
+          {user && (
+            <div className="pt-2">
+              <Link
+                to="/configuracion"
+                className="flex items-center gap-4 p-4 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20 group transition-all active:scale-[0.99]"
+              >
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+                  <Settings className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black uppercase tracking-widest text-[10px] text-white">
+                    Configuración de cuenta
+                  </p>
+                  <p className="text-[9px] text-white/80 font-bold truncate">
+                    Preferencias personales, facturación y seguridad
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-white/70 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+              </Link>
+
+              <button
+                onClick={async () => {
+                  try {
+                    await auth.signOut();
+                    setUser(null);
+                  } catch (e) {
+                    console.error("Error signing out:", e);
+                  }
+                }}
+                className="flex items-center gap-4 p-4 w-full bg-red-50 hover:bg-red-100 rounded-2xl text-red-600 transition-all border border-red-200/40 group text-left mt-3 shadow-sm active:scale-[0.99]"
+              >
+                <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center shrink-0">
+                  <LogOut className="w-5 h-5 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black uppercase tracking-widest text-[10px]">
+                    Cerrar Sesión
+                  </p>
+                  <p className="text-[9px] text-red-400 font-bold truncate">
+                    Salir de tu cuenta
+                  </p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-red-300 group-hover:text-red-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DashboardLayout = ({
   children,
   onOpenSettings,
@@ -19081,7 +19348,10 @@ const DashboardLayout = ({
         onOpenSettings={onOpenSettings}
         unreadMessagesCount={unreadMessagesCount}
       />
-      <main className="flex-1 h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-0">
+      <main
+        className="flex-1 w-full h-full overflow-y-auto overflow-x-hidden relative bg-surface-container-low/20 no-scrollbar pb-24 lg:pb-0"
+        style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y", overscrollBehaviorY: "contain" }}
+      >
         {children}
       </main>
     </div>
@@ -27880,7 +28150,7 @@ function App() {
         if (l.id === id) {
           return {
             ...l,
-            status: "active",
+            status: "active" as const,
             reactivatedAt: creationDate.toISOString(),
             expiresAt: expirationDate.toISOString(),
           };
@@ -27894,7 +28164,7 @@ function App() {
     });
     setActiveToast({
       message: `Anuncio reactivado por ${activeDays} días.`,
-      type: "success",
+      type: "message",
     });
   };
 
@@ -27932,7 +28202,7 @@ function App() {
 
     setListings((prev) => {
       const next = prev.map((l) =>
-        l.id === id ? { ...l, status: "owner_deleted" } : l
+        l.id === id ? { ...l, status: "owner_deleted" as const } : l
       );
       try {
         localStorage.setItem("app_listings_cache", JSON.stringify(next));
@@ -28012,6 +28282,7 @@ function App() {
   };
 
   const isDashboard =
+    location.pathname.startsWith("/tu") ||
     location.pathname.startsWith("/mensajes") ||
     location.pathname.startsWith("/mis-anuncios") ||
     location.pathname.startsWith("/favoritos") ||
@@ -28187,8 +28458,12 @@ function App() {
         />
         <main
           id="main-scroll-container"
+          style={{ WebkitOverflowScrolling: "touch" }}
           className={cn(
-            "flex flex-col flex-1 overflow-y-auto overflow-x-hidden relative scroll-smooth",
+            "flex flex-col flex-1 overflow-x-hidden relative",
+            isDashboard
+              ? "overflow-hidden"
+              : "overflow-y-auto overscroll-y-contain",
             isDashboard
               ? location.pathname.startsWith("/mensajes")
                 ? "pt-[env(safe-area-inset-top)] md:pt-16 pb-16 lg:pb-0"
@@ -28206,23 +28481,8 @@ function App() {
                 (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
             );
             return (
-              <div className="flex-1 shrink-0 flex flex-col">
-                <PullToRefresh
-                  onRefresh={async () => {
-                    window.location.reload();
-                  }}
-                  pullingContent={
-                    <div className="flex justify-center items-center py-4">
-                      <CustomLoader className="w-8 h-8" />
-                    </div>
-                  }
-                  refreshingContent={
-                    <div className="flex justify-center items-center py-4">
-                      <CustomLoader className="w-8 h-8" />
-                    </div>
-                  }
-                >
-                  <Routes>
+              <div className="flex-1 shrink-0 flex flex-col min-h-0">
+                <Routes>
                 <Route
                   path="/pagina/:slug"
                   element={
@@ -28359,8 +28619,19 @@ function App() {
                 <Route
                   path="/tu"
                   element={
-                    <DashboardLayout unreadMessagesCount={unreadMessagesCount} onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ''}`)}>
-                      <SettingsView user={user} setUser={setUser} />
+                    <DashboardLayout
+                      unreadMessagesCount={unreadMessagesCount}
+                      onOpenSettings={(type) => navigate(`/configuracion${type ? `/${type}` : ""}`)}
+                    >
+                      <TuHubPage
+                        user={user}
+                        setUser={setUser}
+                        favorites={favorites}
+                        unreadMessagesCount={unreadMessagesCount}
+                        onOpenCalendarModal={() => setIsCalendarModalOpen(true)}
+                        onOpenLanguageModal={() => document.dispatchEvent(new Event("openLanguageModal"))}
+                        onOpenInfoModal={() => document.dispatchEvent(new Event("openInfoModal"))}
+                      />
                     </DashboardLayout>
                   }
                 />
@@ -28575,9 +28846,8 @@ function App() {
                 <Route path="*" element={<NotFoundPage />} />
 
               </Routes>
-            </PullToRefresh>
-              </div>
-            );
+            </div>
+          );
           })()}
 
           {/* Footer - Hidden on Dashboard, Publish page, and on Mobile/Tablet web view (hidden lg:block) */}
@@ -28749,264 +29019,6 @@ function App() {
             </footer>
           )}
         </main>
-        <AnimatePresence>
-          {isMenuOpen && (
-            <motion.div
-              key="mobile-menu-dropdown"
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="fixed top-0 left-0 right-0 bottom-16 z-[50] bg-white flex flex-col shadow-2xl overflow-hidden"
-            >
-              <div className="overflow-y-auto no-scrollbar px-6 py-8 space-y-8 pb-12 flex-1 pt-6">
-                {/* General Navigation */}
-                <div className="space-y-4">
-                  <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
-                    <span>Descubrir</span>
-                    <div className="h-[1px] flex-1 bg-outline-variant/10"></div>
-                  </div>
-                </div>
-
-                {/* Profile Section for logged in users */}
-                {user && (
-                  <div className="bg-surface-container-low rounded-[2rem] p-6 flex items-center gap-4 border border-outline-variant/10">
-                    {user.photoUrl ? (
-                      <img
-                        src={user.photoUrl}
-                        alt={user.username}
-                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <img src="/default-avatar.svg" alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-display font-black text-on-surface truncate">
-                        {user.username || user.firstName}
-                      </div>
-                      <div className="text-[10px] text-on-surface-variant/40 uppercase tracking-widest font-bold truncate">
-                        {user.email}
-                      </div>
-                      <Link
-                        to="/perfil"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="inline-block mt-2 text-[9px] font-black uppercase tracking-widest text-primary hover:underline"
-                      >
-                        Ver perfil público
-                      </Link>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-6">
-                  <div className="text-[10px] font-black text-on-surface-variant/30 uppercase tracking-[0.3em] px-2 flex items-center gap-4">
-                    <span>Tu Gestión</span>
-                    <div className="h-[1px] flex-1 bg-outline-variant/10"></div>
-                  </div>
-                  {user ? (
-                    <div className="grid grid-cols-1 gap-3">
-                      <div className="flex flex-col gap-3">
-                        <Link
-                          to="/favoritos"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center relative">
-                            <Heart className="w-5 h-5 text-primary" />
-                            {favorites.length > 0 && (
-                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Favoritos
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Tus anuncios guardados
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-                        <Link
-                          to="/mensajes"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group relative"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center relative">
-                            <MessageSquare className="w-5 h-5 text-primary" />
-                            {unreadMessagesCount !== undefined &&
-                              unreadMessagesCount > 0 && (
-                                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white animate-pulse"></span>
-                              )}
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Mensajes
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Chat y conversaciones
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-                        <button
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            setIsCalendarModalOpen(true);
-                          }}
-                          className="flex items-center gap-4 p-4 w-full bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group relative text-left"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                            <Calendar className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Calendario
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Planificación de trabajo
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </button>
-
-                        <Link
-                          to="/mis-anuncios"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                            <Briefcase className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Mis Anuncios
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Gestionar tus publicaciones
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-                        <Link
-                          to="/monederos"
-                          onClick={() => setIsMenuOpen(false)}
-                          className="flex items-center gap-4 p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group"
-                        >
-                          <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                            <Wallet className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-black uppercase tracking-widest text-[10px]">
-                              Monedero
-                            </p>
-                            <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                              Pagos y saldo
-                            </p>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </Link>
-
-
-
-                        <button
-                          onClick={() => {
-                            document.dispatchEvent(
-                              new Event("openLanguageModal"),
-                            );
-                            setIsMenuOpen(false);
-                          }}
-                          className="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group mt-2"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                              <Globe className="w-5 h-5 text-primary" />
-                            </div>
-                            <div className="flex-1 text-left">
-                              <p className="font-black uppercase tracking-widest text-[10px]">
-                                Idioma
-                              </p>
-                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                                Cambiar el idioma de la app
-                              </p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            document.dispatchEvent(
-                              new Event("openInfoModal"),
-                            );
-                            setIsMenuOpen(false);
-                          }}
-                          className="w-full flex items-center justify-between p-4 bg-surface-container-low rounded-2xl text-on-surface hover:bg-primary/5 hover:text-primary transition-all border border-outline-variant/10 group mt-2"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-white rounded-xl shadow-inner flex items-center justify-center">
-                              <Info className="w-5 h-5 text-primary" />
-                            </div>
-                            <div className="flex-1 text-left">
-                              <p className="font-black uppercase tracking-widest text-[10px]">
-                                Información
-                              </p>
-                              <p className="text-[9px] text-on-surface-variant/40 font-bold">
-                                Más sobre nosotros, legal y enlaces
-                              </p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-on-surface-variant/20" />
-                        </button>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          navigate("/configuracion");
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full flex items-center justify-between px-6 py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 mt-4"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Settings className="w-4 h-4" />
-                          <span>Configuración de cuenta</span>
-                        </div>
-                        <ChevronRight className="w-3 h-3 opacity-50" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3">
-                      <Link
-                        to="/login"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="flex items-center justify-center gap-4 px-6 py-5 bg-primary text-white rounded-3xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
-                      >
-                        <User className="w-5 h-5" />
-                        Iniciar Sesión
-                      </Link>
-                      <Link
-                        to="/registro"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="flex items-center justify-center gap-4 px-6 py-5 bg-surface-container-low rounded-3xl text-on-surface font-black text-xs uppercase tracking-widest border border-outline-variant/10 transition-all"
-                      >
-                        <PlusCircle className="w-5 h-5 text-primary" />
-                        Crear Cuenta
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Modals */}
-        <AnimatePresence></AnimatePresence>
-
         {/* Mobile Bottom Navigation - Visible on mobile viewports (lg:hidden) */}
         {isKeyboardVisible || (location.pathname.includes("/mensajes") && searchParams.has("chatId")) ? null : (
           <div id="mobile-bottom-nav" className="mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-outline-variant/30 flex items-center justify-around px-2 z-[40] pb-safe shadow-[0_-4px_12px_rgba(0,0,0,0.03)] shrink-0 touch-action-manipulation select-none">
@@ -29028,10 +29040,8 @@ function App() {
               {
                 label: "Tú",
                 icon: User,
-                onClick: () => {
-                  setIsMenuOpen(!isMenuOpen);
-                },
-                isActive: isMenuOpen || location.pathname === "/tu",
+                path: "/tu",
+                isActive: location.pathname === "/tu" || location.pathname.startsWith("/configuracion"),
               },
             ].map((item) => {
               const content = (
@@ -29090,7 +29100,7 @@ function App() {
               return (
                 <button
                   key={item.label}
-                  onClick={item.onClick}
+                  onClick={(item as any).onClick}
                   className="touch-action-manipulation py-1 px-1 flex flex-col items-center justify-center min-w-[56px] min-h-[48px]"
                 >
                   {content}

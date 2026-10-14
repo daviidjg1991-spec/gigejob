@@ -43,18 +43,21 @@
 
 @layer base {
   html, body, #root {
-    overscroll-behavior-y: none;
-    overscroll-behavior-x: none;
     height: 100%;
     width: 100%;
     margin: 0;
     padding: 0;
-    touch-action: manipulation;
+    -webkit-overflow-scrolling: touch;
     -webkit-tap-highlight-color: transparent;
+    touch-action: pan-y pan-x;
+    overscroll-behavior-y: auto;
+    overscroll-behavior-x: none;
   }
   
   body {
     @apply font-sans text-on-surface bg-surface antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   
   button, a, input, select, textarea, label, [role="button"] {
@@ -65,6 +68,22 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight;
   }
+}
+
+/* Fluid, subtle momentum scrolling physics for iOS WKWebView and Android WebView */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+.overflow-y-auto,
+.overflow-y-scroll,
+.overflow-x-auto,
+.overflow-auto,
+[data-scrollable],
+#main-scroll-container {
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
 }
 
 @layer components {

@@ -226,6 +226,7 @@ export interface JobListing {
   headerImage?: string;
   images?: string[];
   createdAt: string;
+  updatedAt?: string;
   publishedAt?: string;
   reactivatedAt?: string;
   expiresAt?: string;

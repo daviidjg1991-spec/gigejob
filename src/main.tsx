@@ -29,18 +29,28 @@ if (typeof Node === 'function' && Node.prototype) {
   };
 }
 
-class ErrorBoundary extends React.Component<any, {hasError: boolean, error: any}> {
-  constructor(props: any) {
+interface ErrorBoundaryProps {
+  children?: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: any;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  override state: ErrorBoundaryState = { hasError: false, error: null };
+
+  constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
   }
-  static getDerivedStateFromError(error: any) {
+  static getDerivedStateFromError(error: any): ErrorBoundaryState {
     return { hasError: true, error };
   }
-  componentDidCatch(error: any, errorInfo: any) {
+  override componentDidCatch(error: any, errorInfo: any) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
   }
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <div style={{ padding: '20px', background: 'white', color: 'red', zIndex: 99999, position: 'fixed', inset: 0, overflow: 'auto' }}>

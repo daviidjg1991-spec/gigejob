@@ -143,7 +143,7 @@ export const PlanCheckoutModal: React.FC<PlanCheckoutModalProps> = ({
         const updatedUser: UserProfile = {
           ...user,
           professionalInfo: {
-            ...(user.professionalInfo || { billing: {}, availability: [], workLocation: "" }),
+            ...(user.professionalInfo || { billing: {} as any, availability: [], workLocation: "", workRadius: 10 }),
             plan: plan.id,
             planStartDate: now.toISOString().split("T")[0],
             planEndDate: endDate.toISOString().split("T")[0],
