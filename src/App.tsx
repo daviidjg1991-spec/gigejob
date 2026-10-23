@@ -28481,7 +28481,7 @@ function App() {
                 (isSearchProfessionalsEnabled === false ? l.type !== "search" : true),
             );
             return (
-              <div className="flex-1 shrink-0 flex flex-col min-h-0">
+              <div className="flex-1 shrink-0 flex flex-col w-full">
                 <Routes>
                 <Route
                   path="/pagina/:slug"
@@ -28852,7 +28852,7 @@ function App() {
 
           {/* Footer - Hidden on Dashboard, Publish page, and on Mobile/Tablet web view (hidden lg:block) */}
           {!isDashboard && !location.pathname.startsWith("/publicar") && (
-            <footer className="hidden lg:block bg-surface-container-lowest py-16 border-t border-outline-variant shrink-0 mt-auto relative z-10">
+            <footer className="hidden lg:block w-full bg-surface-container-lowest py-16 border-t border-outline-variant shrink-0 mt-auto relative z-10">
               <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row gap-12 lg:gap-24">
                 <div className="flex flex-col gap-4 md:w-1/4">
                   <Link to="/" className="flex items-center gap-3">
